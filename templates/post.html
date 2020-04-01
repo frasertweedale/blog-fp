@@ -1,8 +1,13 @@
 <div class="info">
-    Posted on $date$
-    $if(author)$
-        by $author$
+    $if(tags)$
+    Tags: $tags$
     $endif$
 </div>
 
-$body$
+<div id="postContent">
+    $body$
+</div>
+<div id="postFooter">
+    $partial("templates/recent.html")$
+    $partial("templates/license.html")$
+</div>
