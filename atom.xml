@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <title>pureblog</title>
+    <link href="https://frasertweedale.github.io/blog-fp/atom.xml" rel="self" />
+    <link href="https://frasertweedale.github.io/blog-fp" />
+    <id>https://frasertweedale.github.io/blog-fp/atom.xml</id>
+    <author>
+        <name>Fraser Tweedale</name>
+        <email>frase@frase.id.au</email>
+    </author>
+    <updated>2020-03-31T00:00:00Z</updated>
+    <entry>
+    <title>Migrating from QuickCheck to Hedgehog: mixed results</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2020-03-31-quickcheck-hedgehog.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2020-03-31-quickcheck-hedgehog.html</id>
+    <published>2020-03-31T00:00:00Z</published>
+    <updated>2020-03-31T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="migrating-from-quickcheck-to-hedgehog-mixed-results">Migrating from QuickCheck to Hedgehog: mixed results</h1>
+<p>I’ve known about <a href="https://hackage.haskell.org/package/hedgehog">Hedgehog</a> from its early days. Having used QuickCheck before Hedgehog arrived, I am familiar with QuickCheck’s pain points, in particular the lack of automatic shrinking and the frustrations of its type class-driven approach. Hedgehog was designed to—and does—solve these problems.</p>
+<p>Yet, being already a user of QuickCheck in most of my Haskell projects, I did not feel a need to make the switch. “Some day, but not today”. And finally, the day has come. In this post I will explain the catalyst and the results of the switch including a surprising and (for me) detrimental behavioural difference between QuickCheck and Hedgehog.</p>
+<h2 id="background">Background</h2>
+<p><a href="https://hackage.haskell.org/package/purebred-email"><em>purebred-email</em></a> is a comprehensive mail processing library. It has plenty of tests, example and property-based, including serialiser/parser round-trip tests. Email has a 7-bit (ASCII) wire format; there are various mechanisms for including 8-bit data in messages. For including 8-bit data in header values, <a href="https://tools.ietf.org/html/rfc2047">RFC 2047</a> defines the <code>encoded-word</code> mechanism. Serialised Unicode data in the <code>To</code> and <code>From</code> headers can look something like this:</p>
+<pre><code>MIME-Version: 1.0
+From: =?utf-8?B?0JDQu9C40YHQsA==?= &lt;alice@example.com&gt;
+To: =?utf-8?Q?Riob=C3=A1rd_Baker?= &lt;bob@example.net&gt;
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline
+Content-Type: text/plain; charset=us-ascii
+
+Hello, Bob!</code></pre>
+<p>Recently someone filed an <a href="https://github.com/purebred-mua/purebred-email/issues/50">issue</a> that <em>purebred-email</em> was not encoding the display name part of email addresses properly. It was indeed the case that raw UTF-8 data was appearing in the rendered message. Alongside a candidate fix I took the opportunity to add a round-trip QuickCheck property that would test serialisation and re-parsing of an email address with arbitrary mailboxes in the <code>From</code> header. The display name part of the mailbox could include Unicode characters. The property, and some related generators, were defined as follows:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a>prop_messageRoundTrip <span class="ot">=</span> forAll genMailbox <span class="op">$</span> \mailbox <span class="ot">-&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3"></a>  <span class="kw">let</span></span>
+<span id="cb2-4"><a href="#cb2-4"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
+<span id="cb2-5"><a href="#cb2-5"></a>    msg <span class="ot">=</span> set l [mailbox] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
+<span id="cb2-6"><a href="#cb2-6"></a>  <span class="kw">in</span></span>
+<span id="cb2-7"><a href="#cb2-7"></a>    (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
+<span id="cb2-8"><a href="#cb2-8"></a>    <span class="op">==</span> <span class="dt">Right</span> [mailbox]</span>
+<span id="cb2-9"><a href="#cb2-9"></a></span>
+<span id="cb2-10"><a href="#cb2-10"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
+<span id="cb2-11"><a href="#cb2-11"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb2-12"><a href="#cb2-12"></a></span>
+<span id="cb2-13"><a href="#cb2-13"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
+<span id="cb2-14"><a href="#cb2-14"></a>genDotAtom <span class="ot">=</span> fromList <span class="op">&lt;$&gt;</span> listOf1 fragment</span>
+<span id="cb2-15"><a href="#cb2-15"></a>  <span class="kw">where</span></span>
+<span id="cb2-16"><a href="#cb2-16"></a>  fragment <span class="ot">=</span> B.pack <span class="op">&lt;$&gt;</span> listOf1 atext</span>
+<span id="cb2-17"><a href="#cb2-17"></a>  atext <span class="ot">=</span> arbitrary <span class="ot">`suchThat`</span> isAtext</span>
+<span id="cb2-18"><a href="#cb2-18"></a></span>
+<span id="cb2-19"><a href="#cb2-19"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
+<span id="cb2-20"><a href="#cb2-20"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb2-21"><a href="#cb2-21"></a></span>
+<span id="cb2-22"><a href="#cb2-22"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
+<span id="cb2-23"><a href="#cb2-23"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
+<span id="cb2-24"><a href="#cb2-24"></a></span>
+<span id="cb2-25"><a href="#cb2-25"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb2-26"><a href="#cb2-26"></a>genMailbox <span class="ot">=</span> <span class="dt">Mailbox</span> <span class="op">&lt;$&gt;</span> arbitrary <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<p>Note that I explicitly define and directly use the generators. Defining <code>Arbitrary</code> instances for these types was too restrictive. I also felt it would be difficult to implement accurate and useful shrinking heuristics for these domain objects.</p>
+<p>And this is where the fun began.</p>
+<h2 id="from-quickcheck-to-hedgehog">From QuickCheck to Hedgehog</h2>
+<p>By default, QuickCheck checks properties 100 times with random inputs. I had a hunch that for this property, 100 was not enough, so I overrode the default to check <code>prop_messageRoundTrip</code> 10,000 times. And hey, what do you know, QuickCheck found a bug:</p>
+<pre><code>    message round trip with From header:        FAIL (3.89s)
+      *** Failed! Falsified (after 1090 tests):
+      Mailbox (Just &quot;\r\n\617309\990252F\SO{\36170\EOTE\rjxHg\NUL\375521\40710\878394\812276%\273790\USU2
+\NAK\DC1\FS=K#\SO\SYNAIA\37830\617194jP\201749\1025883cV3\98741\RS\\=\r5H&#39;^o\109453\925605\247522&lt;\775764
+\1029678I%\\.{e\1108491R9MT\942184KJ\EOTj\1080860\SOwB\162509\ENQ&quot;) (AddrSpec &quot;Ad+j3dRo21+%_fQ|_^1SnUQhwq
+p7z2zimd}{|KaGI#F^4kIk9jO.%C6SUZ=$vNfiprz|O4j.bE1rAcfFP&amp;9/C3L.OT-QDI=De5kF$qD=4dfNa`ReRBSX`J-PB}xaYIbEoCm
+IMsE{}.tvrjkuw=6=--dX|33Y/v+~kNbhGguS.xCM7bX2+|kH=lvRY3Z#QyGUb++ZvMI66e^3/yMM`K30Lud_kGnm`4cfdKv.VGLCF#.{
+!uVXd*|KI&amp;A2oEa2awZ6oIrAUckzM9%qgz}A|1O9Sd~WdJ*plt?3$OI=WmU7B`.hlpz1&#39;|6JtBuYoCpWwsL7m+d7vX?xDOSjbr/0FOxr|
+2N?p$nQ**P*R6pj2HfubS6VW-lap33WI^.MPYiQcw3SUfKVo0eU~zX3W#xCG4fxV~sswK&amp;O2E9.0NXG_4zOJyWvv=-7`2e*jydY=sQeET
+h9=_~ypqW9D.xarK{XeP`#9gUJ2O!Jg7pb$t037mO3rjAwDKxs/VZZy}1{3NIzzuyl!cF~sCQAzS---6HtLvmEgYhWjijVH.Svl`sV#-y
+/}B8gUFK&#39;l?Bnoj^pU-MI.Vrw{WFXLbZ09GW!cdtPObmhz}?v8xzz+LR`U?cBP!zuI=iRTK}_m#9PGJNH6WZcn3u4td-8y{rj_r^DKY{q
+K*w+kK.%x.cLIek|fzQ9dJLpaVI|fJx{!-~sFO-}Q_?7F#-naFR4s7#7=Y_U-%HXhKsK1qJC.{P3*F7==MCX6sGU^q5sh9M*L0fFF9knT
+h^A6ZAXYLS$BX}/31sU|}+Q!cdj#hGFRqcjp~IoHw|JGKK}/6Y?E%+cop.*&amp;`rJM87aH!Nph&amp;6pMU-U+Z3o-7L.HAoHW#-vfadyy+AA?O
+9LI2hU5xfkGAwz/T-7$Wr=&#39;x7-&#39;+}AZ6yUGB.!&amp;nq7`ViGdFM#Er0}yJtWFRi#/zNMf!_gtBitQH{=G}PefcLcPF^%S3K6qqsl.?NqTE0
+e&amp;$%GHS.7AGCSviyx*-Bq|hA6+&#39;!#{foj!$i.7evxp3cwoST#Bbz4CmJeAyUHMqsgnbW&amp;fG08gOoBqBIuda#$q}G3e1G8f!b5w^_A}C.!
+=HPqzE1.4enC.QrCTo*~PE%`}5Q-/PPNXw|3!%^*s$YaFdvjPVegSJ4vuJAa6o{A-5pfW#-IT1}r?dw&#39;y.`SzR&amp;X#G%zFF%d%/wWS1cyZ
+f%WXox_j^qew1?4P!uBqb&amp;&amp;XxoLk*d*gOg-Uh/WG~#3Zqq`ZSw#}Cu&#39;2&amp;JK.83YmO!v0g$bNSixtQpV!-##0VHRC#flu~_`.*w^/HWm7s
+oMfEy^Sh082g3*R!vlPFCWZ7wk%J}GLxZcNut!%8p?+Y|A9}&#39;Za5-{kkGMMH|G%dRcbL|.IQDP1VzCY&#39;p&#39;h+~{`|_Aba*Fl5ccRJhWyGC
+T._4#I%7TXR0FOH0+T%u67Per++r?kePkhWExZ6co{i#oBkZ6U&amp;XHbrxV5Xy{#Dk#0|%0CgWy*{8t*+.&amp;|}?/*i/Zp{LYJgWISJNqNkKx
+nZtPo04/MTH&#39;.$R7ck6kvg2&amp;vsCwqPLo`H%E*y$7`sw~9d*#53M4%KKw|qlN1h`*P2#&amp;=6U{exw^&#39;I^|?/`=-WOip/Cn{5`h&#39;1X.l3B^N
+G?UP6lbO-%Dh7.|obTf3fH252SHx62hpeM8*Va}2Gv+5z`Pnun?EDL.Wx-EkiTsfsc05E3X`%WAtO3mgoc$TfFrX&#39;JsSa_+k$/Hw8Mou=
+hh^7B2206}PSj%~W966_-VB.4w2.khd0&#39;i^3Ie!#u%Lo0U54HctD1eJdHR2q.mZKa6b$|UT26dz$|eMg}$Qo+k`ron_nT~#32L9`P8y7.
+ft7tN{Lf}S&amp;85#|32O6IJA3jE4gCz=ZN^1&amp;Z9uDaUl|KJ3jGPHD.R~c~v!-rXY$Dx{MsJ&#39;f~gz&amp;4*UgWe|aO=8BQZF$gk_U1W_oy/TVJ2
+C9W%.Y%#hgwGxU?-g&amp;PhoG+RfflLU-ad-m-%/`m+n-c+^/8^9kj&amp;dG={0+bgkw0xrJh{PF1cKkWbN&amp;.k1jtJXaqp442SHMenuYf2&amp;R3VV
+~~{Q}.iPFaih}fhC6yP%^&#39;+AugNXl?jh*pLJb+U_0pz3+`QP3w9SS!EnH!0m`NZzbQ4%Moa.N}qMwRJnb#L{BE2d?+*-rmdL!YnV7E^EO
+tbQS~dmT5AVEOeHhz8*IchVaLl{Xvdubm0&amp;XYO6GSzH|gO%#wO~Kl{h.AZ2N#$r&amp;wKk-msV8ybJ9$LQ.*2=u+0pws3+8bdFdJJ&amp;E/%Qa=
+BmN?rl~QZfxQq~|Vz*#s_ZTs4Kp^%2{0!cJOSI9|Dk.WL%H0pRgY.Ht?h{Xz3L!A^-AIcT{=U+YNssZnaJ%%=}8Ylp6zO.3L5SNnB&amp;6G+
+b`6{e#p5565M4WDriUH4!IByU?US{TkQf5c8WP3}XirW1RJDT~-e=u!v4mj63QBaYYr6.rx*NJ8olK+Xu3Z4&amp;YI8C2?x_6`.M%6G.TX!U
+n0VOsNM8~Bss8XKA|.i9k}99EeOx%JqIXc+{u.Gu9Ns=d1}HasDj^IzFDSa5$SzeK.4hwf#a1Fcewp_PXOC-VKJuKz.8mG+Kjy4Pgxwm4
+`rv5lP%8{jEfjhsj9t$zsp4mb85J_ZyXbyFgWo2t1RT&#39;-ReGCSh.ypHp!C/3UiFGJ_/#A|YSL?{#5b~`U0Y$xVvh9taFi#&#39;NJcIy5H&#39;3D
+*I.?KJ9ngID*l2M.Cg`*~yCdu{pXYG**8slMmHXA.zgw.9v-jzj&#39;xti{E|+Pg~nT+b+w6BkJTx53|^Q6U^Ll#.COxJYvKowVc3Oy_l!6^
+2&#39;4YtmFZHYL-e1U|e2c+aAMJTFNKbeEUMfCpjEX%$$?oS}^.9F33J$_1ALwi*+MNU&amp;qvsLQ/WI^UnCd4+.Z/%xt.fMCbDzRJcZFN#=Qvi
+_C6Z|4LCf&amp;0a4iM-Dg^|&amp;YVr8wIfV0z$.1gQXg3__l2%ir-vXIQ{0pf}k!Ejx+#L|j_X6DBTit`s{2.Cx2d63gz&amp;9IdkD6klHwx_{vKCu
+D9{}Pb7GvTqL4c6sAJ&#39;H&#39;XaxJa8-3.-WAewPr0h.|SwcuIFliH5-Ro8zigOb=92^ZR%aM8B5I$wbNrU}XB4#dYYAIlBP1Cx~?Fw7BqIV_
+ri^.z_znwUBWdhYK7^JYG0$F#Bk-rc%rfy*XiazKA2OuMs.k&quot; (DomainDotAtom (&quot;Ut||VyF|OIoq`9h`6!`_nL|s+b5OLb}VM!Qe&#39;+
+1&quot; :| [&quot;UtT9C?7!stiF&amp;i&quot;,&quot;u&quot;,&quot;52IO&#39;0S9wrvodlpL`}M^N#K|6Hliu!hd`sk7t&amp;wwD0S%H#ZWcvIf+ZCn{C$4Q38NZ/{hn2GdL0/l
+ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4&#39;rMzXs&quot;])))
+      Use --quickcheck-replay=822386 to reproduce.</code></pre>
+<p>Without shrinking, the counterexample was a wall of text. It was good to know that there was a problem, but I didn’t even attempt to make any sense of it. I knew that this was the moment. It was time to unleash the Hedgehog.</p>
+<p>Switching to Hedgehog was a simple mechanical translation. The updated definitions follow.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
+<span id="cb4-2"><a href="#cb4-2"></a>prop_messageRoundTrip <span class="ot">=</span> property <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb4-3"><a href="#cb4-3"></a>  from <span class="ot">&lt;-</span> forAll genMailbox</span>
+<span id="cb4-4"><a href="#cb4-4"></a>  <span class="kw">let</span></span>
+<span id="cb4-5"><a href="#cb4-5"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
+<span id="cb4-6"><a href="#cb4-6"></a>    msg <span class="ot">=</span> set l [from] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
+<span id="cb4-7"><a href="#cb4-7"></a>  (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
+<span id="cb4-8"><a href="#cb4-8"></a>    <span class="op">===</span> <span class="dt">Right</span> [from]</span>
+<span id="cb4-9"><a href="#cb4-9"></a></span>
+<span id="cb4-10"><a href="#cb4-10"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
+<span id="cb4-11"><a href="#cb4-11"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb4-12"><a href="#cb4-12"></a></span>
+<span id="cb4-13"><a href="#cb4-13"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
+<span id="cb4-14"><a href="#cb4-14"></a>genDotAtom <span class="ot">=</span> Gen.nonEmpty (Range.linear <span class="dv">1</span> <span class="dv">5</span>) fragment</span>
+<span id="cb4-15"><a href="#cb4-15"></a>  <span class="kw">where</span></span>
+<span id="cb4-16"><a href="#cb4-16"></a>  fragment <span class="ot">=</span> Gen.utf8 (Range.linear <span class="dv">1</span> <span class="dv">20</span>) atext</span>
+<span id="cb4-17"><a href="#cb4-17"></a>  atext <span class="ot">=</span> Gen.filter isAtext Gen.ascii</span>
+<span id="cb4-18"><a href="#cb4-18"></a></span>
+<span id="cb4-19"><a href="#cb4-19"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
+<span id="cb4-20"><a href="#cb4-20"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb4-21"><a href="#cb4-21"></a></span>
+<span id="cb4-22"><a href="#cb4-22"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
+<span id="cb4-23"><a href="#cb4-23"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
+<span id="cb4-24"><a href="#cb4-24"></a></span>
+<span id="cb4-25"><a href="#cb4-25"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb4-26"><a href="#cb4-26"></a>genMailbox <span class="ot">=</span></span>
+<span id="cb4-27"><a href="#cb4-27"></a>  <span class="dt">Mailbox</span></span>
+<span id="cb4-28"><a href="#cb4-28"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>) Gen.unicode)</span>
+<span id="cb4-29"><a href="#cb4-29"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<p>As you can see there are no structural changes. Indeed, several of the definitions did not change at all (except that the name <code>Gen</code> now refers to a different type).</p>
+<p>I ran the tests again, expecting Hedgehog to find the bug and, thanks to integrated shrinking, present me with a digestable counterexample. But the tests passed. Even after 10,000 iterations it could not detect the bug:</p>
+<pre><code>message round trip with From header:             OK (4.75s)
+  ✓ message round trip with From header passed 10000 tests.</code></pre>
+<h2 id="generator-bias">Generator bias</h2>
+<p>Hedgehog’s inability to find a counterexample surprised me, and several other people in <code>#bfpg</code>. The search for answers soon led me to the source code, where all was laid bare. Hedgehog’s <code>Gen.unicode</code> has a uniform distribution over all Unicode characters:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1"></a></span>
+<span id="cb6-2"><a href="#cb6-2"></a><span class="co">-- | Generates a Unicode character, excluding noncharacters</span></span>
+<span id="cb6-3"><a href="#cb6-3"></a><span class="co">--   and invalid standalone surrogates:</span></span>
+<span id="cb6-4"><a href="#cb6-4"></a><span class="co">--   @&#39;\0&#39;..&#39;\1114111&#39; (excluding &#39;\55296&#39;..&#39;\57343&#39;,</span></span>
+<span id="cb6-5"><a href="#cb6-5"></a><span class="co">--    &#39;\65534&#39;, &#39;\65535&#39;)@</span></span>
+<span id="cb6-6"><a href="#cb6-6"></a><span class="co">--</span></span>
+<span id="cb6-7"><a href="#cb6-7"></a><span class="ot">unicode ::</span> (<span class="dt">MonadGen</span> m) <span class="ot">=&gt;</span> m <span class="dt">Char</span></span>
+<span id="cb6-8"><a href="#cb6-8"></a>unicode <span class="ot">=</span></span>
+<span id="cb6-9"><a href="#cb6-9"></a>  <span class="kw">let</span></span>
+<span id="cb6-10"><a href="#cb6-10"></a>    s1 <span class="ot">=</span></span>
+<span id="cb6-11"><a href="#cb6-11"></a>      (<span class="dv">55296</span>, enum <span class="ch">&#39;\0&#39;</span> <span class="ch">&#39;\55295&#39;</span>)</span>
+<span id="cb6-12"><a href="#cb6-12"></a>    s2 <span class="ot">=</span></span>
+<span id="cb6-13"><a href="#cb6-13"></a>      (<span class="dv">8190</span>, enum <span class="ch">&#39;\57344&#39;</span> <span class="ch">&#39;\65533&#39;</span>)</span>
+<span id="cb6-14"><a href="#cb6-14"></a>    s3 <span class="ot">=</span></span>
+<span id="cb6-15"><a href="#cb6-15"></a>      (<span class="dv">1048576</span>, enum <span class="ch">&#39;\65536&#39;</span> <span class="ch">&#39;\1114111&#39;</span>)</span>
+<span id="cb6-16"><a href="#cb6-16"></a>  <span class="kw">in</span></span>
+<span id="cb6-17"><a href="#cb6-17"></a>    frequency [s1, s2, s3]</span></code></pre></div>
+<p>Whereas QuickCheck’s <code>Char</code> generator, although it can generate any Unicode character, has a heavy bias to the ASCII codepoints (0–127):</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1"></a><span class="kw">instance</span> <span class="dt">Arbitrary</span> <span class="dt">Char</span> <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2"></a>  arbitrary <span class="ot">=</span></span>
+<span id="cb7-3"><a href="#cb7-3"></a>    frequency</span>
+<span id="cb7-4"><a href="#cb7-4"></a>      [(<span class="dv">3</span>, arbitraryASCIIChar),</span>
+<span id="cb7-5"><a href="#cb7-5"></a>       (<span class="dv">1</span>, arbitraryUnicodeChar)]</span></code></pre></div>
+<p>After discovering this difference I implemented an equivalent Hedgehog generator to use instead of <code>Gen.unicode</code>, and updated <code>genMailbox</code> to use it:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1"></a><span class="ot">unicodeCharAsciiBias ::</span> <span class="dt">Gen</span> <span class="dt">Char</span></span>
+<span id="cb8-2"><a href="#cb8-2"></a>unicodeCharAsciiBias <span class="ot">=</span></span>
+<span id="cb8-3"><a href="#cb8-3"></a>  Gen.frequency [(<span class="dv">3</span>, Gen.ascii), (<span class="dv">1</span>, Gen.unicode)]</span>
+<span id="cb8-4"><a href="#cb8-4"></a></span>
+<span id="cb8-5"><a href="#cb8-5"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb8-6"><a href="#cb8-6"></a>genMailbox <span class="ot">=</span></span>
+<span id="cb8-7"><a href="#cb8-7"></a>  <span class="dt">Mailbox</span></span>
+<span id="cb8-8"><a href="#cb8-8"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>)</span>
+<span id="cb8-9"><a href="#cb8-9"></a>                 unicodeCharAsciiBias)</span>
+<span id="cb8-10"><a href="#cb8-10"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<h2 id="shrink-to-win">Shrink to win</h2>
+<p>This time Hedgehog found the counterexample. The automatic shrinking produced a minimal counterexample and Hedgehog presented its findings:</p>
+<pre><code>message round trip with From header:                  FAIL (47.81s)
+ ✗ message round trip with From header failed at tests/Message.hs:106:3
+   after 866 tests and 69 shrinks.
+
+       ┏━━ tests/Message.hs ━━━
+   100 ┃ prop_messageRoundTrip :: Property
+   101 ┃ prop_messageRoundTrip = property $ do
+   102 ┃   from &lt;- forAll genMailbox
+       ┃   │ Mailbox (Just &quot;\r\n&quot;) (AddrSpec &quot;!&quot; (DomainDotAtom (&quot;!&quot; :| [])))
+   103 ┃   let
+   104 ┃     l = headerFrom defaultCharsets
+   105 ┃     msg = set l [from] (createTextPlainMessage &quot;Hello&quot;)
+   106 ┃   (view l &lt;$&gt; parse (message mime) (renderMessage msg)) === Right [from]
+       ┃   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       ┃   │ ━━━ Failed (- lhs) (+ rhs) ━━━
+       ┃   │   Right [
+       ┃   │       Mailbox
+       ┃   │ -       Just &quot;=?us-ascii?Q? ?=&quot;
+       ┃   │ +       Just &quot;\r\n&quot;
+       ┃   │         AddrSpec &quot;!&quot; (DomainDotAtom (&quot;!&quot; :| []))
+       ┃   │     ]</code></pre>
+<p>Isn’t the presentation—that neatly formatted diff of the data structure—just <em>gorgeous</em>?! It is easy to see the problem: <em>purebred-email</em> did not round-trip an email address correctly when then display name was (perhaps more generally, <em>contained</em>) a carriage return followed by a newline/line feed (CRLF). <code>"\r\n" !@!</code> is a pretty bonkers email address but the types and grammar do permit it so <em>purebred-email</em> must handle it correctly.</p>
+<h2 id="probabilities">Probabilities</h2>
+<p>So now we can see why QuickCheck was able to find a counterexample and Hedgehog (when using <code>Gen.unicode</code>) was not. It is a matter of probability distribution. The probability of selecting CR followed by LF from a uniform distribution of all 1112062 unicode characters is 1 in 1236681891844, whereas for the 75% ASCII distribution (noting that the other 25% for all Unicode characters <em>also</em> includes the ASCII codepoints) is 2782747776649 over 81047184463888384 or roughly 0.0000433491.</p>
+<p>Note that 0.0000433491 is a bit less than half of 1 in 10000. We expect then that if we were executing 10000 tests, the framework would find this counterexample less than half the time. But this probability is for two-character sequences. The probability of a CRLF subsequence occuring in a longer string of randomly selected characters is, intuitively, much greater. But my probability-fu is not strong enough to work all that out. As it happens, with the ASCII-biased distribution both QuickCheck and Hedgehog usually find the counterexample somewhere around the 1000th test (but sometimes much sooner).</p>
+<h2 id="shrinking-performance">Shrinking performance</h2>
+<p>Automatic shrinking is a joy. But Hedgehog’s shrinking is slow compared to QuickCheck. In the example above, it took almost a whole minute, most of which was the shrinking (compare with the earlier <code>Gen.unicode</code> example which tested the property 10,000 times in 4.7 seconds).</p>
+<p>I don’t see this has a problem: if it takes a long time to find a minimal counterexample, so be it. The tradeoff is worth it. And it is only the shrinking that is slow. If your tests are passing (and hopefully they do, most of the time) then there is no penalty.</p>
+<p>While I was discussing these things, one person shared with me that Hedgehog ate all their memory during shrinking, and crashed. So the slowness might be due to space usage (at least in part). I didn’t experience any crashes (yet) but it was prudent to share this anecdote. Your mileage may vary.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Hedgehog is great. It solves the major pain points of QuickCheck. Automated shrinking for all generators is a killer feature, but it is computationally (and/or space) expensive, and might eat all your memory and crash (I have not experienced this myself). The pretty output with a nicely formatted diff of the data structure makes it easier to comprehend the counterexamples than QuickCheck’s <code>Show</code>-based output.</p>
+<p>Converting from QuickCheck to Hedgehog is a breeze; a simple mechanical translation. But <strong>do not blindly convert</strong>. I would probably never have found this bug if I had already converted <em>purebred-email</em> to Hedgehog, because of a critical difference in the distribution of one of the generators. When you are converting, pay careful attention to the behaviour of the generators, especially if they produce character or string types.</p>
+<p>The issue I experienced comes down to a lack of documentation. Arguably QuickCheck is the bad guy in this tale: the non-uniform distribution should have been documented. But it would be good for <em>all</em> generators or <code>Arbitrary</code> instances to say something about their distribution, even if it’s just <em>“uniform distribution”</em>.</p>
+<p>I always intended to start using Hedgehog, and expected that it would be a gradual transition. At time of writing, QuickCheck and Hedgehog are happily coexisting in the <em>purebred-email</em> test suite. From now on any new test modules I write will probably use Hedgehog, and older modules will be converted any time I bump against QuickCheck’s shrinking or type class-related rough edges.</p>]]></summary>
+</entry>
+
+</feed>
