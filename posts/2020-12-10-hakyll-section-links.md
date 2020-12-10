@@ -175,7 +175,7 @@ CSS:
 ```
 
 The `is()` pseudo-class function matches anything that matches the
-selector arguments, avoid tedious repetition.  It is part of CSS
+selector arguments, avoiding tedious repetition.  It is part of CSS
 [Selectors Level 4][], which is still a draft.  Firefox and Safari
 fully support it but unfortunately other browsers are [lagging
 behind][].  So I am stuck with the tedious repetition for now:
