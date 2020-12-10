@@ -8,8 +8,99 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2020-03-31T00:00:00Z</updated>
+    <updated>2020-12-10T00:00:00Z</updated>
     <entry>
+    <title>Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html</id>
+    <published>2020-12-10T00:00:00Z</published>
+    <updated>2020-12-10T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="adding-section-links-to-hakyll-articles-with-text.pandoc.walk">Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></h1>
+<p>It is handy to be able to link to section headings in long articles. <a href="https://pandoc.org/">Pandoc</a> and <a href="https://jaspervdj.be/hakyll/">Hakyll</a> don’t do that out of the box. But they give you all the power you need to implement it yourself. In this post I’ll show you how.</p>
+<h2 id="objective">Objective <a href="#objective">§</a></h2>
+<p>The main objective is to provide links (HTML <code>&lt;a&gt;</code> element) to section headings. They should be located near or within the heading element. Having them in the document will make it easy for readers to grab a link to a specific section of the article. (I myself often want to do this!)</p>
+<p>You could make the whole heading a link, but I like the approach that reveals a link when the pointer hovers over the heading. Some sites use a pilcrow (¶), pound (#) or a link symbol (🔗) as the link text. I will use a section sign (§).</p>
+<h2 id="building-blocks">Building blocks <a href="#building-blocks">§</a></h2>
+<p>Pandoc does set the <code>id</code> attribute of HTML heading elements to a value derived from the heading text. For example, one of my previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The resulting HTML for the heading is:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span>Probabilities<span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
+<p>The value of the <code>id</code> attribute will be the <code>href</code> target of the <code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI fragment).</p>
+<p>Hakyll provides the <code>pandocCompilerWithTransform</code> function for compiling documents using Pandoc and applying an arbitrary transformation to it. It’s type is:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a>pandocCompilerWithTransform</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">ReaderOptions</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">WriterOptions</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (<span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
+<p>Note the <code>(Pandoc -&gt; Pandoc)</code> argument. This is the tranformation function. It works with the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Definition.html#t:Pandoc"><code>Pandoc</code></a> AST data type, rather than HTML or the input type (e.g. Markdown).</p>
+<p>For constructing such a transformation, Pandoc provides the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Walk.html#v:walk"><code>Text.Pandoc.Walk</code></a> module and the <code>walk</code> function:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">walk ::</span> (<span class="dt">Walkable</span> a b) <span class="ot">=&gt;</span> (a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> b <span class="ot">-&gt;</span> b</span></code></pre></div>
+<p><code>walk f x</code> walks the structure <code>x :: b</code> (bottom up) and replaces every occurrence of a value of type <code>a</code> with the result of applying <code>f :: (a -&gt; a)</code> to it.</p>
+<p>There are many instances of <code>Walkable</code>. We are interested in the one that visits all the <code>Block</code> elements (that’s what headings are) in the <code>Pandoc</code>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Walkable</span> <span class="dt">Block</span> <span class="dt">Pandoc</span></span></code></pre></div>
+<h2 id="putting-it-together">Putting it together <a href="#putting-it-together">§</a></h2>
+<p>I needed a handful of Pandoc constructors to implement the transformation. The <code>Header</code> constructor (of the <code>Block</code> data type) represents a document (sub)heading with <code>Int</code> depth, attributes, and the list of <code>Inline</code> elements that constitute the header content.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Block</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  <span class="op">...</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  <span class="op">|</span> <span class="dt">Header</span> <span class="dt">Int</span> <span class="dt">Attr</span> [<span class="dt">Inline</span>]</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  <span class="op">...</span></span></code></pre></div>
+<p>I also had to construct a <code>Link</code> (one of the cases of the <code>Inline</code> data type). A <code>Link</code> has attributes, content (<code>[Inline]</code>) and a target. I also used the <code>Str</code> and <code>Space</code> constructors.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Inline</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>    <span class="ot">=</span> <span class="dt">Str</span> <span class="dt">Text</span>              <span class="co">-- ^ Literal text</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>    <span class="op">...</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    <span class="op">|</span> <span class="dt">Space</span>                 <span class="co">-- ^ Inter-word space</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>    <span class="op">...</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>    <span class="op">|</span> <span class="dt">Link</span> <span class="dt">Attr</span> [<span class="dt">Inline</span>] <span class="dt">Target</span></span></code></pre></div>
+<p>By the way, <code>Attr</code> and <code>Target</code> are defined as:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="co">-- id, classes and key-value pairs</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Attr</span> <span class="ot">=</span> (<span class="dt">Text</span>, [<span class="dt">Text</span>], [(<span class="dt">Text</span>, <span class="dt">Text</span>)])</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a><span class="co">-- URI, title</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Target</span> <span class="ot">=</span> (<span class="dt">Text</span>, <span class="dt">Text</span>)</span></code></pre></div>
+<p>With these constructors in hand, here is the whole transformation function:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">addSectionLinks ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>addSectionLinks <span class="ot">=</span> walk f <span class="kw">where</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  f (<span class="dt">Header</span> n attr<span class="op">@</span>(idAttr, _, _) inlines) <span class="op">|</span> n <span class="op">&gt;</span> <span class="dv">1</span> <span class="ot">=</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="kw">let</span> link <span class="ot">=</span> <span class="dt">Link</span> nullAttr [<span class="dt">Str</span> <span class="st">&quot;§&quot;</span>] (<span class="st">&quot;#&quot;</span> <span class="op">&lt;&gt;</span> idAttr, <span class="st">&quot;&quot;</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>    <span class="kw">in</span> <span class="dt">Header</span> n attr (inlines <span class="op">&lt;&gt;</span> [<span class="dt">Space</span>, link])</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>  f x <span class="ot">=</span> x</span></code></pre></div>
+<p>Note that we only apply this change to headings of depth greater than one. I do not need to provide a link for the article title, which is at the top of the page. For all other headers, we add a <code>Link</code> to its inline content, where the target is the fragment pointing at the <code>idAddr</code> of the header itself.</p>
+<p>To apply the transformation, I had to replace a single occurrence of:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">pandocCompiler ::</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
+<p>with:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>pandocCompilerWithTransform</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>        defaultHakyllReaderOptions</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>        defaultHakyllWriterOptions</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>        addSectionLinks</span></code></pre></div>
+<h2 id="style">Style <a href="#style">§</a></h2>
+<p>I want to hide the heading link unless the cursor is hovering over the heading. I would like to accomplish it with this small dose of CSS:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="in">:is(h2, h3, h4, h5, h6)</span> a {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">hidden</span><span class="op">;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>}</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a><span class="in">:is(h2, h3, h4, h5, h6):hover</span> a {</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>}</span></code></pre></div>
+<p>The <code>is()</code> pseudo-class function matches anything that matches the selector arguments, avoid tedious repetition. It is part of CSS <a href="https://www.w3.org/TR/selectors-4/#matches">Selectors Level 4</a>, which is still a draft. Firefox and Safari fully support it but unfortunately other browsers are <a href="https://caniuse.com/css-matches-pseudo">lagging behind</a>. So I am stuck with the tedious repetition for now:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>h2 a<span class="op">,</span> h3 a<span class="op">,</span> h4 a<span class="op">,</span> h5 a<span class="op">,</span> h6 a {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">hidden</span><span class="op">;</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a>}</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>h2<span class="in">:hover</span> a<span class="op">,</span> h3<span class="in">:hover</span> a<span class="op">,</span> h4<span class="in">:hover</span> a<span class="op">,</span> h5<span class="in">:hover</span> a<span class="op">,</span> h6<span class="in">:hover</span> a {</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a>}</span></code></pre></div>
+<p>I also used <code>text-decoration</code> and <code>color</code> to make the link appearance clean and understated.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<p>As a result of this change, the HTML emitted for section headers (of depth &gt; 1) looks like:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>  Probabilities <span class="kw">&lt;a</span><span class="ot"> href=</span><span class="st">&quot;#probabilities&quot;</span><span class="kw">&gt;</span>§<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a><span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
+<p>You can experience the results for yourself, right here on this page (and in my other posts). You can also <a href="https://github.com/frasertweedale/blog-fp/commit/fe72af9144fea3ece5295ac5446f647560119088">view the commit</a> that implements this feature.</p>
+<p>There’s not much else to say, really. Pandoc is still awesome. Hakyll is still awesome. And I am very happy with the results of this little enhancement. Go forth and pilcrow-ise your Hakyll sites!</p>]]></summary>
+</entry>
+<entry>
     <title>Migrating from QuickCheck to Hedgehog: mixed results</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2020-03-31-quickcheck-hedgehog.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2020-03-31-quickcheck-hedgehog.html</id>
@@ -18,7 +109,7 @@
     <summary type="html"><![CDATA[<h1 id="migrating-from-quickcheck-to-hedgehog-mixed-results">Migrating from QuickCheck to Hedgehog: mixed results</h1>
 <p>I’ve known about <a href="https://hackage.haskell.org/package/hedgehog">Hedgehog</a> from its early days. Having used QuickCheck before Hedgehog arrived, I am familiar with QuickCheck’s pain points, in particular the lack of automatic shrinking and the frustrations of its type class-driven approach. Hedgehog was designed to—and does—solve these problems.</p>
 <p>Yet, being already a user of QuickCheck in most of my Haskell projects, I did not feel a need to make the switch. “Some day, but not today”. And finally, the day has come. In this post I will explain the catalyst and the results of the switch including a surprising and (for me) detrimental behavioural difference between QuickCheck and Hedgehog.</p>
-<h2 id="background">Background</h2>
+<h2 id="background">Background <a href="#background">§</a></h2>
 <p><a href="https://hackage.haskell.org/package/purebred-email"><em>purebred-email</em></a> is a comprehensive mail processing library. It has plenty of tests, example and property-based, including serialiser/parser round-trip tests. Email has a 7-bit (ASCII) wire format; there are various mechanisms for including 8-bit data in messages. For including 8-bit data in header values, <a href="https://tools.ietf.org/html/rfc2047">RFC 2047</a> defines the <code>encoded-word</code> mechanism. Serialised Unicode data in the <code>To</code> and <code>From</code> headers can look something like this:</p>
 <pre><code>MIME-Version: 1.0
 From: =?utf-8?B?0JDQu9C40YHQsA==?= &lt;alice@example.com&gt;
@@ -29,35 +120,35 @@ Content-Type: text/plain; charset=us-ascii
 
 Hello, Bob!</code></pre>
 <p>Recently someone filed an <a href="https://github.com/purebred-mua/purebred-email/issues/50">issue</a> that <em>purebred-email</em> was not encoding the display name part of email addresses properly. It was indeed the case that raw UTF-8 data was appearing in the rendered message. Alongside a candidate fix I took the opportunity to add a round-trip QuickCheck property that would test serialisation and re-parsing of an email address with arbitrary mailboxes in the <code>From</code> header. The display name part of the mailbox could include Unicode characters. The property, and some related generators, were defined as follows:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
-<span id="cb2-2"><a href="#cb2-2"></a>prop_messageRoundTrip <span class="ot">=</span> forAll genMailbox <span class="op">$</span> \mailbox <span class="ot">-&gt;</span></span>
-<span id="cb2-3"><a href="#cb2-3"></a>  <span class="kw">let</span></span>
-<span id="cb2-4"><a href="#cb2-4"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
-<span id="cb2-5"><a href="#cb2-5"></a>    msg <span class="ot">=</span> set l [mailbox] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
-<span id="cb2-6"><a href="#cb2-6"></a>  <span class="kw">in</span></span>
-<span id="cb2-7"><a href="#cb2-7"></a>    (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
-<span id="cb2-8"><a href="#cb2-8"></a>    <span class="op">==</span> <span class="dt">Right</span> [mailbox]</span>
-<span id="cb2-9"><a href="#cb2-9"></a></span>
-<span id="cb2-10"><a href="#cb2-10"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
-<span id="cb2-11"><a href="#cb2-11"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
-<span id="cb2-12"><a href="#cb2-12"></a></span>
-<span id="cb2-13"><a href="#cb2-13"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
-<span id="cb2-14"><a href="#cb2-14"></a>genDotAtom <span class="ot">=</span> fromList <span class="op">&lt;$&gt;</span> listOf1 fragment</span>
-<span id="cb2-15"><a href="#cb2-15"></a>  <span class="kw">where</span></span>
-<span id="cb2-16"><a href="#cb2-16"></a>  fragment <span class="ot">=</span> B.pack <span class="op">&lt;$&gt;</span> listOf1 atext</span>
-<span id="cb2-17"><a href="#cb2-17"></a>  atext <span class="ot">=</span> arbitrary <span class="ot">`suchThat`</span> isAtext</span>
-<span id="cb2-18"><a href="#cb2-18"></a></span>
-<span id="cb2-19"><a href="#cb2-19"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
-<span id="cb2-20"><a href="#cb2-20"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
-<span id="cb2-21"><a href="#cb2-21"></a></span>
-<span id="cb2-22"><a href="#cb2-22"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
-<span id="cb2-23"><a href="#cb2-23"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
-<span id="cb2-24"><a href="#cb2-24"></a></span>
-<span id="cb2-25"><a href="#cb2-25"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
-<span id="cb2-26"><a href="#cb2-26"></a>genMailbox <span class="ot">=</span> <span class="dt">Mailbox</span> <span class="op">&lt;$&gt;</span> arbitrary <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>prop_messageRoundTrip <span class="ot">=</span> forAll genMailbox <span class="op">$</span> \mailbox <span class="ot">-&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a>  <span class="kw">let</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>    msg <span class="ot">=</span> set l [mailbox] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a>  <span class="kw">in</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>    (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a>    <span class="op">==</span> <span class="dt">Right</span> [mailbox]</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true"></a>genDotAtom <span class="ot">=</span> fromList <span class="op">&lt;$&gt;</span> listOf1 fragment</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true"></a>  fragment <span class="ot">=</span> B.pack <span class="op">&lt;$&gt;</span> listOf1 atext</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true"></a>  atext <span class="ot">=</span> arbitrary <span class="ot">`suchThat`</span> isAtext</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true"></a>genMailbox <span class="ot">=</span> <span class="dt">Mailbox</span> <span class="op">&lt;$&gt;</span> arbitrary <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
 <p>Note that I explicitly define and directly use the generators. Defining <code>Arbitrary</code> instances for these types was too restrictive. I also felt it would be difficult to implement accurate and useful shrinking heuristics for these domain objects.</p>
 <p>And this is where the fun began.</p>
-<h2 id="from-quickcheck-to-hedgehog">From QuickCheck to Hedgehog</h2>
+<h2 id="from-quickcheck-to-hedgehog">From QuickCheck to Hedgehog <a href="#from-quickcheck-to-hedgehog">§</a></h2>
 <p>By default, QuickCheck checks properties 100 times with random inputs. I had a hunch that for this property, 100 was not enough, so I overrode the default to check <code>prop_messageRoundTrip</code> 10,000 times. And hey, what do you know, QuickCheck found a bug:</p>
 <pre><code>    message round trip with From header:        FAIL (3.89s)
       *** Failed! Falsified (after 1090 tests):
@@ -99,76 +190,76 @@ ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4&#39;rMzXs&quot;])))
       Use --quickcheck-replay=822386 to reproduce.</code></pre>
 <p>Without shrinking, the counterexample was a wall of text. It was good to know that there was a problem, but I didn’t even attempt to make any sense of it. I knew that this was the moment. It was time to unleash the Hedgehog.</p>
 <p>Switching to Hedgehog was a simple mechanical translation. The updated definitions follow.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
-<span id="cb4-2"><a href="#cb4-2"></a>prop_messageRoundTrip <span class="ot">=</span> property <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb4-3"><a href="#cb4-3"></a>  from <span class="ot">&lt;-</span> forAll genMailbox</span>
-<span id="cb4-4"><a href="#cb4-4"></a>  <span class="kw">let</span></span>
-<span id="cb4-5"><a href="#cb4-5"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
-<span id="cb4-6"><a href="#cb4-6"></a>    msg <span class="ot">=</span> set l [from] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
-<span id="cb4-7"><a href="#cb4-7"></a>  (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
-<span id="cb4-8"><a href="#cb4-8"></a>    <span class="op">===</span> <span class="dt">Right</span> [from]</span>
-<span id="cb4-9"><a href="#cb4-9"></a></span>
-<span id="cb4-10"><a href="#cb4-10"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
-<span id="cb4-11"><a href="#cb4-11"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
-<span id="cb4-12"><a href="#cb4-12"></a></span>
-<span id="cb4-13"><a href="#cb4-13"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
-<span id="cb4-14"><a href="#cb4-14"></a>genDotAtom <span class="ot">=</span> Gen.nonEmpty (Range.linear <span class="dv">1</span> <span class="dv">5</span>) fragment</span>
-<span id="cb4-15"><a href="#cb4-15"></a>  <span class="kw">where</span></span>
-<span id="cb4-16"><a href="#cb4-16"></a>  fragment <span class="ot">=</span> Gen.utf8 (Range.linear <span class="dv">1</span> <span class="dv">20</span>) atext</span>
-<span id="cb4-17"><a href="#cb4-17"></a>  atext <span class="ot">=</span> Gen.filter isAtext Gen.ascii</span>
-<span id="cb4-18"><a href="#cb4-18"></a></span>
-<span id="cb4-19"><a href="#cb4-19"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
-<span id="cb4-20"><a href="#cb4-20"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
-<span id="cb4-21"><a href="#cb4-21"></a></span>
-<span id="cb4-22"><a href="#cb4-22"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
-<span id="cb4-23"><a href="#cb4-23"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
-<span id="cb4-24"><a href="#cb4-24"></a></span>
-<span id="cb4-25"><a href="#cb4-25"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
-<span id="cb4-26"><a href="#cb4-26"></a>genMailbox <span class="ot">=</span></span>
-<span id="cb4-27"><a href="#cb4-27"></a>  <span class="dt">Mailbox</span></span>
-<span id="cb4-28"><a href="#cb4-28"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>) Gen.unicode)</span>
-<span id="cb4-29"><a href="#cb4-29"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="ot">prop_messageRoundTrip ::</span> <span class="dt">Property</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>prop_messageRoundTrip <span class="ot">=</span> property <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  from <span class="ot">&lt;-</span> forAll genMailbox</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>  <span class="kw">let</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    l <span class="ot">=</span> headerFrom defaultCharsets</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    msg <span class="ot">=</span> set l [from] (createTextPlainMessage <span class="st">&quot;Hello&quot;</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>  (view l <span class="op">&lt;$&gt;</span> parse (message mime) (renderMessage msg))</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a>    <span class="op">===</span> <span class="dt">Right</span> [from]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a><span class="ot">genDomain ::</span> <span class="dt">Gen</span> <span class="dt">Domain</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>genDomain <span class="ot">=</span> <span class="dt">DomainDotAtom</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true"></a><span class="ot">genDotAtom ::</span> <span class="dt">Gen</span> (<span class="dt">NonEmpty</span> <span class="dt">B.ByteString</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true"></a>genDotAtom <span class="ot">=</span> Gen.nonEmpty (Range.linear <span class="dv">1</span> <span class="dv">5</span>) fragment</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true"></a>  fragment <span class="ot">=</span> Gen.utf8 (Range.linear <span class="dv">1</span> <span class="dv">20</span>) atext</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true"></a>  atext <span class="ot">=</span> Gen.filter isAtext Gen.ascii</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true"></a><span class="ot">genLocalPart ::</span> <span class="dt">Gen</span> <span class="dt">B.ByteString</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true"></a>genLocalPart <span class="ot">=</span> fold <span class="op">.</span> intersperse <span class="st">&quot;.&quot;</span> <span class="op">&lt;$&gt;</span> genDotAtom</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true"></a><span class="ot">genAddrSpec ::</span> <span class="dt">Gen</span> <span class="dt">AddrSpec</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true"></a>genAddrSpec <span class="ot">=</span> <span class="dt">AddrSpec</span> <span class="op">&lt;$&gt;</span> genLocalPart <span class="op">&lt;*&gt;</span> genDomain</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true"></a>genMailbox <span class="ot">=</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true"></a>  <span class="dt">Mailbox</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>) Gen.unicode)</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
 <p>As you can see there are no structural changes. Indeed, several of the definitions did not change at all (except that the name <code>Gen</code> now refers to a different type).</p>
 <p>I ran the tests again, expecting Hedgehog to find the bug and, thanks to integrated shrinking, present me with a digestable counterexample. But the tests passed. Even after 10,000 iterations it could not detect the bug:</p>
 <pre><code>message round trip with From header:             OK (4.75s)
   ✓ message round trip with From header passed 10000 tests.</code></pre>
-<h2 id="generator-bias">Generator bias</h2>
+<h2 id="generator-bias">Generator bias <a href="#generator-bias">§</a></h2>
 <p>Hedgehog’s inability to find a counterexample surprised me, and several other people in <code>#bfpg</code>. The search for answers soon led me to the source code, where all was laid bare. Hedgehog’s <code>Gen.unicode</code> has a uniform distribution over all Unicode characters:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1"></a></span>
-<span id="cb6-2"><a href="#cb6-2"></a><span class="co">-- | Generates a Unicode character, excluding noncharacters</span></span>
-<span id="cb6-3"><a href="#cb6-3"></a><span class="co">--   and invalid standalone surrogates:</span></span>
-<span id="cb6-4"><a href="#cb6-4"></a><span class="co">--   @&#39;\0&#39;..&#39;\1114111&#39; (excluding &#39;\55296&#39;..&#39;\57343&#39;,</span></span>
-<span id="cb6-5"><a href="#cb6-5"></a><span class="co">--    &#39;\65534&#39;, &#39;\65535&#39;)@</span></span>
-<span id="cb6-6"><a href="#cb6-6"></a><span class="co">--</span></span>
-<span id="cb6-7"><a href="#cb6-7"></a><span class="ot">unicode ::</span> (<span class="dt">MonadGen</span> m) <span class="ot">=&gt;</span> m <span class="dt">Char</span></span>
-<span id="cb6-8"><a href="#cb6-8"></a>unicode <span class="ot">=</span></span>
-<span id="cb6-9"><a href="#cb6-9"></a>  <span class="kw">let</span></span>
-<span id="cb6-10"><a href="#cb6-10"></a>    s1 <span class="ot">=</span></span>
-<span id="cb6-11"><a href="#cb6-11"></a>      (<span class="dv">55296</span>, enum <span class="ch">&#39;\0&#39;</span> <span class="ch">&#39;\55295&#39;</span>)</span>
-<span id="cb6-12"><a href="#cb6-12"></a>    s2 <span class="ot">=</span></span>
-<span id="cb6-13"><a href="#cb6-13"></a>      (<span class="dv">8190</span>, enum <span class="ch">&#39;\57344&#39;</span> <span class="ch">&#39;\65533&#39;</span>)</span>
-<span id="cb6-14"><a href="#cb6-14"></a>    s3 <span class="ot">=</span></span>
-<span id="cb6-15"><a href="#cb6-15"></a>      (<span class="dv">1048576</span>, enum <span class="ch">&#39;\65536&#39;</span> <span class="ch">&#39;\1114111&#39;</span>)</span>
-<span id="cb6-16"><a href="#cb6-16"></a>  <span class="kw">in</span></span>
-<span id="cb6-17"><a href="#cb6-17"></a>    frequency [s1, s2, s3]</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a><span class="co">-- | Generates a Unicode character, excluding noncharacters</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a><span class="co">--   and invalid standalone surrogates:</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a><span class="co">--   @&#39;\0&#39;..&#39;\1114111&#39; (excluding &#39;\55296&#39;..&#39;\57343&#39;,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a><span class="co">--    &#39;\65534&#39;, &#39;\65535&#39;)@</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a><span class="co">--</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a><span class="ot">unicode ::</span> (<span class="dt">MonadGen</span> m) <span class="ot">=&gt;</span> m <span class="dt">Char</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>unicode <span class="ot">=</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>  <span class="kw">let</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>    s1 <span class="ot">=</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true"></a>      (<span class="dv">55296</span>, enum <span class="ch">&#39;\0&#39;</span> <span class="ch">&#39;\55295&#39;</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true"></a>    s2 <span class="ot">=</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true"></a>      (<span class="dv">8190</span>, enum <span class="ch">&#39;\57344&#39;</span> <span class="ch">&#39;\65533&#39;</span>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true"></a>    s3 <span class="ot">=</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true"></a>      (<span class="dv">1048576</span>, enum <span class="ch">&#39;\65536&#39;</span> <span class="ch">&#39;\1114111&#39;</span>)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true"></a>  <span class="kw">in</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true"></a>    frequency [s1, s2, s3]</span></code></pre></div>
 <p>Whereas QuickCheck’s <code>Char</code> generator, although it can generate any Unicode character, has a heavy bias to the ASCII codepoints (0–127):</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1"></a><span class="kw">instance</span> <span class="dt">Arbitrary</span> <span class="dt">Char</span> <span class="kw">where</span></span>
-<span id="cb7-2"><a href="#cb7-2"></a>  arbitrary <span class="ot">=</span></span>
-<span id="cb7-3"><a href="#cb7-3"></a>    frequency</span>
-<span id="cb7-4"><a href="#cb7-4"></a>      [(<span class="dv">3</span>, arbitraryASCIIChar),</span>
-<span id="cb7-5"><a href="#cb7-5"></a>       (<span class="dv">1</span>, arbitraryUnicodeChar)]</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Arbitrary</span> <span class="dt">Char</span> <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>  arbitrary <span class="ot">=</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>    frequency</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>      [(<span class="dv">3</span>, arbitraryASCIIChar),</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a>       (<span class="dv">1</span>, arbitraryUnicodeChar)]</span></code></pre></div>
 <p>After discovering this difference I implemented an equivalent Hedgehog generator to use instead of <code>Gen.unicode</code>, and updated <code>genMailbox</code> to use it:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1"></a><span class="ot">unicodeCharAsciiBias ::</span> <span class="dt">Gen</span> <span class="dt">Char</span></span>
-<span id="cb8-2"><a href="#cb8-2"></a>unicodeCharAsciiBias <span class="ot">=</span></span>
-<span id="cb8-3"><a href="#cb8-3"></a>  Gen.frequency [(<span class="dv">3</span>, Gen.ascii), (<span class="dv">1</span>, Gen.unicode)]</span>
-<span id="cb8-4"><a href="#cb8-4"></a></span>
-<span id="cb8-5"><a href="#cb8-5"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
-<span id="cb8-6"><a href="#cb8-6"></a>genMailbox <span class="ot">=</span></span>
-<span id="cb8-7"><a href="#cb8-7"></a>  <span class="dt">Mailbox</span></span>
-<span id="cb8-8"><a href="#cb8-8"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>)</span>
-<span id="cb8-9"><a href="#cb8-9"></a>                 unicodeCharAsciiBias)</span>
-<span id="cb8-10"><a href="#cb8-10"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
-<h2 id="shrink-to-win">Shrink to win</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">unicodeCharAsciiBias ::</span> <span class="dt">Gen</span> <span class="dt">Char</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>unicodeCharAsciiBias <span class="ot">=</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  Gen.frequency [(<span class="dv">3</span>, Gen.ascii), (<span class="dv">1</span>, Gen.unicode)]</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a><span class="ot">genMailbox ::</span> <span class="dt">Gen</span> <span class="dt">Mailbox</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>genMailbox <span class="ot">=</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a>  <span class="dt">Mailbox</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>                 unicodeCharAsciiBias)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
+<h2 id="shrink-to-win">Shrink to win <a href="#shrink-to-win">§</a></h2>
 <p>This time Hedgehog found the counterexample. The automatic shrinking produced a minimal counterexample and Hedgehog presented its findings:</p>
 <pre><code>message round trip with From header:                  FAIL (47.81s)
  ✗ message round trip with From header failed at tests/Message.hs:106:3
@@ -192,14 +283,14 @@ ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4&#39;rMzXs&quot;])))
        ┃   │         AddrSpec &quot;!&quot; (DomainDotAtom (&quot;!&quot; :| []))
        ┃   │     ]</code></pre>
 <p>Isn’t the presentation—that neatly formatted diff of the data structure—just <em>gorgeous</em>?! It is easy to see the problem: <em>purebred-email</em> did not round-trip an email address correctly when then display name was (perhaps more generally, <em>contained</em>) a carriage return followed by a newline/line feed (CRLF). <code>"\r\n" !@!</code> is a pretty bonkers email address but the types and grammar do permit it so <em>purebred-email</em> must handle it correctly.</p>
-<h2 id="probabilities">Probabilities</h2>
+<h2 id="probabilities">Probabilities <a href="#probabilities">§</a></h2>
 <p>So now we can see why QuickCheck was able to find a counterexample and Hedgehog (when using <code>Gen.unicode</code>) was not. It is a matter of probability distribution. The probability of selecting CR followed by LF from a uniform distribution of all 1112062 unicode characters is 1 in 1236681891844, whereas for the 75% ASCII distribution (noting that the other 25% for all Unicode characters <em>also</em> includes the ASCII codepoints) is 2782747776649 over 81047184463888384 or roughly 0.0000433491.</p>
 <p>Note that 0.0000433491 is a bit less than half of 1 in 10000. We expect then that if we were executing 10000 tests, the framework would find this counterexample less than half the time. But this probability is for two-character sequences. The probability of a CRLF subsequence occuring in a longer string of randomly selected characters is, intuitively, much greater. But my probability-fu is not strong enough to work all that out. As it happens, with the ASCII-biased distribution both QuickCheck and Hedgehog usually find the counterexample somewhere around the 1000th test (but sometimes much sooner).</p>
-<h2 id="shrinking-performance">Shrinking performance</h2>
+<h2 id="shrinking-performance">Shrinking performance <a href="#shrinking-performance">§</a></h2>
 <p>Automatic shrinking is a joy. But Hedgehog’s shrinking is slow compared to QuickCheck. In the example above, it took almost a whole minute, most of which was the shrinking (compare with the earlier <code>Gen.unicode</code> example which tested the property 10,000 times in 4.7 seconds).</p>
 <p>I don’t see this has a problem: if it takes a long time to find a minimal counterexample, so be it. The tradeoff is worth it. And it is only the shrinking that is slow. If your tests are passing (and hopefully they do, most of the time) then there is no penalty.</p>
 <p>While I was discussing these things, one person shared with me that Hedgehog ate all their memory during shrinking, and crashed. So the slowness might be due to space usage (at least in part). I didn’t experience any crashes (yet) but it was prudent to share this anecdote. Your mileage may vary.</p>
-<h2 id="conclusion">Conclusion</h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
 <p>Hedgehog is great. It solves the major pain points of QuickCheck. Automated shrinking for all generators is a killer feature, but it is computationally (and/or space) expensive, and might eat all your memory and crash (I have not experienced this myself). The pretty output with a nicely formatted diff of the data structure makes it easier to comprehend the counterexamples than QuickCheck’s <code>Show</code>-based output.</p>
 <p>Converting from QuickCheck to Hedgehog is a breeze; a simple mechanical translation. But <strong>do not blindly convert</strong>. I would probably never have found this bug if I had already converted <em>purebred-email</em> to Hedgehog, because of a critical difference in the distribution of one of the generators. When you are converting, pay careful attention to the behaviour of the generators, especially if they produce character or string types.</p>
 <p>The issue I experienced comes down to a lack of documentation. Arguably QuickCheck is the bad guy in this tale: the non-uniform distribution should have been documented. But it would be good for <em>all</em> generators or <code>Arbitrary</code> instances to say something about their distribution, even if it’s just <em>“uniform distribution”</em>.</p>
