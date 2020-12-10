@@ -46,7 +46,7 @@ fragment).
 
 Hakyll provides the `pandocCompilerWithTransform` function for
 compiling documents using Pandoc and applying an arbitrary
-transformation to it.  It's type is:
+transformation to them.  It has the type:
 
 ```haskell
 pandocCompilerWithTransform
@@ -57,8 +57,8 @@ pandocCompilerWithTransform
 ```
 
 Note the `(Pandoc -> Pandoc)` argument.  This is the tranformation
-function.  It works with the [`Pandoc`][] AST data type, rather than
-HTML or the input type (e.g. Markdown).
+function.  It works with the [`Pandoc`][] native AST data type,
+rather than HTML or the input type (e.g. Markdown).
 
 [`Pandoc`]: https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Definition.html#t:Pandoc
 
