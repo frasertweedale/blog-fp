@@ -8,8 +8,144 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2020-12-10T00:00:00Z</updated>
+    <updated>2020-12-21T00:00:00Z</updated>
     <entry>
+    <title>Refactoring using type classes and optics</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2020-12-21-refactoring-type-classes-optics.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2020-12-21-refactoring-type-classes-optics.html</id>
+    <published>2020-12-21T00:00:00Z</published>
+    <updated>2020-12-21T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="refactoring-using-type-classes-and-optics">Refactoring using type classes and optics</h1>
+<p>Often when writing programs and functions, one starts off with concrete types that solve the problem at hand. At some later time, due to emerging requirements or observed patterns, or just to improve code readability and reusability, we refactor to make the code more polymorphic. The importance of not breaking your API typically ranges from <em>nice to have</em> (e.g. minimise rework but not otherwise necessary) to <em>paramount</em> (e.g. in a popular, foundational library). This post is a case study of a refactoring in the <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a> library demonstrating how <em>type classes</em> help achieve API stability while admitting new use cases. Served with a side of <em>classy optics</em>.</p>
+<h2 id="background-verifying-a-jws">Background: verifying a JWS <a href="#background-verifying-a-jws">§</a></h2>
+<p>In the <em>jose</em> library, the <code>verifyJWS</code> function verifies a <em>JSON Web Signature (JWS)</em> object:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>verifyJWS</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="ot">  ::</span>  ( <span class="dt">HasAlgorithms</span> a, <span class="dt">HasValidationPolicy</span> a</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>      , <span class="dt">AsError</span> e, <span class="dt">MonadError</span> e m</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>      , <span class="dt">HasJWSHeader</span> h, <span class="dt">HasParams</span> h</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>      )</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>  <span class="ot">=&gt;</span> a</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWK</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWS</span> h</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> m ()</span></code></pre></div>
+<p><code>verifyJWS</code> is applied to a configuration value, a <em>JSON Web Key (JWK)</em> to use for validation, and the JWS, and returns <code>()</code> on success otherwise throws an error.</p>
+<p>A JWS can have multiple signatures, each by a different key. If an application requires all signatures to be valid, it is difficult to perform the correct validation using the existing <code>verifyJWS</code> function. Unsurprisingly, someone <a href="https://github.com/frasertweedale/hs-jose/issues/35">raised an issue</a> to address this. Specifically, the issue asked for a way to use a <em>JWK Set</em> instead of a single <em>JWK</em>, where the JWK Set contains all the keys that can be used for validation (and possibly others). JWK Set is <a href="https://tools.ietf.org/html/rfc7517#section-5">defined by RFC 7515</a> as an array of JWKs. Its definition in <em>jose</em> is below (it is a <code>newtype</code> because it needs custom instances for JSON encoding/decoding).</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">JWKSet</span> <span class="ot">=</span> <span class="dt">JWKSet</span> [<span class="dt">JWK</span>]</span></code></pre></div>
+<p>How can we support verification when the caller has a <code>JWKSet</code>? Do we add an alternative verification function that applies to <code>JWKSet</code> instead of <code>JWK</code>? I did not want multiple functions in the API for essentially the same thing. We could make the caller construct a singleton <code>JWKSet</code>, but changing the signature of <code>verifyJWS</code> would break the API, so we won’t do that either.</p>
+<h2 id="looking-beyond-jwk-set">Looking beyond JWK Set <a href="#looking-beyond-jwk-set">§</a></h2>
+<p>At first, we could only validate with a single <code>JWK</code> at a time. Now, we want to be able to handle a <code>JWKSet</code> too. So are there other “key-bearing” structures we might need to handle?</p>
+<p>Indeed there are. One might want to use a <code>[JWK]</code>, <code>NonEmpty JWK</code> or other container types. Many container types constructors have an instance of <a href="https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Foldable.html"><code>Foldable</code></a>, so we could try to use that abstraction. This is rather boring, but it’s an additional valid use case. So, can we refactor <code>verifyJWS</code> to use <code>Foldable</code>?</p>
+<p>It is a nice idea, but the answer is <em>no</em>. First, <code>Foldable t =&gt; t</code> has kind <code>(* -&gt; *)</code>, but <code>JWKSet</code> has kind <code>*</code>. Turning <code>JWKSet</code> into a generic container doesn’t make sense either. Second, we still want our function to work with a plain old JWK, which also has kind <code>*</code>.</p>
+<p>At this point I realised that that if I want to make <code>verifyJWS</code> polymorphic, <em>and</em> support <code>JWK</code> and <code>JWKSet</code> and arbitrary containers as “key sources”, <em>and</em> avoid breaking the API, there was only one way forward. It was necessary to define a new type class to represent a “provider of keys”:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="op">???</span></span></code></pre></div>
+<p>What should the type of <code>keys</code> be? Conceptually, it would be applied to a <code>JWKStore a =&gt; a</code> and yield the <code>JWK</code> values contained within. For the validation use case there is no need to be able to add or update keys, i.e. it is read-only. <code>Fold a JWK</code> is a good fit for the requirement. A <a href="https://hackage.haskell.org/package/lens-4.15/docs/Control-Lens-Fold.html"><code>Fold</code></a> is a read-only <em>optic</em> that that can retrieve multiple (zero or more) values. The beauty of optics is that they can be composed together and <code>Fold</code> is no different. The <code>Fold</code> type is provided by the <a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html"><em>lens</em></a> library, along with a bunch of useful helper functions.</p>
+<p>The key store interface (type class) and instances were defined as follows:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">JWK</span> <span class="kw">where</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>  keys <span class="ot">=</span> <span class="fu">id</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Foldable</span> t <span class="ot">=&gt;</span> <span class="dt">JWKStore</span> (t <span class="dt">JWK</span>) <span class="kw">where</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a>  keys <span class="ot">=</span> folding <span class="fu">id</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">JWKSet</span> <span class="kw">where</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>  keys <span class="ot">=</span> folding (\(<span class="dt">JWKSet</span> xs) <span class="ot">-&gt;</span> xs)</span></code></pre></div>
+<p>(Note that the instance for <code>Foldable t =&gt; t JWK</code> requires the <a href="https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#extension-FlexibleInstances"><code>FlexibleInstances</code></a> GHC extension.)</p>
+<p>The updated type signature for <code>verifyJWS</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>verifyJWS</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a><span class="ot">  ::</span>  ( <span class="dt">HasAlgorithms</span> a, <span class="dt">HasValidationPolicy</span> a</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>      , <span class="dt">AsError</span> e, <span class="dt">MonadError</span> e m</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>      , <span class="dt">HasJWSHeader</span> h, <span class="dt">HasParams</span> h</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>      , <span class="dt">JWKStore</span> k</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>      )</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>  <span class="ot">=&gt;</span> a</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> k</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWS</span> h</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a>  <span class="ot">-&gt;</span> m ()</span></code></pre></div>
+<p>Existing code applying <code>verifyJWS</code> to a <code>JWK</code> works without changes. The only internal change that was needed was to apply <code>anyOf keys</code> to the existing test. (<a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Fold.html#v:anyOf"><code>anyOf</code></a> is a function provided in <em>lens</em> that returns <code>True</code> if any target of a <code>Fold</code> satisfies a predicate.) The line:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>validate s <span class="ot">=</span> verifySig p s k <span class="op">==</span> <span class="dt">Right</span> <span class="dt">True</span></span></code></pre></div>
+<p>became:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a>validate s <span class="ot">=</span> anyOf keys ((<span class="op">==</span> <span class="dt">Right</span> <span class="dt">True</span>) <span class="op">.</span> verifySig p s) k</span></code></pre></div>
+<p>The technique of using type classes to select optics is called <em>classy optics</em>. The terms <em>classy lenses</em> and <em>classy prisms</em> are also used when referring to those kinds of optics specifically.</p>
+<p>My goal was to support validation using a <code>JWKSet</code> without breaking the API or adding more functions. At this point the goal has been achieved. But I mentioned above that <code>JWKSet</code> and <code>Foldable t =&gt; t JWK</code> were the boring use cases. Let’s discuss some <em>interesting</em> ones!</p>
+<h2 id="efficient-key-lookup">Efficient key lookup <a href="#efficient-key-lookup">§</a></h2>
+<p>JWS signatures each have a <em>header</em> which, at minimum, indicates the algorithm used (the <code>"alg"</code> member). It can optionally contain other data including a Key ID (<code>"kid"</code>), thumbprint of an X.509 certificate containing the key used make the signature (<code>"x5t@S256"</code>), a JWK for the signing key (<code>"jwk"</code>), and so on. It is not a stretch that if your use case involves many signing keys, you would want to use data available from the signature header to speed up key lookup. Such techniques are common in applied cryptography where many keys are involved. For example, X.509 certificates contain an <em>Authority Key Identifier</em> field, and certificate databases usually provide efficient lookup by key identifier.</p>
+<p>So in addition to being able to enumerate keys, we want <code>JWKStore</code> instances to potentially be able to look up keys based on data in the JWS header. I added another function to the type class to accomplish this, along with a sensible default implementation:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a><span class="ot">  keysFor ::</span> (<span class="dt">HasJWSHeader</span> h) <span class="ot">=&gt;</span> h <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>  keysFor _ <span class="ot">=</span> keys</span></code></pre></div>
+<p>As an example, we can instantiate <code>JWKStore a =&gt; a</code> at a data type based on <code>HashMap</code>, where keys are indexed by key identifier (an arbitrary string). The <code>keysFor</code> function can efficiently search for a <code>JWK</code> based on the <code>"kid"</code> (Key ID) header parameter from the JWS header. If the <code>"kid"</code> parameter is missing, it yields all the <code>keys</code>.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">KidMap</span> <span class="ot">=</span> <span class="dt">KidMap</span> {<span class="ot"> getMap ::</span> <span class="dt">HashMap</span> <span class="dt">String</span> <span class="dt">JWK</span> }</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">KidMap</span> <span class="kw">where</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  keys <span class="ot">=</span> folding getMap</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  keyFor h <span class="ot">=</span> <span class="kw">case</span> preview (kid <span class="op">.</span> _Just <span class="op">.</span> param) h <span class="kw">of</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>    <span class="dt">Just</span> k  <span class="ot">-&gt;</span> folding (<span class="fu">lookup</span> k <span class="op">.</span> getMap)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>    <span class="dt">Nothing</span> <span class="ot">-&gt;</span> keys</span></code></pre></div>
+<h2 id="a-jwkstore-is-not-just-for-jws">A <code>JWKStore</code> is not just for JWS <a href="#a-jwkstore-is-not-just-for-jws">§</a></h2>
+<p>Recall the type of <code>keysFor</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="ot">keysFor ::</span> (<span class="dt">HasJWSHeader</span> h) <span class="ot">=&gt;</span> h <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span></code></pre></div>
+<p><code>h</code> has an explicit <code>HasJWSHeader</code> type class constraint, which allows the implementation to use any information available via that type class to decide what to do. For JWS we’re basically done, but we have forgotten about <em>JSON Web Encryption (JWE)</em>. The concept of looking up keys in a key database applies to JWE as well as JWS, but the <code>HasJWSHeader</code> constraint is not suitable when you have a <em>JWE header</em>.</p>
+<p>But JWE headers and JWS headers consist of mostly the same fields, with the same types and semantics. So instead of having a type class constraint mentioning the kind of header, we can define a type class for every shared header parameter and constrain <code>keysFor</code> to <em>all of them</em>. I will use classy optics again (<a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html">lenses</a> this time). There are eleven header fields shared by JWS and JWE headers, but for brevity I’ll pretend there are only three.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasAlg</span> a <span class="kw">where</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="ot">  alg ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">HeaderParam</span> <span class="dt">JWA.JWS.Alg</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasKid</span> a <span class="kw">where</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a><span class="ot">  kid ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">Maybe</span> (<span class="dt">HeaderParam</span> <span class="dt">String</span>))</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasX5tS256</span> a <span class="kw">where</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a><span class="ot">  x5tS256 ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">Maybe</span> (<span class="dt">HeaderParam</span> <span class="dt">Types.Base64SHA256</span>))</span></code></pre></div>
+<p>The class definitions are mundane, as are the instances for <code>JWSHeader</code>:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasAlg</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>  alg f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderAlg <span class="ot">=</span> a }) <span class="ot">=</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderAlg <span class="ot">=</span> a&#39; }) (f a)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasKid</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>  kid f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderKid <span class="ot">=</span> a }) <span class="ot">=</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderKid <span class="ot">=</span> a&#39; }) (f a)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasX5tS256</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true"></a>  x5tS256 f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderX5tS256 <span class="ot">=</span> a }) <span class="ot">=</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderX5tS256 <span class="ot">=</span> a&#39; }) (f a)</span></code></pre></div>
+<p>And finally, the updated <code>keysFor</code> type signature:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  keysFor</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a><span class="ot">    ::</span> (<span class="dt">HasAlg</span> h, <span class="dt">HasKid</span> h, <span class="dt">HasX5tS256</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>    <span class="ot">=&gt;</span> h</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true"></a>  keysFor _ <span class="ot">=</span> keys</span></code></pre></div>
+<h2 id="further-development">Further development <a href="#further-development">§</a></h2>
+<p>I mentioned that the refactor I outlined in this post was not the end of the story. In fact, much more was done since I performed this initial refactoring:</p>
+<ul>
+<li><p>Implementing an <a href="https://github.com/frasertweedale/hs-jose/commit/e15ac3a34cf4a2f193f4b68345d8839c791ec2ed">effectful key store</a>, so that key lookup can perform I/O.</p></li>
+<li><p>Allow the key store to <a href="https://github.com/frasertweedale/hs-jose/commit/dedcd82787bb533885211c3e7ff8f8bcd4adc3c9">inspect the JWS payload</a> during lookup. The motivating use case is to allow key lookup to read the JWT <code>"iss"</code> (Issuer) field.</p></li>
+<li><p>Parameterised the key store <a href="https://github.com/frasertweedale/hs-jose/commit/2fc1b0b8e7196f90ce68bae93fde591812dd3f22">over the header type</a>. This allows implementations to use data from extended header types during key lookup.</p></li>
+</ul>
+<p>All of these features involved adding type parameters to the <code>JWKStore</code> class. Again, I achieved <strong>backwards compatible</strong> admittance of new features through increased generality.</p>
+<p>However, parameterisation over the header type did make my use of classy lenses (as described in this post) obsolete. It is always beneficial to define classy lenses and use them to document (and restrict) functions that access specific fields of “types that have those fields”. But if the type is even more general than that, there’s nothing more to do.</p>
+<p>Finally, implementing payload inspection was incompatible with having a unified key store interface for both decryption and verification keys. (You can’t use the payload to help choose a decryption key becaues it is encrypted!) Therefore I <a href="https://github.com/frasertweedale/hs-jose/commit/c08431fb31fb2a0bae86f6c4a5af20428e681230">renamed <code>JWKStore</code> to <code>VerificationKeyStore</code></a>.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<p>Let’s recap what this post was all about and draw some conclusions.</p>
+<p>First, I discussed a requirement to generalise the <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a> library’s JWS validation code. Previously, validation worked only with a single <code>JWK</code>. It needed to handle other use cases like <code>JWKSet</code> or key databases. I defined the <code>JWKStore</code> <strong>type class</strong>, which provides access to JWKs inside arbitrary data types, and refactored <code>verifyJWS</code> to use it. Instances for <code>JWK</code> and <code>JWKSet</code> are included. The refactor was a <strong>backwards-compatible generalisation</strong> of <code>verifyJWS</code> function, so existing code using <em>jose</em> continued to work without changes.</p>
+<p>After this, I added another function to <code>JWKStore</code> to allow instances to support efficient key lookup. Finally, I observed that key databases are needed for JWE as well as JWS, and further generalised <code>JWKStore</code> to account for this.</p>
+<p><strong>Classy optics</strong> were an important part of the implementation resulting from this refactoring effort. They were employed in two different ways. First, a <a href="https://hackage.haskell.org/package/lens-4.15/docs/Control-Lens-Fold.html"><code>Fold</code></a> provides a read-only, composable interface to the keys in a <code>JWKStore</code>. Second, I used classy <a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html">lenses</a> to parameterise key lookup over the fields that are common to both JWS and JWE headers. Classy lenses provide the generality we desire <em>and</em> improve readability by documenting the data that can be used during key lookup (and enforcing these restrictions).</p>
+<p>Finally I briefly discussed subsequent developments of the key store interface in <em>jose</em>. The important thing to note is that substantive <strong>backwards-compatible</strong> enhancements were achieved through <strong>more generality</strong> (polymorphism).</p>
+<p>So here are some final take-aways:</p>
+<ul>
+<li><p>Starting with code that handles a single use case is normal. But you may have to revisit and change that code (especially in libraries).</p></li>
+<li><p>When you have to revisit some code to admit more use cases, it is worth having a good think about what other use cases exist. Discovering a more general (polymorphic) interface is preferable to multiple concrete interfaces. There will be <strong>less code</strong> to document and maintain, <strong>less potential confusion</strong> for users, and more potential for <strong>reuse</strong> (more use cases admitted).</p></li>
+<li><p>Introducing a <strong>type class</strong> may let you admit new use cases while preserving backwards compatibility for library users. Further parameterising an existing type class can also achieve this. I have done this many times (in <em>jose</em> and other projects) and have <em>never</em> regretted introducing another type parameter.</p></li>
+<li><p><strong>Classy optics</strong> enable reuse; more types can be used with the function, including types you didn’t even know about. And they document and enforce the data a function can access, which is helpful when dealing with record types.</p></li>
+</ul>]]></summary>
+</entry>
+<entry>
     <title>Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html</id>
