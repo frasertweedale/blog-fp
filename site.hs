@@ -94,14 +94,6 @@ main = hakyll $ do
             `mappend` tagsField "tags" tags
             `mappend` context
 
-      pandoc <- readPandoc =<< getResourceBody
-      let
-        h1 = maybe [Str "no title"] id . firstHeader <$> pandoc
-        title = writePandoc $ Pandoc mempty . pure . Plain . removeFormatting <$> h1
-        fancyTitle = writePandoc $ Pandoc mempty . pure . Plain <$> h1
-      saveSnapshot "title" title
-      saveSnapshot "fancyTitle" fancyTitle
-
       pandocCompilerWithTransform
               defaultHakyllReaderOptions
               defaultHakyllWriterOptions
@@ -138,12 +130,13 @@ context =
   `mappend` defaultContext
 
 
--- | Get field content from snapshot
+-- | Get field content from snapshot (at item version "recent")
 snapshotField
   :: String           -- ^ Key to use
   -> Snapshot         -- ^ Snapshot to load
   -> Context String   -- ^ Resulting context
-snapshotField key snap = field key $ \item -> loadSnapshotBody (itemIdentifier item) snap
+snapshotField key snap = field key $ \item ->
+  loadSnapshotBody (setVersion (Just "recent") (itemIdentifier item)) snap
 
 firstHeader :: Pandoc -> Maybe [Inline]
 firstHeader (Pandoc _ xs) = go xs
