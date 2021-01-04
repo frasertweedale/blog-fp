@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Text.Pandoc.Definition
-  ( Pandoc(..), Block(Header, Plain), Inline(Link, Space, Str), nullAttr )
-import Text.Pandoc.Walk (walk)
+  ( Pandoc(..), Block(Header, Plain), Inline(..), nullAttr )
+import Text.Pandoc.Walk (query, walk)
 import Hakyll
 
 
@@ -61,8 +61,14 @@ main = hakyll $ do
   -- a version of the posts to use for "recent posts" list
   match "posts/*" $ version "recent" $ do
     route $ setExtension "html"
-    compile $
-      getResourceBody >>= saveSnapshot "source"
+    compile $ do
+      pandoc <- readPandoc =<< getResourceBody
+      let
+        h1 = maybe [Str "no title"] id . firstHeader <$> pandoc
+        title = writePandoc $ Pandoc mempty . pure . Plain . removeFormatting <$> h1
+        fancyTitle = writePandoc $ Pandoc mempty . pure . Plain <$> h1
+      saveSnapshot "title" title
+      saveSnapshot "fancyTitle" fancyTitle
 
   tagsRules tags $ \tag pattern -> do
     route idRoute
@@ -88,7 +94,14 @@ main = hakyll $ do
             `mappend` tagsField "tags" tags
             `mappend` context
 
-      getResourceBody >>= saveSnapshot "source"
+      pandoc <- readPandoc =<< getResourceBody
+      let
+        h1 = maybe [Str "no title"] id . firstHeader <$> pandoc
+        title = writePandoc $ Pandoc mempty . pure . Plain . removeFormatting <$> h1
+        fancyTitle = writePandoc $ Pandoc mempty . pure . Plain <$> h1
+      saveSnapshot "title" title
+      saveSnapshot "fancyTitle" fancyTitle
+
       pandocCompilerWithTransform
               defaultHakyllReaderOptions
               defaultHakyllWriterOptions
@@ -119,36 +132,39 @@ loadRecentPosts =
 context :: Context String
 context =
   dateField "date" "%Y-%m-%d"
-  `mappend` headerField "title" "source"
+  `mappend` snapshotField "title" "title"
+  `mappend` snapshotField "fancyTitle" "fancyTitle"
   `mappend` constField "blogTitle" blogTitle
   `mappend` defaultContext
 
 
--- | Parse the item with Pandoc and pull out the first header
--- Requires a snapshot named @"source"@, taken before any
--- compilation, e.g.:
---
--- @
--- do
---   getResourceBody >>= saveSnapshot "source"
---   pandocCompiler >>= loadAndApplyTemplate ...
--- @
---
-headerField
+-- | Get field content from snapshot
+snapshotField
   :: String           -- ^ Key to use
   -> Snapshot         -- ^ Snapshot to load
   -> Context String   -- ^ Resulting context
-headerField key snap = field key $ \item -> do
-  doc <- readPandoc =<< loadSnapshot (itemIdentifier item) snap
-  maybe
-    (fail $ "no header found in " <> show (itemIdentifier item))
-    (fmap (itemBody . writePandoc) . makeItem)
-    (firstHeader (itemBody doc))
+snapshotField key snap = field key $ \item -> loadSnapshotBody (itemIdentifier item) snap
+
+firstHeader :: Pandoc -> Maybe [Inline]
+firstHeader (Pandoc _ xs) = go xs
   where
-    firstHeader (Pandoc _ xs) = firstHeader' xs
-    firstHeader' [] = Nothing
-    firstHeader' (Header _ _ ys : _) = Just (Pandoc mempty [Plain ys])
-    firstHeader' (_ : xs) = firstHeader' xs
+  go [] = Nothing
+  go (Header _ _ ys : _) = Just ys
+  go (_ : xs) = go xs
+
+
+-- yield "plain" terminal inline content; discard formatting
+removeFormatting :: [Inline] -> [Inline]
+removeFormatting = query f
+  where
+  f inl = case inl of
+    Str s -> [Str s]
+    Code _ s -> [Str s]
+    Space -> [Space]
+    SoftBreak -> [SoftBreak]
+    LineBreak -> [LineBreak]
+    Math _ s -> [Str s]
+    RawInline _ s -> [Str s]
 
 
 feedConfiguration :: FeedConfiguration
