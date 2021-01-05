@@ -34,8 +34,8 @@ main = hakyll $ do
       posts <- loadRecentPosts
       let homeContext =
             listField "posts" context (pure posts)
-            `mappend` constField "title" "Home"
-            `mappend` context
+            <> constField "title" "Home"
+            <> context
       pandocCompiler
         >>= loadAndApplyTemplate "templates/index.html" homeContext
         >>= loadAndApplyTemplate "templates/default.html" homeContext
@@ -50,9 +50,9 @@ main = hakyll $ do
       tagCloud <- renderTagCloud 80 120 tags
       let archiveContext =
             listField "posts" context (pure posts)
-            `mappend` constField "tagCloud" tagCloud
-            `mappend` constField "title" "Archive"
-            `mappend` context
+            <> constField "tagCloud" tagCloud
+            <> constField "title" "Archive"
+            <> context
       makeItem ""
         >>= loadAndApplyTemplate "templates/archive.html" archiveContext
         >>= loadAndApplyTemplate "templates/default.html" archiveContext
@@ -75,10 +75,10 @@ main = hakyll $ do
     compile $ do
       posts <- recentFirst =<< loadAll pattern
       let ctx = constField "tag" tag
-                `mappend` listField "posts" context (pure posts)
-                `mappend` constField "title" (tag <> " posts")
-                `mappend` constField "blogTitle" blogTitle
-                `mappend` defaultContext
+                <> listField "posts" context (pure posts)
+                <> constField "title" (tag <> " posts")
+                <> constField "blogTitle" blogTitle
+                <> defaultContext
 
       makeItem ""
         >>= loadAndApplyTemplate "templates/tag.html" ctx
@@ -91,8 +91,8 @@ main = hakyll $ do
       posts <- loadRecentPosts
       let postContext =
             listField "posts" context (pure posts)
-            `mappend` tagsField "tags" tags
-            `mappend` context
+            <> tagsField "tags" tags
+            <> context
 
       pandocCompilerWithTransform
               defaultHakyllReaderOptions
@@ -110,7 +110,7 @@ main = hakyll $ do
     compile $ do
       let feedContext =
             bodyField "description"
-            `mappend` context
+            <> context
       posts <- loadAllSnapshots ("posts/*" .&&. hasNoVersion) "content"
         >>= fmap (take 10) . recentFirst
       renderAtom feedConfiguration feedContext posts
@@ -124,10 +124,10 @@ loadRecentPosts =
 context :: Context String
 context =
   dateField "date" "%Y-%m-%d"
-  `mappend` snapshotField "title" "title"
-  `mappend` snapshotField "fancyTitle" "fancyTitle"
-  `mappend` constField "blogTitle" blogTitle
-  `mappend` defaultContext
+  <> snapshotField "title" "title"
+  <> snapshotField "fancyTitle" "fancyTitle"
+  <> constField "blogTitle" blogTitle
+  <> defaultContext
 
 
 -- | Get field content from snapshot (at item version "recent")
