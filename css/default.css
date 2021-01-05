@@ -142,6 +142,10 @@ blockquote {
     font-style: italic;
 }
 
+.smallcaps {
+    font-variant: small-caps;
+}
+
 p code
 , h1 code
 , h2 code
