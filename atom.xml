@@ -10,12 +10,12 @@
     </author>
     <updated>2021-01-11T00:00:00Z</updated>
     <entry>
-    <title>Fancy Hakyll title formatting</title>
+    <title>Hakyll how-to: Fancy title formatting</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2021-01-11-hakyll-title-formatting.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2021-01-11-hakyll-title-formatting.html</id>
     <published>2021-01-11T00:00:00Z</published>
     <updated>2021-01-11T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="fancy-hakyll-title-formatting"><em>Fancy</em> <code>Hakyll</code> <sup>title</sup> <span class="smallcaps">formatting</span></h1>
+    <summary type="html"><![CDATA[<h1 id="hakyll-how-to-fancy-title-formatting">Hakyll how-to: <em>Fancy</em> <code>title</code> <span class="smallcaps">formatting</span></h1>
 <p>Sometimes you need special formatting in an article title. I often use monospace (e.g. for a function name), but subscript, superscript or italics might be useful too. The standard <a href="https://jaspervdj.be/hakyll/">Hakyll</a> metadata block doesn’t offer a good way of doing this. But Hakyll is very flexible. In this post I’ll walk through my solution.</p>
 <h2 id="the-standard-approach">The standard approach <a href="#the-standard-approach">§</a></h2>
 <p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an input file. The <code>title</code> is specified there:</p>
