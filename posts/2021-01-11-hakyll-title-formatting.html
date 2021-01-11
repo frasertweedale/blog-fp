@@ -28,7 +28,7 @@
     <h1 id="hakyll-how-to-fancy-title-formatting">Hakyll how-to: <em>Fancy</em> <code>title</code> <span class="smallcaps">formatting</span></h1>
 <p>Sometimes you need special formatting in an article title. I often use monospace (e.g. for a function name), but subscript, superscript or italics might be useful too. The standard <a href="https://jaspervdj.be/hakyll/">Hakyll</a> metadata block doesn’t offer a good way of doing this. But Hakyll is very flexible. In this post I’ll walk through my solution.</p>
 <h2 id="the-standard-approach">The standard approach <a href="#the-standard-approach">§</a></h2>
-<p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an input file. The <code>title</code> is specified there:</p>
+<p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an input file. You specify the <code>title</code> there:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co">---</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="an">title:</span><span class="co"> Fancy Hakyll title formatting</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
@@ -190,7 +190,7 @@ did not find expected alphabetic or numeric character
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a><span class="kw">&lt;h1</span><span class="ot"> id=</span><span class="st">&quot;fancy-hakyll-title-formatting&quot;</span><span class="kw">&gt;&lt;em&gt;</span>Fancy<span class="kw">&lt;/em&gt;</span></span>
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a>  <span class="kw">&lt;code&gt;</span>Hakyll<span class="kw">&lt;/code&gt;</span> title formatting.<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a>…</span></code></pre></div>
-<p>The archive page uses <code>$fancyTitle$</code>, with the rich formatting, as the link <code>(&lt;a&gt;)</code> text for each post:</p>
+<p>The archive page uses <code>$fancyTitle$</code>, with the rich formatting, as the link (<code>&lt;a&gt;</code>) text for each post:</p>
 <div class="sourceCode" id="cb20"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a>…</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a><span class="kw">&lt;ul&gt;</span></span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a>  <span class="kw">&lt;li&gt;</span></span>
@@ -200,7 +200,7 @@ did not find expected alphabetic or numeric character
 <span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a>  <span class="kw">&lt;/li&gt;</span></span>
 <span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a>  …</span></code></pre></div>
 <h2 id="performance-what-not-to-do">Performance (what not to do) <a href="#performance-what-not-to-do">§</a></h2>
-<p>It is critical for performance to extract and process the header <em>during compilation</em>, saving snapshots of the computed values. I found this out the hard way. In a previous implementation of my solution I snapshotted the input file source during compilation:</p>
+<p>It is critical for performance to extract and process the header <em>during compilation</em>, saving snapshots of the computed values. I found this out the hard way. In a previous implementation of my solution I snapshotted the input file <em>source</em> during compilation:</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a>compile <span class="op">$</span> <span class="kw">do</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>  getResourceBody <span class="op">&gt;&gt;=</span> saveSnapshot <span class="st">&quot;source&quot;</span></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a>  pandocCompiler <span class="op">&gt;&gt;=</span> …</span></code></pre></div>
@@ -218,7 +218,7 @@ did not find expected alphabetic or numeric character
 <span id="cb22-12"><a href="#cb22-12" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> headerField <span class="st">&quot;title&quot;</span> removeFormatting</span>
 <span id="cb22-13"><a href="#cb22-13" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> headerField <span class="st">&quot;fancyTitle&quot;</span> <span class="fu">id</span></span>
 <span id="cb22-14"><a href="#cb22-14" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> defaultContext</span></code></pre></div>
-<p>Under this implementation the build time for my work blog (68 posts at time of this post) was around 34 seconds. Certainly long enough to irritate me. When I investigated, I discovered that Hakyll executes the process in <code>headerField</code>—load snapshot, parse with Pandoc, extract title—every time it encountered <code>$title$</code> or <code>$fancyTitle$</code> in a template. That was 683 times, or over 10 times per post!</p>
+<p>With this implementation the build duration for my work blog (68 posts at the time) was around 34 seconds. Certainly long enough to irritate me. When I investigated, I discovered that Hakyll executes the process in <code>headerField</code>—load snapshot, parse with Pandoc, extract title—every time it encountered <code>$title$</code> or <code>$fancyTitle$</code> in a template. That was 683 times, or over 10 times per post!</p>
 <p>That seemed like an huge number to me, so I worked the numbers. Each post page has its <code>&lt;title&gt;</code>, and also a list of 5 recent articles. Each article appears in the main archive list, and also the list for each of its tags (I guess an average of 3 tags per article). And there are 5 recent articles on the home page.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a>λ<span class="op">&gt;</span> <span class="kw">import</span> <span class="dt">Data.Monoid</span> (<span class="dt">Sum</span>(..))</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a>λ<span class="op">&gt;</span> titles <span class="ot">=</span> <span class="fu">id</span></span>
@@ -228,7 +228,7 @@ did not find expected alphabetic or numeric character
 <span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>λ<span class="op">&gt;</span> <span class="fu">index</span> <span class="ot">=</span> <span class="fu">const</span> <span class="dv">5</span></span>
 <span id="cb23-7"><a href="#cb23-7" aria-hidden="true"></a>λ<span class="op">&gt;</span> <span class="fu">mconcat</span> [titles, recent, archive, tags, <span class="fu">index</span>] <span class="op">$</span> <span class="dt">Sum</span> <span class="dv">68</span></span>
 <span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a><span class="dt">Sum</span> {getSum <span class="ot">=</span> <span class="dv">685</span>}</span></code></pre></div>
-<p>My estimate (685) was very close to the actual value (683). Although this is the worst case scenario, even the best case scenario—when nothing has changed at all—still caused 192 parses and took significant time (about 9 seconds). This seems to be caused by tags pages always being recompiled. I’m not sure why that happens, but when the titles are cached it’s fast enough to not be an issue (&lt;0.5 seconds).</p>
+<p>The estimate (685) was very close to the actual value (683). Although this is the worst case scenario, even the best case scenario—when nothing has changed at all—still caused 192 parses and took significant time (about 9 seconds). This seems to be caused by tags pages always being recompiled. I’m not sure why that happens, but when the titles are cached it’s fast enough to not be an issue (&lt;0.5 seconds).</p>
 <p>The big takeaway from all this is: do as little processing as possible in <code>Context</code> field definitions. In my case, switching to doing the title processing in <code>compile</code> and caching the results (<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Core-Compiler.html#v:saveSnapshot"><code>saveSnapshot</code></a>) reduced site build time from 34 seconds to 9 seconds!</p>
 <h2 id="final-words">Final words <a href="#final-words">§</a></h2>
 <p>Pandoc and Hakyll continue to be awesome and powerful tools. Any time I’ve wished to do something a little differently, or enhance my site, I’ve always found a way (up to HTML and CSS, anyway).</p>
