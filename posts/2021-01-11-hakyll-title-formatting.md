@@ -1,10 +1,8 @@
 ---
-title: <em>Fancy</em> <code>Hakyll</code> title formatting
 tags: hakyll, pandoc
-fancyTitle: Fancy Hakyll title formatting
 ---
 
-# *Fancy* `Hakyll` ^title^ <span style="font-variant:small-caps">formatting</span>
+# Hakyll how-to: *Fancy* `title` <span style="font-variant:small-caps">formatting</span>
 
 Sometimes you need special formatting in an article title.  I often
 use monospace (e.g. for a function name), but subscript, superscript
