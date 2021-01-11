@@ -315,14 +315,18 @@ the link (`<a>`) text for each post:
 
 It is critical for performance to extract and process the header
 *during compilation*, saving snapshots of the computed values.  I
-found this out the hard way.  In a previous implementation of my
-solution I snapshotted the input file *source* during compilation:
+found this out the hard way.  In a previous iteration of my
+solution, during compilation I only saved a snapshot of the input
+*source*:
 
 ```haskell
 compile $ do
   getResourceBody >>= saveSnapshot "source"
   pandocCompiler >>= …
 ```
+
+The behaviour to load the source from the snapshot, parse it and
+extract the title was part of the `Context`:
 
 ```haskell
 headerField :: String -> ([Inline] -> [Inline]) -> Context String
@@ -374,10 +378,10 @@ but when the titles are cached it's fast enough to not be an issue
 (<0.5 seconds).
 
 The big takeaway from all this is: do as little processing as
-possible in `Context` field definitions.  In my case, switching to
-doing the title processing in `compile` and caching the results
-([`saveSnapshot`][saveSnapshot]) reduced site build time from 34
-seconds to 9 seconds!
+possible in `Context` field definitions.  In my case, doing the
+title processing in `compile` and caching the results in dedicated
+snapshots ([`saveSnapshot`][saveSnapshot]) reduced site build time
+from 34 seconds to 9 seconds!
 
 [saveSnapshot]: https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Core-Compiler.html#v:saveSnapshot
 
