@@ -16,7 +16,7 @@ flexible.  In this post I'll walk through my solution.
 ## The standard approach
 
 [Pandoc][] reads an optional YAML *metadata block* at the beginning of an
-input file.  The `title` is specified there:
+input file.  You specify the `title` there:
 
 ```markdown
 ---
@@ -298,7 +298,7 @@ article `$body$`.
 ```
 
 The archive page uses `$fancyTitle$`, with the rich formatting, as
-the link `(<a>)` text for each post:
+the link (`<a>`) text for each post:
 
 ```html
 …
@@ -316,7 +316,7 @@ the link `(<a>)` text for each post:
 It is critical for performance to extract and process the header
 *during compilation*, saving snapshots of the computed values.  I
 found this out the hard way.  In a previous implementation of my
-solution I snapshotted the input file source during compilation:
+solution I snapshotted the input file *source* during compilation:
 
 ```haskell
 compile $ do
@@ -341,13 +341,12 @@ ctx =
   <> defaultContext
 ```
 
-Under this implementation the build time for my work blog (68 posts
-at time of this post) was around 34 seconds.  Certainly long enough
-to irritate me.  When I investigated, I discovered that Hakyll
-executes the process in `headerField`—load snapshot, parse with
-Pandoc, extract title—every time it encountered `$title$` or
-`$fancyTitle$` in a template.  That was 683 times, or over 10 times
-per post!
+With this implementation the build duration for my work blog (68
+posts at the time) was around 34 seconds.  Certainly long enough to
+irritate me.  When I investigated, I discovered that Hakyll executes
+the process in `headerField`—load snapshot, parse with Pandoc,
+extract title—every time it encountered `$title$` or `$fancyTitle$`
+in a template.  That was 683 times, or over 10 times per post!
 
 That seemed like an huge number to me, so I worked the numbers.
 Each post page has its `<title>`, and also a list of 5 recent
@@ -366,7 +365,7 @@ article).  And there are 5 recent articles on the home page.
 Sum {getSum = 685}
 ```
 
-My estimate (685) was very close to the actual value (683).
+The estimate (685) was very close to the actual value (683).
 Although this is the worst case scenario, even the best case
 scenario—when nothing has changed at all—still caused 192 parses and
 took significant time (about 9 seconds).  This seems to be caused by
