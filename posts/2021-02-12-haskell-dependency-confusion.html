@@ -104,7 +104,7 @@ Hello, world!</code></pre>
 <h2 id="attack">Attack <a href="#attack">§</a></h2>
 <p>I bumped the version of <em>redesigned-carnival</em> to <code>1.0.0.0</code>, and <a href="https://hackage.haskell.org/package/redesigned-carnival">uploaded it to Hackage</a>. A real-world attacker might upload <em>many</em> different versions, in the hope of matching a range of possible constraints.</p>
 <p>The version uploaded to Hackage does not contain any malicious behaviour. But I changed the <code>hello</code> string to <code>"Mwahaha"</code>. If we see this sinister-looking string, we’ll know the attack succeeded.</p>
-<p>Following another <code>cabal update</code>, <em>cabal-install</em> is aware of the new version of <em>redesigned-carnival</em>:</p>
+<p>After another <code>cabal update</code>, <em>cabal-install</em> is aware of the new version of <em>redesigned-carnival</em>:</p>
 <pre class="shell"><code>% cabal list redesigned-carnival
 * redesigned-carnival
     Synopsis: Package for dependency confusion
@@ -112,7 +112,7 @@ Hello, world!</code></pre>
     Installed versions: [ Not installed ]
     License:  PublicDomain</code></pre>
 <p>The <em>Default available version</em> line shows that, by default, <em>cabal-install</em> will prefer the highest version of package. To confirm that it was not merely the <em>most recently uploaded</em> version of a package, I created version <code>0.2.0.0</code>, uploaded it to my <em>private</em> Hackage server, and ran <code>cabal update</code>. <code>cabal list</code> still showed version <code>1.0.0.0</code> as the default version.</p>
-<p>This is what <em>cabal-install</em> did the next time built (and ran) <em>super-fiesta</em>:</p>
+<p>This is what <em>cabal-install</em> did the next time I built (and ran) <em>super-fiesta</em>:</p>
 <pre class="shell"><code>% cabal run
 Resolving dependencies...
 Build profile: -w ghc-8.8.4 -O1
