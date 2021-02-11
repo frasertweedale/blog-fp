@@ -250,9 +250,9 @@ to the "malicious" version from Hackage.
 ## Potential mitigations
 
 It is not safe to assume internal packages names will not leak or be
-guessed.  Dependency confusion is a feasible against any person or
-organisation using a combination of public and private Hackage
-repositories.
+guessed.  Dependency confusion is a feasible attack against any
+person or organisation using a combination of public and private
+Hackage repositories.
 
 I am not aware of any existing technical mechanisms in the Cabal and
 Hackage tooling to mitigate the risk of this attack.  But I have a
