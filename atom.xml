@@ -131,7 +131,7 @@ Mwahaha</code></pre>
 
 repository hackage.haskell.org
   url: http://hackage.haskell.org/</code></pre>
-<p>Now, a dependency confusion attack against <em>redesigned-carnival</em> would not work. <em>cabal-install</em> will ignore versions of the package from <code>hackage.haskell.org</code>, because it is provided by an exclusive repository.</p>
+<p>Now, a dependency confusion attack against <em>redesigned-carnival</em> would not work. <em>cabal-install</em> will ignore versions of the package from <code>hackage.haskell.org</code>, because that package name is also provided by an exclusive repository.</p>
 <p>This approach is easy for users to configure, and requires no changes to the <em>hackage-server</em> program or the <em>Cabal</em> package description format. The changes are limited to <em>cabal-install</em>.</p>
 <p>One drawback is that if a person or organisation wants to publicly release a previously internal package, they will have to remove it from their private repository. As far as I can tell, <em>hackage-server</em> does not support package deletion. So this approach might entail changes to <em>hackage-server</em> after all.</p>
 <h3 id="repository-scoped-dependencies">Repository-scoped dependencies <a href="#repository-scoped-dependencies">§</a></h3>
