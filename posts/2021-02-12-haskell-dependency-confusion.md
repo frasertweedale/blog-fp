@@ -246,6 +246,13 @@ Owned.  *cabal-install* saw that there was a new version of
 are no constraints).  So it downloaded, built, installed and linked
 to the "malicious" version from Hackage.
 
+The order the repositories appear in `~/.cabal/config` does not
+affect the result.  My testing shows that *cabal-install* prefers
+the highest version, regardless of which repository it comes from.
+I have seen comments that repositories listed later are preferred
+over earlier ones, but maybe that only applies when the same version
+is hosted on both repositories.
+
 
 ## Potential mitigations
 
@@ -288,6 +295,30 @@ release a previously internal package, they will have to remove it
 from their private repository.  As far as I can tell,
 *hackage-server* does not support package deletion.  So this
 approach might entail changes to *hackage-server* after all.
+
+#### *Update*: coming in *cabal-install* 3.4
+
+Oleg Grenrus [pointed out][reddit-cabal-3.4] a new feature arriving
+in `cabal-install-3.4`.  The `active-repositories` field and
+`override` merge strategy can accomplish the goal of restricting
+packages to a particular repository:
+
+```
+-- Order is significant.  For packages in localhost,
+-- only versions in localhost are considered
+active-repositories:
+  , hackage.haskell.org
+  , localhost:override
+```
+
+See also the [official documentation][cabal-3.4-doc].  I have tested
+the feature, and it works.  At time of writing the pre-release
+version is `3.4.0.0-rc7` so the final release should not be far
+away.
+
+[reddit-cabal-3.4]: https://www.reddit.com/r/haskell/comments/lhmbw3/haskell_is_vulnerable_to_dependency_confusion/gmz6qi0/
+[cabal-3.4-doc]: https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=active-repositories#cfg-field-active-repositories
+
 
 ### Repository-scoped dependencies
 
