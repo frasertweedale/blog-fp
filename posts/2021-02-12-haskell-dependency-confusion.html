@@ -30,11 +30,9 @@
 <h2 id="introduction">Introduction <a href="#introduction">§</a></h2>
 <p>A recent post, <a href="https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610"><em>Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies</em></a> by Alex Birsan, caused quite a stir. It describes an attack where the attacker uploads malicious packages with the same name as target organisations’ <em>internal</em> packages. If the version on the public repository is higher, most tools will prefer it. The malicious package compromises the developer’s machine, or the machines that run the program the developer builds, or the users who interact with that program over the network. Maybe all three.</p>
 <p>The author successfully executed the dependency confusion attacks using <code>npm</code> (NodeJS), PyPI/<code>pip</code> (Python) and RubyGems/<code>gem</code> (Ruby). In the conclusion, he raises the spectre of other languages and package repositories being likewise vulnerable:</p>
-<pre><code>Specifically, I believe that finding new and clever ways to leak
-internal package names will expose even more vulnerable systems,
-and looking into alternate programming languages and
-repositories to target will reveal some additional attack
-surface for dependency confusion bugs.</code></pre>
+<blockquote>
+<p>Specifically, I believe that finding new and clever ways to leak internal package names will expose even more vulnerable systems, and looking into alternate programming languages and repositories to target will reveal some additional attack surface for dependency confusion bugs.</p>
+</blockquote>
 <p>So, is the Haskell ecosystem vulnerable to this attack? I assume you read the post title or abstract and therefore know that the answer to that question is <em>yes!</em> In the following sections I demonstrate the attack and discuss possible mitigations.</p>
 <h2 id="terminology">Terminology <a href="#terminology">§</a></h2>
 <ul>
@@ -49,8 +47,8 @@ surface for dependency confusion bugs.</code></pre>
 <p>For reasons unrelated to this investigation, I already had a local instance of <em>hackage-server</em>, running on <code>localhost:8080</code>. In this exercise, it plays the role of the private Hackage repository.</p>
 <h3 id="subject-dependency">Subject dependency <a href="#subject-dependency">§</a></h3>
 <p>I created a new “internal package” to be the subject of the attack. I chose a silly name suggested by GitHub: <em>redesigned-carnival</em>. Hopefully it will not conflict with anyone’s legitimate needs. While the <a href="https://github.com/frasertweedale/redesigned-carnival">source code</a> is available on GitHub, there’s no need to look at it. The package is trivial, containing a single module whose content is:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
 <p>I uploaded <code>redesigned-carnival-0.1.0.0</code> to the private Hackage repository.</p>
 <h3 id="cabal-install-configuration"><em>cabal-install</em> configuration <a href="#cabal-install-configuration">§</a></h3>
 <p>The <em>cabal-install</em> configuration lives at <code>~/.cabal/config</code>. By default it contains a single <code>repository</code> clause, pointing at Hackage:</p>
@@ -77,12 +75,12 @@ To revert to previous state run:
     License:  PublicDomain</code></pre>
 <h3 id="vulnerable-dependent-package">Vulnerable dependent package <a href="#vulnerable-dependent-package">§</a></h3>
 <p>I wrote a tiny package called <em>super-fiesta</em> (cheerful suggestion thanks to GitHub, again). It depends on <em>redesigned-carnival</em>, and prints the value of <code>hello</code>. The <a href="https://github.com/frasertweedale/super-fiesta">source code</a> is on GitHub. Here is the whole program (<code>Main.hs</code>):</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">ACME.RedesignedCarnival</span> (hello)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>main <span class="ot">=</span> <span class="fu">putStrLn</span> hello</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">ACME.RedesignedCarnival</span> (hello)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a>main <span class="ot">=</span> <span class="fu">putStrLn</span> hello</span></code></pre></div>
 <p>With <em>cabal-install</em> now aware of <em>redesigned-carnival</em>, I can build and run this program:</p>
 <pre class="shell"><code>% cd ~/dev/hs/super-fiesta
 % cabal run
