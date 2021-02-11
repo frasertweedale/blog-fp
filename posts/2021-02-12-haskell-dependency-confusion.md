@@ -54,8 +54,7 @@ demonstrate the attack and discuss possible mitigations.
 - ***cabal-install***: the command line program for building and
   installing *Cabal* packages.  The executable name is **`cabal`**.
   *cabal-install* uses the *Cabal* library and interacts with
-  ***hackage-server*** servers (most commonly
-  `hackage.haskell.org`).
+  *hackage-server* servers (most commonly `hackage.haskell.org`).
 
 - ***Private Hackage***: a *hackage-server* instance operated for
   the purpose of hosting private or internal packages.
