@@ -131,7 +131,7 @@ Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-
 Mwahaha</code></pre>
 <p>Owned. <em>cabal-install</em> saw that there was a new version of <em>redesigned-carnival</em> compatible with the constraints (because there are no constraints). So it downloaded, built, installed and linked to the “malicious” version from Hackage.</p>
 <h2 id="potential-mitigations">Potential mitigations <a href="#potential-mitigations">§</a></h2>
-<p>It is not safe to assume internal packages names will not leak or be guessed. Dependency confusion is a feasible against any person or organisation using a combination of public and private Hackage repositories.</p>
+<p>It is not safe to assume internal packages names will not leak or be guessed. Dependency confusion is a feasible attack against any person or organisation using a combination of public and private Hackage repositories.</p>
 <p>I am not aware of any existing technical mechanisms in the Cabal and Hackage tooling to mitigate the risk of this attack. But I have a few ideas for possible mitigations.</p>
 <h3 id="exclusive-repositories">“Exclusive” repositories <a href="#exclusive-repositories">§</a></h3>
 <p>If you could mark a repository as “exclusive”, then for any package provided by that repository, <em>cabal-install</em> <strong>must</strong> only use a version provided by that repository. The idea is that private repositories would be marked as exclusive:</p>
