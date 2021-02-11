@@ -28,11 +28,11 @@ using `npm` (NodeJS), PyPI/`pip` (Python) and RubyGems/`gem` (Ruby).
 In the conclusion, he raises the spectre of other languages and
 package repositories being likewise vulnerable:
 
-    Specifically, I believe that finding new and clever ways to leak
-    internal package names will expose even more vulnerable systems,
-    and looking into alternate programming languages and
-    repositories to target will reveal some additional attack
-    surface for dependency confusion bugs.
+> Specifically, I believe that finding new and clever ways to leak
+> internal package names will expose even more vulnerable systems,
+> and looking into alternate programming languages and repositories
+> to target will reveal some additional attack surface for
+> dependency confusion bugs.
 
 So, is the Haskell ecosystem vulnerable to this attack?  I assume
 you read the post title or abstract and therefore know that the
