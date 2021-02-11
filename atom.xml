@@ -120,6 +120,7 @@ Building executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
 Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
 Mwahaha</code></pre>
 <p>Owned. <em>cabal-install</em> saw that there was a new version of <em>redesigned-carnival</em> compatible with the constraints (because there are no constraints). So it downloaded, built, installed and linked to the “malicious” version from Hackage.</p>
+<p>The order the repositories appear in <code>~/.cabal/config</code> does not affect the result. My testing shows that <em>cabal-install</em> prefers the highest version, regardless of which repository it comes from. I have seen comments that repositories listed later are preferred over earlier ones, but maybe that only applies when the same version is hosted on both repositories.</p>
 <h2 id="potential-mitigations">Potential mitigations <a href="#potential-mitigations">§</a></h2>
 <p>It is not safe to assume internal packages names will not leak or be guessed. Dependency confusion is a feasible attack against any person or organisation using a combination of public and private Hackage repositories.</p>
 <p>I am not aware of any existing technical mechanisms in the Cabal and Hackage tooling to mitigate the risk of this attack. But I have a few ideas for possible mitigations.</p>
@@ -134,6 +135,14 @@ repository hackage.haskell.org
 <p>Now, a dependency confusion attack against <em>redesigned-carnival</em> would not work. <em>cabal-install</em> will ignore versions of the package from <code>hackage.haskell.org</code>, because that package name is also provided by an exclusive repository.</p>
 <p>This approach is easy for users to configure, and requires no changes to the <em>hackage-server</em> program or the <em>Cabal</em> package description format. The changes are limited to <em>cabal-install</em>.</p>
 <p>One drawback is that if a person or organisation wants to publicly release a previously internal package, they will have to remove it from their private repository. As far as I can tell, <em>hackage-server</em> does not support package deletion. So this approach might entail changes to <em>hackage-server</em> after all.</p>
+<h4 id="update-coming-in-cabal-install-3.4"><em>Update</em>: coming in <em>cabal-install</em> 3.4 <a href="#update-coming-in-cabal-install-3.4">§</a></h4>
+<p>Oleg Grenrus <a href="https://www.reddit.com/r/haskell/comments/lhmbw3/haskell_is_vulnerable_to_dependency_confusion/gmz6qi0/">pointed out</a> a new feature arriving in <code>cabal-install-3.4</code>. The <code>active-repositories</code> field and <code>override</code> merge strategy can accomplish the goal of restricting packages to a particular repository:</p>
+<pre><code>-- Order is significant.  For packages in localhost,
+-- only versions in localhost are considered
+active-repositories:
+  , hackage.haskell.org
+  , localhost:override</code></pre>
+<p>See also the <a href="https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=active-repositories#cfg-field-active-repositories">official documentation</a>. I have tested the feature, and it works. At time of writing the pre-release version is <code>3.4.0.0-rc7</code> so the final release should not be far away.</p>
 <h3 id="repository-scoped-dependencies">Repository-scoped dependencies <a href="#repository-scoped-dependencies">§</a></h3>
 <p>Dependencies in <code>.cabal</code> files have no scoping or namespacing. What if you could scope a dependency to a particular repository? For example:</p>
 <pre class="cabal"><code>executable super-fiesta
