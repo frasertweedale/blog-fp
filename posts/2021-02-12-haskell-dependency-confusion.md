@@ -200,8 +200,8 @@ The version uploaded to Hackage does not contain any malicious
 behaviour.  But I changed the `hello` string to `"Mwahaha"`.  If we
 see this sinister-looking string, we'll know the attack succeeded.
 
-Following another `cabal update`, *cabal-install* is aware of the
-new version of *redesigned-carnival*:
+After another `cabal update`, *cabal-install* is aware of the new
+version of *redesigned-carnival*:
 
 ```shell
 % cabal list redesigned-carnival
@@ -219,7 +219,7 @@ of a package, I created version `0.2.0.0`, uploaded it to my
 *private* Hackage server, and ran `cabal update`.  `cabal list`
 still showed version `1.0.0.0` as the default version.
 
-This is what *cabal-install* did the next time built (and ran)
+This is what *cabal-install* did the next time I built (and ran)
 *super-fiesta*:
 
 ```shell
