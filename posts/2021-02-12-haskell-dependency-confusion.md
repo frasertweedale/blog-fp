@@ -276,8 +276,8 @@ repository hackage.haskell.org
 
 Now, a dependency confusion attack against *redesigned-carnival*
 would not work.  *cabal-install* will ignore versions of the package
-from `hackage.haskell.org`, because it is provided by an exclusive
-repository.
+from `hackage.haskell.org`, because that package name is also
+provided by an exclusive repository.
 
 This approach is easy for users to configure, and requires no
 changes to the *hackage-server* program or the *Cabal* package
