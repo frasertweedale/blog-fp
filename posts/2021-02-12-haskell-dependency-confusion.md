@@ -4,10 +4,10 @@ tags: security, cabal, hackage
 
 # Haskell is vulnerable to dependency confusion
 
-In this post, I demonstrate that Haskell package management system
-is vulnerable to the *dependency confusion* supply chain attack.  I
-also discuss some potential approaches for Haskell tooling to
-mitigate this type of attack.
+In this post, I demonstrate that the Haskell package management
+system is vulnerable to the *dependency confusion* supply chain
+attack.  I also discuss some potential approaches for Haskell
+tooling to mitigate this type of attack.
 
 ## Introduction
 
