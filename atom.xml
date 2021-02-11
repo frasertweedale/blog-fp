@@ -16,7 +16,7 @@
     <published>2021-02-12T00:00:00Z</published>
     <updated>2021-02-12T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="haskell-is-vulnerable-to-dependency-confusion">Haskell is vulnerable to dependency confusion</h1>
-<p>In this post, I demonstrate that Haskell package management system is vulnerable to the <em>dependency confusion</em> supply chain attack. I also discuss some potential approaches for Haskell tooling to mitigate this type of attack.</p>
+<p>In this post, I demonstrate that the Haskell package management system is vulnerable to the <em>dependency confusion</em> supply chain attack. I also discuss some potential approaches for Haskell tooling to mitigate this type of attack.</p>
 <h2 id="introduction">Introduction <a href="#introduction">§</a></h2>
 <p>A recent post, <a href="https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610"><em>Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies</em></a> by Alex Birsan, caused quite a stir. It describes an attack where the attacker uploads malicious packages with the same name as target organisations’ <em>internal</em> packages. If the version on the public repository is higher, most tools will prefer it. The malicious package compromises the developer’s machine, or the machines that run the program the developer builds, or the users who interact with that program over the network. Maybe all three.</p>
 <p>The author successfully executed the dependency confusion attacks using <code>npm</code> (NodeJS), PyPI/<code>pip</code> (Python) and RubyGems/<code>gem</code> (Ruby). In the conclusion, he raises the spectre of other languages and package repositories being likewise vulnerable:</p>
