@@ -4,10 +4,10 @@ tags: security, cabal, hackage
 
 # Haskell is vulnerable to dependency confusion
 
-In this post, I demonstrate that the Haskell package management
-system is vulnerable to the *dependency confusion* supply chain
-attack.  I also discuss some potential approaches for Haskell
-tooling to mitigate this type of attack.
+In this post, I demonstrate that critical parts of the Haskell
+package management system are vulnerable to the *dependency
+confusion* supply chain attack.  I also discuss some potential
+approaches for Haskell tooling to mitigate this type of attack.
 
 ## Introduction
 
@@ -187,6 +187,27 @@ Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-
 Hello, world!
 ```
 
+### Determining internal package names
+
+The attack requires knowing, or guessing, internal package names.
+Approaches that apply to Haskell code include:
+
+- Search for mentions of internal libraries in public code, blog
+  posts, presentations, and so on.
+
+- Scan non-stripped binaries delivered by the target organisation.
+
+- If there is an organisation-specific package naming convention,
+  make some educated guesses.
+
+- Use any other kind of exploit (including social engineering) to
+  discover internal package names.
+
+I will assume that the hypothetical attacker has learned, somehow,
+that I have an internal package named *redesigned-carnival*, and
+will attempt to use dependency confusion to attack me.  This is an
+appropriate assumption.
+
 ## Attack
 
 I bumped the version of *redesigned-carnival* to `1.0.0.0`, and
@@ -254,18 +275,140 @@ over earlier ones, but maybe that only applies when the same version
 is hosted on both repositories.
 
 
-## Potential mitigations
+## Mitigations
 
-It is not safe to assume internal packages names will not leak or be
-guessed.  Dependency confusion is a feasible attack against any
-person or organisation using a combination of public and private
-Hackage repositories.
+Alternative workflows and tools can mitigate the risk of dependency
+confusion attacks.  I discuss some current approaches below, and also
+some ideas for future tooling enhancements.
 
-I am not aware of any existing technical mechanisms in the Cabal and
-Hackage tooling to mitigate the risk of this attack.  But I have a
-few ideas for possible mitigations.
+### Local packages (effective)
 
-### "Exclusive" repositories
+Instead of using a private Hackage server, you can specify local
+packages in `cabal.project` or `cabal.project.local`:
+
+```shell
+% echo "packages: ., ../redesigned-carnival" > cabal.project.local
+% cabal run exe:super-fiesta
+Resolving dependencies...
+Build profile: -w ghc-8.8.4 -O1
+In order, the following will be built (use -v for more details):
+ - redesigned-carnival-0.1.0.0 (lib) (first run)
+ - super-fiesta-0.1.0.0 (exe:super-fiesta) (configuration changed)
+Configuring library for redesigned-carnival-0.1.0.0..
+Preprocessing library for redesigned-carnival-0.1.0.0..
+Building library for redesigned-carnival-0.1.0.0..
+[1 of 1] Compiling ACME.RedesignedCarnival ( src/ACME/RedesignedCarnival.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/redesigned-carnival-0.1.0.0/build/ACME/RedesignedCarnival.o )
+Configuring executable 'super-fiesta' for super-fiesta-0.1.0.0..
+Preprocessing executable 'super-fiesta' for super-fiesta-0.1.0.0..
+Building executable 'super-fiesta' for super-fiesta-0.1.0.0..
+[1 of 1] Compiling Main             ( Main.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta-tmp/Main.o ) [ACME.RedesignedCarnival changed]
+Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
+Hello, world!
+```
+
+Local packages are always preferred over versions in repositories,
+even when a repository offers a higher version.  You can use manual
+cloning, Git submodules or a monorepo to get the internal package
+sources in the right place.
+
+A minor downside to this approach is that you have to be more
+explicit about which package you want to build, run or install.  In
+the transcript above, I executed `cabal run exe:super-fiesta`.
+If I omit the final argument, *cabal-install* complains:
+
+```shell
+% cabal run
+Resolving dependencies...
+TODO: add support for multiple packages in a directory
+CallStack (from HasCallStack):
+  error, called at ./Distribution/Client/ProjectOrchestration.hs:542:9 in main:Distribution.Client.ProjectOrchestration
+
+```
+
+### `cabal freeze` (effective, with caveats)
+
+Dependency version pinning via `cabal freeze` is not an effective
+mitigation *in general*.  To demonstrate, I uploaded
+`redesigned-carnival-0.3.0.0` to my private Hackage, and the same
+version (with "malicious" modification) to `hackage.haskell.org`.  I
+executed `cabal freeze` and modified the `cabal.project.freeze` file
+to require `redesigned-carnival-0.3.0.0`:
+
+```shell
+% cat cabal.project.freeze
+constraints: any.base ==4.13.0.0,
+             any.ghc-prim ==0.5.3,
+             any.integer-gmp ==1.0.2.0,
+             any.redesigned-carnival ==0.3.0.0,
+             any.rts ==1.0
+```
+
+Then I executed `cabal run`.  With both repositories offering the
+"same" version, *cabal-install* retrieves the package from the *last
+defined* repository.  If that is `hackage.haskell.org`, then you
+will download and build the malicious variant.
+
+So in the presence of public and private Hackage repositories, the
+security of dependency freezing depends on the repository order.
+Unfortunately the official *cabal-install*
+[documentation][cabal-doc-repository] fails to mention this:
+
+> If you want, you can configure multiple repositories, and cabal
+> will combine them and be able to download packages from any of
+> them.
+
+[cabal-doc-repository]: https://cabal.readthedocs.io/en/3.2/installing-packages.html#repository-specification
+
+The vagueness of the documentation means insecure configurations are
+likely.  If you work in a Haskell team inside a company, *everyone*
+needs to get this configuration right.
+
+
+### Use Nix (effective)
+
+[Nix][] is a content-address package management system where all
+packages pin all dependencies by their cryptographic hashes.  Many
+Haskell developers and teams use it, and enjoy certainty about their
+dependencies and reproducible builds.
+
+Nix has a steep learning curve, and it is not a complete solution
+for library and program authors who want to publish to Hackage.
+*"Use Nix"* is a valid way to mitigate dependency confusion risk
+for Haskell teams and some individuals.
+
+[Nix]: https://nixos.org/
+
+
+### Use Stack (effective?)
+
+According to the results of annual Haskell developer surveys
+([2020][], [2019][], [2018][], [2017][]), around 75% of Haskell
+developers use the [Stack][] build tool.  Stack, by default, uses
+curated package sets from [Stackage][].  For internal packages it
+allows pinning to exact Git commit hashes, and local packages.
+
+[2020]: https://taylor.fausak.me/2020/11/22/haskell-survey-results/#s3q0
+[2019]: https://taylor.fausak.me/2019/11/16/haskell-survey-results/#s3q0
+[2018]: https://taylor.fausak.me/2018/11/18/2018-state-of-haskell-survey-results/#question-041
+[2017]: https://taylor.fausak.me/2017/11/15/2017-state-of-haskell-survey-results/#question-22
+[Stack]: https://haskellstack.org/
+[Stackage]: https://www.stackage.org/
+
+On the face of it, it would seem that Stack, in a standard
+configuration, protects against dependency confusion attacks.  I
+don't use Stack and I haven't tested it as part of this
+investigation.  I'll give it the benefit of the doubt and hope that
+others might put it to the test and publish their findings.
+
+Even if Stack mitigates dependency confusion perfectly, according to
+the same surveys above, around 50% of Haskell developers use
+*cabal-install* (either exclusively or alongside other build tools).
+As was the case with Nix, Stack may be a solution for particular
+teams or individuals, but it is not a solution for the whole
+community.
+
+
+### "Exclusive" repositories (~~idea~~ effective, with caveats)
 
 If you could mark a repository as "exclusive", then for any package
 provided by that repository, *cabal-install* **must** only use a
@@ -286,7 +429,11 @@ would not work.  *cabal-install* will ignore versions of the package
 from `hackage.haskell.org`, because that package name is also
 provided by an exclusive repository.
 
-This approach is easy for users to configure, and requires no
+This approach is easy for users to configure.  But, as with the
+`cabal freeze` approach, security for organisations requires every
+developer to set the configuration properly.
+
+and requires no
 changes to the *hackage-server* program or the *Cabal* package
 description format.  The changes are limited to *cabal-install*.
 
@@ -320,7 +467,7 @@ away.
 [cabal-3.4-doc]: https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=active-repositories#cfg-field-active-repositories
 
 
-### Repository-scoped dependencies
+### Repository-scoped dependencies (idea)
 
 Dependencies in `.cabal` files have no scoping or namespacing.  What
 if you could scope a dependency to a particular repository?  For
@@ -347,7 +494,7 @@ In other words, every agent would need to agree on what
 `<repository>` means.  This could be accomplished by identifying
 repositories by URI, but there could be other valid approaches.
 
-### Validated namespaces for packages
+### Validated namespaces for packages (idea)
 
 Another possible approach is that taken by the Java [*Maven*][maven]
 system.  Packages are addressed by `<Group ID>:<Artifact
@@ -433,11 +580,11 @@ engineering) should not be ignored either.
 
 In this post I demonstrated that the standard Haskell development
 tooling—Hackage and Cabal/*cabal-install*—is vulnerable to
-dependency confusion attacks.  I outlined a few possible
-mitigations, varying in complexity and usability.  Finally I
-emphasised that dependency confusion is one of several types of
-supply chain attack, and just one small panel in the tapestry of
-software security.
+dependency confusion attacks.  I discussed some mitigations that are
+feasible today, and some ideas for tool improvements that vary in
+complexity and usability.  Finally I emphasised that dependency
+confusion is one of several types of supply chain attack, and just
+one small panel in the tapestry of software security.
 
 I think that Haskell has long, *long* way to go in terms of
 security.  Sure, the language itself is mostly pretty good.  But the
