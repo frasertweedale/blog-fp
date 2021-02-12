@@ -351,7 +351,8 @@ will download and build the malicious variant.
 So in the presence of public and private Hackage repositories, the
 security of dependency freezing depends on the repository order.
 Unfortunately the official *cabal-install*
-[documentation][cabal-doc-repository] fails to mention this:
+[documentation][cabal-doc-repository] fails to mention the
+significance of repository order:
 
 > If you want, you can configure multiple repositories, and cabal
 > will combine them and be able to download packages from any of
