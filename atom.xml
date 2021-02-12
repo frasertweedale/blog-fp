@@ -168,7 +168,7 @@ constraints: any.base ==4.13.0.0,
              any.redesigned-carnival ==0.3.0.0,
              any.rts ==1.0</code></pre>
 <p>Then I executed <code>cabal run</code>. With both repositories offering the “same” version, <em>cabal-install</em> retrieves the package from the <em>last defined</em> repository. If that is <code>hackage.haskell.org</code>, then you will download and build the malicious variant.</p>
-<p>So in the presence of public and private Hackage repositories, the security of dependency freezing depends on the repository order. Unfortunately the official <em>cabal-install</em> <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#repository-specification">documentation</a> fails to mention this:</p>
+<p>So in the presence of public and private Hackage repositories, the security of dependency freezing depends on the repository order. Unfortunately the official <em>cabal-install</em> <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#repository-specification">documentation</a> fails to mention the significance of repository order:</p>
 <blockquote>
 <p>If you want, you can configure multiple repositories, and cabal will combine them and be able to download packages from any of them.</p>
 </blockquote>
