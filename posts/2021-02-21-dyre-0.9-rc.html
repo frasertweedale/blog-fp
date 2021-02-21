@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Announcing Dyre 0.9 release candidate</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'dyre'." href="../tags/dyre.html">dyre</a>, <a title="All pages tagged 'configuration'." href="../tags/configuration.html">configuration</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="announcing-dyre-0.9-release-candidate">Announcing Dyre 0.9 release candidate</h1>
+<p><a href="https://hackage.haskell.org/package/dyre">Dyre</a> is a tool for Haskell program configuration by (re)compilation. The last release was 0.8.12, way back in 2014. Since then, the project has been dormant… until now. I am pleased to announce a <a href="https://hackage.haskell.org/package/dyre-0.9.0/candidate">Dyre 0.9 release candidate</a>. In this post I outline what’s changed and put out a call for testing ahead of the official release.</p>
+<h2 id="dyre-overview">Dyre overview <a href="#dyre-overview">§</a></h2>
+<p>Dyre implements program configuration in the style of <a href="https://xmonad.org/"><em>xmonad</em></a>. Configurations are Haskell programs using native types and functions. When a Dyre-enabled program starts up, it detects whether the configuration has changed. If so, it (re)compiles and caches a custom executable. Then it executes the custom executable and enters the “main program”.</p>
+<p>Being able to configure a program using data types that are “native” to the program is both pleasant and powerful. Subtle user configuration errors that may go unnoticed, or lie dormant until they crash your program, instead become type errors. The program author has much less verification to perform compared to a configuration written in text formats such as YAML or JSON.</p>
+<p>This post is not intended to be a Dyre tutorial. Refer to the <a href="https://hackage.haskell.org/package/dyre/docs/Config-Dyre.html"><code>Config.Dyre</code></a> module documentation to see what Dyre looks like in practice.</p>
+<h2 id="becoming-dyres-maintainer">Becoming Dyre’s maintainer <a href="#becoming-dyres-maintainer">§</a></h2>
+<p><a href="http://www.willdonnelly.net/">Will Donnelly</a> is Dyre’s original author and maintainer. Credit and thanks to him for writing a very useful tool and actively maintaining it over several years.</p>
+<p>The most recent release of <a href="https://hackage.haskell.org/package/dyre">Dyre on Hackage</a> was 0.8.12 in 2014. There was activity on <a href="https://github.com/willdonnelly/dyre">GitHub</a> after that release, until early 2017. After that, Dyre was dormant.</p>
+<p>Meanwhile my major project <a href="https://github.com/purebred-mua/purebred">Purebred</a> uses Dyre for configuration. We encountered some dependency issues and behaviour in Dyre that caused problems with newer versions of GHC. We also noticed some things that could be improved.</p>
+<p>I decided to offer to take maintainership of Dyre. I emailed Will Donnelly but did not receive a response. Following the <a href="https://wiki.haskell.org/Taking_over_a_package"><em>Taking over a package</em></a> guide, I emailed the <em>Haskell-cafe</em> mailing list to <a href="https://mail.haskell.org/pipermail/haskell-cafe/2019-April/130923.html">announce my intent</a> to take over the package. This email <em>did</em> get noticed. Will graciously agreed that I should assume maintainership. He added me as a maintainer on Hackage and a collaborator on GitHub.</p>
+<p>I put my shiny new commit bit to use and soon pushed several changes to GitHub, before… <em>not</em> cutting a release, then doing nothing for another two years. But now—at last—I am putting the finishing touches on a new release for Dyre. So…</p>
+<h2 id="whats-changed-in-version-0.9">What’s changed in version 0.9? <a href="#whats-changed-in-version-0.9">§</a></h2>
+<p>Major changes since 0.8.12 include:</p>
+<ul>
+<li><p><code>realMain</code> can now <strong>return arbitrary types</strong>. To support this change, <code>Params</code> got a new type variable.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co">-- before</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="co">-- after</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType a</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType a <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span></code></pre></div></li>
+<li><p><code>defaultParams</code>, which contains <code>undefined</code> fields, has been <strong>deprecated</strong> in favour of the new function <code>newParams</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co">-- here be bottoms</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="ot">defaultParams ::</span> <span class="dt">Params</span> cfg a</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="co">-- celestial music playing</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>newParams</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">String</span>                 <span class="co">-- ^ 'projectName'</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">IO</span> a)          <span class="co">-- ^ 'realMain' function</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> cfg) <span class="co">-- ^ 'showError' function</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">Params</span> cfg a</span></code></pre></div>
+<p><code>newParams</code> takes values for the three required fields, so program authors can clearly see what they have to do and are less likely to make a mistake.</p></li>
+<li><p><strong>Cabal store support</strong>: Users can add extra include dirs via the <code>includeDirs</code> field of <code>Params</code>. The program author just has to put the package’s library directory in the new <code>includeDirs</code> field:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Config.Dyre</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>realMain  <span class="ot">=</span> …</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>showError <span class="ot">=</span> …</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a>myapp cfg <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a>  <span class="kw">let</span> params <span class="ot">=</span> (newParams <span class="st">&quot;myapp&quot;</span> realMain showError)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a>        { includeDirs <span class="ot">=</span> [libdir] }</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>  wrapMain params cfg</span></code></pre></div>
+<p>If an include dir appears to be in a Cabal store and matches the <code>projectName</code>, Dyre adds the corresponding <code>-package-id</code> option. As a result, recompilation works for programs installed via <code>cabal install</code>.</p></li>
+<li><p><strong>Stack support</strong>: if Dyre detects a <code>stack.yaml</code> alongside the custom configuration, it will use Stack to compile the program. Credit to <em>Jaro Reinders</em> for this feature.</p></li>
+<li><p>Dyre compiles the custom executable with <strong><code>-threaded</code></strong> when the main executable uses the threaded RTS. This means one less thing for program authors to remember (or forget) to do.</p></li>
+<li><p>Dyre now <strong>requires GHC &gt;= 7.10</strong>.</p></li>
+<li><p>Improved <strong>documentation</strong>.</p></li>
+<li><p>The <strong>test suite</strong> was expanded, and can now be executed via <code>cabal test</code>.</p></li>
+<li><p>Dyre <strong>cleans up</strong> better after compilation (successful or unsuccesful), and behaves better when the custom configuration is removed.</p></li>
+<li><p>Some versions of GHC write to standard error, even during a successful compilation. Dyre no longer treats this as a compilation failure, instead relying solely on GHC’s exit status.</p></li>
+<li><p>Dyre recognises the <strong><code>HC</code> environment variable</strong>. If set, it will compile the program using the specified compiler.</p></li>
+<li><p>Fixes for <strong>Windows</strong>, including working with recent versions of the <em>process</em> package.</p></li>
+</ul>
+<p>Additionally, I set up <strong>continuous integration</strong> for the Dyre codebase. Initially it used Travis-CI but I recently migrated to GitHub Actions. It includes jobs for testing Dyre on MacOS and Windows.</p>
+<h2 id="call-for-testing">Call for testing <a href="#call-for-testing">§</a></h2>
+<p>I would like testing and feedback on the <a href="https://hackage.haskell.org/package/dyre-0.9.0/candidate">release candidate</a> before I cut the final release of Dyre 0.9. In particular, I would welcome more testing on <strong>Windows</strong>, as well as the <strong>Stack</strong> support. I also need to test with GHC 7.10, which for technical reasons is not covered by the CI matrix.</p>
+<p><strong>You can help</strong> by testing Dyre in <em>any</em> environments, but especially those ones. Even if you only run <code>cabal test</code>, or implement the example from the <a href="https://hackage.haskell.org/package/dyre/docs/Config-Dyre.html"><code>Config.Dyre</code></a> module documentation, it will help. Please report testing outcomes in the <a href="https://github.com/willdonnelly/dyre/issues/39">testing checklist</a> issue. Failures <em>and successes</em> should be reported there.</p>
+<p>For testing on Windows, you can install the <code>cabal</code> and <code>ghc</code> packages from <a href="https://chocolatey.org/">Chocolatey</a>. To run the <code>cabal test</code> suite you’ll also need a POSIX shell installed as <code>sh.exe</code>. The one provided by the <code>gitsh</code> package worked for me.</p>
+<p>I hope to make the final release in a couple of weeks.</p>
+<h2 id="future-work">Future work <a href="#future-work">§</a></h2>
+<p>One area I have identified for future development is recording file hashes to detect changes. This is important to support the <strong>Nix</strong> packaging system, which sets all files’ creation and modification times to the epoch. It will also help with <strong>downgrades</strong>, where the main executable’s modification time decreases.</p>
+<p>This known gap is the reason I didn’t release a new version in the almost two years since I became the maintainer. I kept thinking, <em>“I should really fix that first”</em>. But I still haven’t implemented file hashing, and don’t have immediate plans to. So I decided not to delay any longer the release of the improvements I <em>have</em> made.</p>
+<p>If Nix support or other features are particularly important to you, please consider contributing to Dyre. You can create issues and pull requests <a href="https://github.com/willdonnelly/dyre">on GitHub</a>, or reach out to me directly.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2021-02-21-dyre-0.9-rc.html">Announcing Dyre 0.9 release candidate</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-02-12-haskell-dependency-confusion.html">Haskell is vulnerable to dependency confusion</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-02-02-plugin-system-prototype.html">Prototyping a plugin system for Purebred</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-01-11-hakyll-title-formatting.html">Hakyll how-to: <em>Fancy</em> <code>title</code> <span class="smallcaps">formatting</span></a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-01-01-fixing-getExecutablePath-FreeBSD.html">Fixing <code>getExecutablePath</code> on FreeBSD</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
