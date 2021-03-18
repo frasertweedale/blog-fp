@@ -109,18 +109,26 @@ repository localhost
 ```
 
 With the `repository` configured, I proceeded to update the local
-package index via `cabal update`.  But this errored, due to a bug in
-the *HTTP* package: the HTTP request fails when the URI includes a
-port.  The workaround is to tell *cabal-install* to use a different
-HTTP transport.  Set the `http-transport` option in
-`~/.cabal/config`:
+package index via `cabal update`.
+
+::: note
+
+Due to a bug in the [*HTTP*][HTTP-hackage] package, updating the
+index fails when the repository URL specifies a port.  The
+workaround is to tell *cabal-install* to use a different HTTP
+transport.  Set the `http-transport` option in `~/.cabal/config`:
 
 ```
+-- valid values: curl, wget, powershell
 http-transport: curl
 ```
 
-Valid values are `curl`, `wget` and `powershell`.  With this
-workaround in place, I was able to update the local package index:
+I submitted a [pull request][HTTP-pr] to fix this issue.
+
+:::
+
+[HTTP-hackage]: https://hackage.haskell.org/package/HTTP
+[HTTP-pr]: https://github.com/haskell/HTTP/pull/133
 
 ```shell
 % cabal update
