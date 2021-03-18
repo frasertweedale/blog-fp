@@ -102,7 +102,7 @@ explanation:
   unit IDs.
 
 - **`exposed`** controls whether the modules in the package are
-  available to imported during compilation.  This is just the
+  available to import during compilation.  This is just the
   default.  GHC command line options and [*package environment
   files*][package-environments] can alter package visibility.
 
