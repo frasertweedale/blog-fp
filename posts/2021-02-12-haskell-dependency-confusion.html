@@ -57,9 +57,13 @@
 <p>I added a second <code>repository</code> clause, pointing at my local Hackage server:</p>
 <pre><code>repository localhost
   url: http://localhost:8080/</code></pre>
-<p>With the <code>repository</code> configured, I proceeded to update the local package index via <code>cabal update</code>. But this errored, due to a bug in the <em>HTTP</em> package: the HTTP request fails when the URI includes a port. The workaround is to tell <em>cabal-install</em> to use a different HTTP transport. Set the <code>http-transport</code> option in <code>~/.cabal/config</code>:</p>
-<pre><code>http-transport: curl</code></pre>
-<p>Valid values are <code>curl</code>, <code>wget</code> and <code>powershell</code>. With this workaround in place, I was able to update the local package index:</p>
+<p>With the <code>repository</code> configured, I proceeded to update the local package index via <code>cabal update</code>.</p>
+<div class="note">
+<p>Due to a bug in the <a href="https://hackage.haskell.org/package/HTTP"><em>HTTP</em></a> package, updating the index fails when the repository URL specifies a port. The workaround is to tell <em>cabal-install</em> to use a different HTTP transport. Set the <code>http-transport</code> option in <code>~/.cabal/config</code>:</p>
+<pre><code>-- valid values: curl, wget, powershell
+http-transport: curl</code></pre>
+<p>I submitted a <a href="https://github.com/haskell/HTTP/pull/133">pull request</a> to fix this issue.</p>
+</div>
 <pre class="shell"><code>% cabal update
 Downloading the latest package lists from:
 - localhost
