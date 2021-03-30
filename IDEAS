@@ -1,5 +1,3 @@
-- purebred plugin system redux
-
 - boyer-moore in attoparsec
 
 - better getExecutablePath API
