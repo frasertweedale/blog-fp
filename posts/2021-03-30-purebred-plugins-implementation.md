@@ -420,8 +420,8 @@ plugin-specific state, remain unsolved.
 There is also the question of hook execution order or priority.
 Hook functions process and potentially modify a datum of interest,
 such as a `Message` or a `ByteString`.  Consider `ReadHook`, for
-processing messages as they're read from disk, and it's hypothetical
-dual `WriteHook`.  A plugin for on-disk mail compression would use
+processing messages as they're read from disk, and its hypothetical
+counterpart `WriteHook`.  A plugin for on-disk mail compression would use
 these hooks.  When reading mail, decompression must precede other
 operations.  When writing, compression should be the final step.
 The current implementation runs plugins hooks in the order they're
