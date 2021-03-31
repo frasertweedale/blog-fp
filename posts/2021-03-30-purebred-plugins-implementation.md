@@ -146,7 +146,7 @@ instance
   setHook (PreSendHook f) = set preSendHook (PreSendHook f)
 ```
 
-This is another reasons why it was necessary to `newtype` all the
+This is another reason why it was necessary to `newtype` all the
 hook functions.
 
 To support plugins that use multiple hooks, we declare an instance
