@@ -79,7 +79,7 @@
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>   (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">Unconstrained</span> m <span class="ot">=&gt;</span> cap m)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>    <span class="ot">=&gt;</span> <span class="dt">Hook</span> (<span class="dt">PreSendHook</span> cap) <span class="kw">where</span></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>  setHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> set preSendHook (<span class="dt">PreSendHook</span> f)</span></code></pre></div>
-<p>This is another reasons why it was necessary to <code>newtype</code> all the hook functions.</p>
+<p>This is another reason why it was necessary to <code>newtype</code> all the hook functions.</p>
 <p>To support plugins that use multiple hooks, we declare an instance of <code>Hook</code> for pairs (2-tuples). This allows plugins to define as many hooks as they need, using nested tuples:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
