@@ -183,7 +183,7 @@ When we finally understood the problem, [the fix][] was
 straightforward.  We replaced the expression:
 
 ```haskell
-killThread t $> schedule  -- broken
+killThread $> schedule  -- broken
 ```
 
 with:
