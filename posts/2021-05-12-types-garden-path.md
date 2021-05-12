@@ -183,13 +183,13 @@ When we finally understood the problem, [the fix][] was
 straightforward.  We replaced the expression:
 
 ```haskell
-killThread $> schedule  -- broken
+killThread $> spawn  -- broken
 ```
 
 with:
 
 ```haskell
-\t -> killThread t *> schedule  -- fixed
+\t -> killThread t *> spawn  -- fixed
 ```
 
 [the fix]: https://github.com/purebred-mua/purebred/pull/413/commits/4eefd939d4bb201c37e5fe2956e8777e85a6b930
