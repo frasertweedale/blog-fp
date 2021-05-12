@@ -95,7 +95,7 @@ and used the result 3 times.
 
 `effAp` should first lift the *effect* into the applicative type
 using `pure`, giving a value of the type `(Applicative t) => t (f
-a)`.  The shape of the hole is now `t (f a) => f (t a)`.  That is
+a)`.  The shape of the hole is now `t (f a) -> f (t a)`.  That is
 exactly the shape of `sequenceA`:
 
 ```haskell
