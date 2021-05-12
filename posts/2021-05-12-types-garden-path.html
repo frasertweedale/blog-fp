@@ -95,7 +95,7 @@ V3 251 198 213</code></pre>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a><span class="ot">=</span> \x <span class="ot">-&gt;</span> spawn                      <span class="co">-- definition of const</span></span></code></pre></div>
 <p>The expression discards the old <code>ThreadId</code> and never executes <code>killThread</code>. As a consequence, validation threads run wild, finishing their work in a nondeterminstic order.</p>
 <p>When we finally understood the problem, <a href="https://github.com/purebred-mua/purebred/pull/413/commits/4eefd939d4bb201c37e5fe2956e8777e85a6b930">the fix</a> was straightforward. We replaced the expression:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>killThread t <span class="op">$&gt;</span> schedule  <span class="co">-- broken</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>killThread <span class="op">$&gt;</span> schedule  <span class="co">-- broken</span></span></code></pre></div>
 <p>with:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>\t <span class="ot">-&gt;</span> killThread t <span class="op">*&gt;</span> schedule  <span class="co">-- fixed</span></span></code></pre></div>
 <h2 id="lessons-learned">Lessons learned <a href="#lessons-learned">§</a></h2>
