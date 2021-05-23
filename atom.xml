@@ -8,8 +8,123 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2021-05-12T00:00:00Z</updated>
+    <updated>2021-05-23T00:00:00Z</updated>
     <entry>
+    <title>A combinator library for taxes</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html</id>
+    <published>2021-05-23T00:00:00Z</published>
+    <updated>2021-05-23T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="a-combinator-library-for-taxes">A combinator library for taxes</h1>
+<p>Doing your taxes is no fun. But functional programming can ease the pain. In this post I describe and demonstrate the Haskell <a href="https://hackage.haskell.org/package/tax"><em>tax</em></a> library, which provides data types and combinators for defining taxes.</p>
+<h2 id="what-is-a-tax">What is a tax? <a href="#what-is-a-tax">§</a></h2>
+<p>Wikipedia <a href="https://en.wikipedia.org/wiki/Tax">defines</a> a tax as <em>a compulsory financial charge or some other type of levy imposed on a taxpayer</em>. Most taxes have monetary “inputs and outputs” but other kinds of taxation exist, such as the <a href="https://en.wikipedia.org/wiki/Corv%C3%A9e#Modern_instances"><em>corvée</em></a>. Therefore <em>tax</em> defines a type that is abstracted over its inputs and outputs:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">Tax</span> b a <span class="ot">=</span> <span class="dt">Tax</span> {<span class="ot"> getTax ::</span> b <span class="ot">-&gt;</span> a }</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  <span class="kw">deriving</span> (<span class="dt">Semigroup</span>, <span class="dt">Monoid</span>, <span class="dt">Functor</span>, <span class="dt">Profunctor</span>)</span></code></pre></div>
+<p>The <code>Tax b a</code> type is a wrapper around the function type <code>(b -&gt; a)</code>. Although <code>(-&gt;)</code> has all the instances we need, I found it more ergonomic to define a new type that communicates the <em>intent</em> of the values. The <code>GeneralizedNewtypeDeriving</code> extension enables automatic derivation of the following type class instances:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Profunctor</span> <span class="dt">Tax</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Functor</span> (<span class="dt">Tax</span> a)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Monoid</span> b <span class="ot">=&gt;</span> <span class="dt">Monoid</span> (<span class="dt">Tax</span> a b)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Semigroup</span> b <span class="ot">=&gt;</span> <span class="dt">Semigroup</span> (<span class="dt">Tax</span> a b)</span></code></pre></div>
+<p>The <code>Semigroup</code> operation sums outputs. The <code>Monoid</code> identity is a 0% tax.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a>λ<span class="op">&gt;</span> getTax (flat <span class="fl">0.1</span> <span class="op">&lt;&gt;</span> flat <span class="fl">0.2</span> <span class="op">&lt;&gt;</span> <span class="fu">mempty</span>) (<span class="dt">Money</span> <span class="dv">10</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="op">$</span><span class="fl">3.0</span></span></code></pre></div>
+<p>For convenience, <em>tax</em> exports a type synonym for taxes whose inputs and outputs are money (of the same type). The input is an amount subject to taxation (often income), and the output is the tax due:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">MoneyTax</span> a <span class="ot">=</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span></code></pre></div>
+<p>The <a href="https://hackage.haskell.org/package/dollaridoos-0.1.0.0/docs/Data-Money.html#t:Money"><code>Money</code></a> type comes from the <a href="https://hackage.haskell.org/package/dollaridoos"><em>dollaridoos</em></a> package.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">Money</span> a <span class="ot">=</span> <span class="dt">Money</span> a</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  <span class="kw">deriving</span> (<span class="dt">Eq</span>, <span class="dt">Ord</span>)</span></code></pre></div>
+<p><code>Money</code> restricts the operations that can be performed by omitting a <code>Num</code> instance. Dedicated functions provide the operations that make sense for money, like <em>scalar</em> multiplication:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="ot">($*) ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span>       a <span class="ot">-&gt;</span> <span class="dt">Money</span> a</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a><span class="ot">(*$) ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span>       a <span class="ot">-&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> <span class="dt">Money</span> a</span></code></pre></div>
+<p><code>Money a</code> also has instances for <code>Semigroup</code> and <code>Monoid</code> when the wrapped type has an instance of <code>Num</code>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> <span class="dt">Semigroup</span> (<span class="dt">Money</span> a)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span>    <span class="dt">Monoid</span> (<span class="dt">Money</span> a)</span></code></pre></div>
+<p>All types in <em>tax</em> are abstracted over the numeric representation. Different applications can have different requirements for precision. Users may want to use a type that carries additional context, such as a currency. Therefore <em>tax</em> lets the user choose the numeric representation to use.</p>
+<h2 id="constructing-taxes">Constructing taxes <a href="#constructing-taxes">§</a></h2>
+<p>The most basic taxes are <strong>lump</strong> sums, and <strong>flat</strong>-rate taxes:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">lump ::</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>lump <span class="ot">=</span> <span class="dt">Tax</span> <span class="op">.</span> <span class="fu">const</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a><span class="ot">flat ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>flat <span class="ot">=</span> <span class="dt">Tax</span> <span class="op">.</span> (<span class="op">*$</span>)</span></code></pre></div>
+<p>Some other common taxation constructions include taxing the amount <strong>above</strong> some threshold at a flat rate, or taxing the <em>whole</em> amount at a flat rate when it exceeds the <strong>threshold</strong>. These functions have the same type signature (I’ll show the implementation later):</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>above, threshold</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span></code></pre></div>
+<h2 id="combinators">Combinators <a href="#combinators">§</a></h2>
+<p>More complex taxes can be built using a handful of <a href="https://wiki.haskell.org/Combinator_pattern"><em>combinators</em></a> (functions that assemble smaller components into more complicated structures). This section describes the combinators provided by the <em>tax</em> package.</p>
+<p>Levy the <strong>lesser</strong> or <strong>greater</strong> of two taxes:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>lesserOf, greaterOf</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>lesserOf  t1 t2 <span class="ot">=</span> <span class="dt">Tax</span> (<span class="fu">min</span> <span class="op">&lt;$&gt;</span> getTax t1 <span class="op">&lt;*&gt;</span> getTax t2)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>greaterOf t1 t2 <span class="ot">=</span> <span class="dt">Tax</span> (<span class="fu">max</span> <span class="op">&lt;$&gt;</span> getTax t1 <span class="op">&lt;*&gt;</span> getTax t2)</span></code></pre></div>
+<p><strong>Limit</strong> the tax payable to a given amount:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="ot">limit ::</span> (<span class="dt">Ord</span> a) <span class="ot">=&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>limit <span class="ot">=</span> lesserOf <span class="op">.</span> lump</span></code></pre></div>
+<p>Whereas <code>above</code> and <code>threshold</code> use flat rates, <code>above'</code> and <code>threshold'</code> subject the taxable portion of the input to arbitrary <code>Tax</code> computations:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="ot">above&#39; ::</span> (<span class="dt">Num</span> b, <span class="dt">Ord</span> b)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>       <span class="ot">=&gt;</span> <span class="dt">Money</span> b <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> b) a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> b) a</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>above&#39; l <span class="ot">=</span> lmap (\x <span class="ot">-&gt;</span> <span class="fu">max</span> (x <span class="op">$-$</span> l) <span class="fu">mempty</span>)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a><span class="ot">threshold&#39; ::</span> (<span class="dt">Ord</span> b, <span class="dt">Monoid</span> a) <span class="ot">=&gt;</span> b <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>threshold&#39; l tax <span class="ot">=</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>  <span class="dt">Tax</span> (\x <span class="ot">-&gt;</span> <span class="kw">if</span> x <span class="op">&gt;=</span> l <span class="kw">then</span> getTax tax x <span class="kw">else</span> <span class="fu">mempty</span>)</span></code></pre></div>
+<p>In <code>above'</code>, note the use of <code>lmap</code> to reduce (via the <code>Money</code> subtraction function <code>($-$)</code>) the amount the tax is levied upon. This is the first usage of the <code>Profunctor</code> instance, but it will not be the last.</p>
+<p>With <code>above'</code> and <code>threshold'</code> in hand, we now see that the implementations of <code>above</code> and <code>threshold</code> (which apply flat-rate taxes) are trivial:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>above, threshold</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>above     l <span class="ot">=</span> above&#39;     l <span class="op">.</span> flat</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>threshold l <span class="ot">=</span> threshold&#39; l <span class="op">.</span> flat</span></code></pre></div>
+<p>In real world use, I have not (so far) used <code>above'</code> or <code>threshold'</code>; the flat rate variants sufficed. Nevertheless, for completeness <em>tax</em> exports the general variants.</p>
+<h2 id="examples">Examples <a href="#examples">§</a></h2>
+<h3 id="progressive-tax">Progressive tax <a href="#progressive-tax">§</a></h3>
+<p>Many countries use <em>progressive taxes</em>, where different bands of income are taxed at increasing flat rates. For example, in Australia for the 2020–21 financial year the first $18,200 is tax free, with income between $18,200 and $45,000 taxed at 19%, then 32.5% up to $120,000, 37% up to $180,000, and 45% above $180,000.</p>
+<p>Observe that the <code>Monoid</code> instance for <code>Tax</code> sums the outputs of constituent taxes applied to the same input. We can define a function that takes a list of thresholds and rates, and constructs a progressive tax:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="ot">marginal ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>         <span class="ot">=&gt;</span> [(<span class="dt">Money</span> a, a)] <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>marginal <span class="ot">=</span> <span class="fu">foldMap</span> (<span class="fu">uncurry</span> above)</span></code></pre></div>
+<p>Because of the accumulative behaviour, the rate for each band must be the <strong>difference</strong> to the previous band. The rate for the first band is implicitly the delta to 0%. The Australian regime can be expressed as:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="ot">ausTax ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>ausTax <span class="ot">=</span> marginal</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a>  [ ( <span class="dt">Money</span> <span class="dv">18200</span>,  <span class="fl">0.19</span>  <span class="op">-</span> <span class="dv">0</span>     )</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a>  , ( <span class="dt">Money</span> <span class="dv">45000</span>,  <span class="fl">0.325</span> <span class="op">-</span> <span class="fl">0.19</span>  )</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a>  , ( <span class="dt">Money</span> <span class="dv">120000</span>, <span class="fl">0.37</span>  <span class="op">-</span> <span class="fl">0.325</span> )</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a>  , ( <span class="dt">Money</span> <span class="dv">180000</span>, <span class="fl">0.45</span>  <span class="op">-</span> <span class="fl">0.37</span>  ) ]</span></code></pre></div>
+<p>The <code>marginal</code> function is useful enough that the <em>tax</em> package provides it.</p>
+<h3 id="shade-in">Shade in <a href="#shade-in">§</a></h3>
+<p>Australia’s public health system is funded by the <em>Medicare Levy</em>. It is currently 2% of income, but people below a certain threshold are exempt (the threshold changes each year). The amount above the threshold is taxed at 10% until it reaches 2% of the input. This prevents a sudden jump in tax owed and eliminates a perverse incentive to earn less than the threshold (if your income is around that number). The Australian Taxation Office calls this construction a <em>shade in</em>.</p>
+<p>Using the functions defined above and taking the lower shade in threshold as a parameter, this tax is an elegant one-liner:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a>medicareLevy</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a>medicareLevy l <span class="ot">=</span> lesserOf (above l <span class="fl">0.1</span>) (flat <span class="fl">0.02</span>)</span></code></pre></div>
+<h3 id="tax-offsets">Tax offsets <a href="#tax-offsets">§</a></h3>
+<p>A tax doesn’t have to result in an amount owed. Maybe your government will <em>give</em> you some money based on your income. Indeed Australia has some <em>tax offsets</em> that reduce the tax paid by people on lower incomes.</p>
+<p>An example is the <em>Low Income Tax Offset</em>, which was previously defined as: <em>$445, reduced by 1.5c for every dollar earned over $37,000</em> (the current definition is more complex). We can implement it like so:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="ot">lito ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>lito <span class="ot">=</span> limit <span class="fu">mempty</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>  (lump (<span class="dt">Money</span> (<span class="op">-</span><span class="dv">445</span>)) <span class="op">&lt;&gt;</span> above (<span class="dt">Money</span> <span class="dv">37000</span>) <span class="fl">0.015</span>)</span></code></pre></div>
+<p><code>limit mempty</code> ensures that the result does not exceed $0.</p>
+<h3 id="withholding-tax">Withholding tax <a href="#withholding-tax">§</a></h3>
+<p>Many jurisdictions collect income taxes by requiring employers to remit a portion of employees’ wages directly to the tax authority. In Australia, the amount to <em>withhold</em> from a payment can be determined by extrapolating the amount to an annual income, computing the tax due, then dividing it back down to the pay period.</p>
+<p>We can use the <code>Profunctor</code> instance to compute the amount to withhold for different pay periods. Think of <code>dimap f g</code> as an adapter that modifies that data flowing in (via <code>f</code>) and out (via <code>g</code>) of the target computation.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a>allTaxes <span class="ot">=</span> ausTax <span class="op">&lt;&gt;</span> medicareLevy (<span class="dt">Money</span> <span class="dv">23226</span>) <span class="op">&lt;&gt;</span> lito</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a>weeklyWithholding      <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">52</span>) (<span class="op">$/</span> <span class="dv">52</span>) allTaxes</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a>fortnightlyWithholding <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">26</span>) (<span class="op">$/</span> <span class="dv">26</span>) allTaxes</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a>monthlyWithholding     <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">12</span>) (<span class="op">$/</span> <span class="dv">12</span>) allTaxes</span></code></pre></div>
+<div class="note">
+<p>The examples above are not correct when there are 53 weekly or 27 fortnightly payments in a financial year. Can you see how to define the correct computation?</p>
+<p>In the example I ignored some <strong>rounding</strong> rules. I also omitted several other tax components. It is an example, not a complete solution!</p>
+</div>
+<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<p>I hope you have enjoyed this tour of the <em>tax</em> library. Of course, most real tax systems are much more complex than the handful of examples in this article. But <em>tax</em> provides building blocks for defining many kinds of taxes.</p>
+<p>My <a href="https://github.com/frasertweedale/hs-tax-ato"><em>tax-ato</em></a> package builds upon <em>tax</em> to provide types and behaviour for tax in Australia. In additional to the kinds of taxes described in this article it also handles captial gains tax, <a href="https://en.wikipedia.org/wiki/Dividend_imputation">franking credits</a>, student loan repayments, deductions, and other concepts. I use it to predict and record my own tax obligations. If you need to perform calculations related to tax in Australia, you might find it useful too. It is definitely not complete and comes with no guarantee of correctness.</p>
+<p>One final note: oh how I wish Haskell would decouple numeric literals from the <code>Num</code> and <code>Fractional</code> type classes. <code>Money</code> cannot have instances of these type classes because like other dimensional types, it is is not <a href="https://en.wikipedia.org/wiki/Closure_(mathematics)">closed</a> under multiplication and division. As a consequence, we have to lift bare numeric values into <code>Money</code> in several places. Separate type classes for numeric literals would avoid this. (<code>IsIntegral</code> and <code>IsRational</code> might be sensible names, following the pattern of <code>IsString</code> and <code>IsList</code>). Ultimately this is a minor inconvenience, but does add friction to using <em>dollaridoos</em>, <em>tax</em>, and programs that use these libraries.</p>]]></summary>
+</entry>
+<entry>
     <title>Type-guided development and garden paths</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html</id>
@@ -1609,97 +1724,6 @@ kern.maxproc: 3828</code></pre>
 <li><p>Introducing a <strong>type class</strong> may let you admit new use cases while preserving backwards compatibility for library users. Further parameterising an existing type class can also achieve this. I have done this many times (in <em>jose</em> and other projects) and have <em>never</em> regretted introducing another type parameter.</p></li>
 <li><p><strong>Classy optics</strong> enable reuse; more types can be used with the function, including types you didn’t even know about. And they document and enforce the data a function can access, which is helpful when dealing with record types.</p></li>
 </ul>]]></summary>
-</entry>
-<entry>
-    <title>Adding section links to Hakyll articles with Text.Pandoc.Walk</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html</id>
-    <published>2020-12-10T00:00:00Z</published>
-    <updated>2020-12-10T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="adding-section-links-to-hakyll-articles-with-text.pandoc.walk">Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></h1>
-<p>It is handy to be able to link to section headings in long articles. <a href="https://pandoc.org/">Pandoc</a> and <a href="https://jaspervdj.be/hakyll/">Hakyll</a> don’t do that out of the box. But they give you all the power you need to implement it yourself. In this post I’ll show you how.</p>
-<h2 id="objective">Objective <a href="#objective">§</a></h2>
-<p>The main objective is to provide links (HTML <code>&lt;a&gt;</code> element) to section headings. They should be located near or within the heading element. Having them in the document will make it easy for readers to grab a link to a specific section of the article. (I myself often want to do this!)</p>
-<p>You could make the whole heading a link, but I like the approach that reveals a link when the pointer hovers over the heading. Some sites use a pilcrow (¶), pound (#) or a link symbol (🔗) as the link text. I will use a section sign (§).</p>
-<h2 id="building-blocks">Building blocks <a href="#building-blocks">§</a></h2>
-<p>Pandoc does set the <code>id</code> attribute of HTML heading elements to a value derived from the heading text. For example, one of my previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The resulting HTML for the heading is:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span>Probabilities<span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
-<p>The value of the <code>id</code> attribute will be the <code>href</code> target of the <code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI fragment).</p>
-<p>Hakyll provides the <code>pandocCompilerWithTransform</code> function for compiling documents using Pandoc and applying an arbitrary transformation to them. It has the type:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a>pandocCompilerWithTransform</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">ReaderOptions</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">WriterOptions</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (<span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span>)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
-<p>Note the <code>(Pandoc -&gt; Pandoc)</code> argument. This is the tranformation function. It works with the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Definition.html#t:Pandoc"><code>Pandoc</code></a> native AST data type, rather than HTML or the input type (e.g. Markdown).</p>
-<p>For constructing such a transformation, Pandoc provides the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Walk.html#v:walk"><code>Text.Pandoc.Walk</code></a> module and the <code>walk</code> function:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">walk ::</span> (<span class="dt">Walkable</span> a b) <span class="ot">=&gt;</span> (a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> b <span class="ot">-&gt;</span> b</span></code></pre></div>
-<p><code>walk f x</code> walks the structure <code>x :: b</code> (bottom up) and replaces every occurrence of a value of type <code>a</code> with the result of applying <code>f :: (a -&gt; a)</code> to it.</p>
-<p>There are many instances of <code>Walkable</code>. We are interested in the one that visits all the <code>Block</code> elements (that’s what headings are) in the <code>Pandoc</code>:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Walkable</span> <span class="dt">Block</span> <span class="dt">Pandoc</span></span></code></pre></div>
-<h2 id="putting-it-together">Putting it together <a href="#putting-it-together">§</a></h2>
-<p>I needed a handful of Pandoc constructors to implement the transformation. The <code>Header</code> constructor (of the <code>Block</code> data type) represents a document (sub)heading with <code>Int</code> depth, attributes, and the list of <code>Inline</code> elements that constitute the header content.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Block</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  <span class="op">...</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  <span class="op">|</span> <span class="dt">Header</span> <span class="dt">Int</span> <span class="dt">Attr</span> [<span class="dt">Inline</span>]</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  <span class="op">...</span></span></code></pre></div>
-<p>I also had to construct a <code>Link</code> (one of the cases of the <code>Inline</code> data type). A <code>Link</code> has attributes, content (<code>[Inline]</code>) and a target. I also used the <code>Str</code> and <code>Space</code> constructors.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Inline</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>    <span class="ot">=</span> <span class="dt">Str</span> <span class="dt">Text</span>              <span class="co">-- ^ Literal text</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>    <span class="op">...</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    <span class="op">|</span> <span class="dt">Space</span>                 <span class="co">-- ^ Inter-word space</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>    <span class="op">...</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>    <span class="op">|</span> <span class="dt">Link</span> <span class="dt">Attr</span> [<span class="dt">Inline</span>] <span class="dt">Target</span></span></code></pre></div>
-<p>By the way, <code>Attr</code> and <code>Target</code> are defined as:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="co">-- id, classes and key-value pairs</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Attr</span> <span class="ot">=</span> (<span class="dt">Text</span>, [<span class="dt">Text</span>], [(<span class="dt">Text</span>, <span class="dt">Text</span>)])</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a><span class="co">-- URI, title</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Target</span> <span class="ot">=</span> (<span class="dt">Text</span>, <span class="dt">Text</span>)</span></code></pre></div>
-<p>With these constructors in hand, here is the whole transformation function:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">addSectionLinks ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>addSectionLinks <span class="ot">=</span> walk f <span class="kw">where</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  f (<span class="dt">Header</span> n attr<span class="op">@</span>(idAttr, _, _) inlines) <span class="op">|</span> n <span class="op">&gt;</span> <span class="dv">1</span> <span class="ot">=</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="kw">let</span> link <span class="ot">=</span> <span class="dt">Link</span> nullAttr [<span class="dt">Str</span> <span class="st">&quot;§&quot;</span>] (<span class="st">&quot;#&quot;</span> <span class="op">&lt;&gt;</span> idAttr, <span class="st">&quot;&quot;</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>    <span class="kw">in</span> <span class="dt">Header</span> n attr (inlines <span class="op">&lt;&gt;</span> [<span class="dt">Space</span>, link])</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>  f x <span class="ot">=</span> x</span></code></pre></div>
-<p>Note that we only apply this change to headings of depth greater than one. I do not need to provide a link for the article title, which is at the top of the page. For all other headers, we add a <code>Link</code> to its inline content, where the target is the fragment pointing at the <code>idAddr</code> of the header itself.</p>
-<p>To apply the transformation, I had to replace a single occurrence of:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">pandocCompiler ::</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
-<p>with:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>pandocCompilerWithTransform</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>        defaultHakyllReaderOptions</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>        defaultHakyllWriterOptions</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>        addSectionLinks</span></code></pre></div>
-<h2 id="style">Style <a href="#style">§</a></h2>
-<p>I want to hide the heading link unless the cursor is hovering over the heading. I would like to accomplish it with this small dose of CSS:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="in">:is(h2, h3, h4, h5, h6)</span> a {</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">hidden</span><span class="op">;</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>}</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a><span class="in">:is(h2, h3, h4, h5, h6):hover</span> a {</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>}</span></code></pre></div>
-<p>The <code>is()</code> pseudo-class function matches anything that matches the selector arguments, avoiding tedious repetition. It is part of CSS <a href="https://www.w3.org/TR/selectors-4/#matches">Selectors Level 4</a>, which is still a draft. Firefox and Safari fully support it but unfortunately other browsers are <a href="https://caniuse.com/css-matches-pseudo">lagging behind</a>. So I am stuck with the tedious repetition for now:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>h2 a<span class="op">,</span> h3 a<span class="op">,</span> h4 a<span class="op">,</span> h5 a<span class="op">,</span> h6 a {</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">hidden</span><span class="op">;</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a>}</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>h2<span class="in">:hover</span> a<span class="op">,</span> h3<span class="in">:hover</span> a<span class="op">,</span> h4<span class="in">:hover</span> a<span class="op">,</span> h5<span class="in">:hover</span> a<span class="op">,</span> h6<span class="in">:hover</span> a {</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a>}</span></code></pre></div>
-<p>I also used <code>text-decoration</code> and <code>color</code> to make the link appearance clean and understated.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
-<p>As a result of this change, the HTML emitted for section headers (of depth &gt; 1) looks like:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>  Probabilities <span class="kw">&lt;a</span><span class="ot"> href=</span><span class="st">&quot;#probabilities&quot;</span><span class="kw">&gt;</span>§<span class="kw">&lt;/a&gt;</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a><span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
-<p>You can experience the results for yourself, right here on this page (and in my other posts). You can also <a href="https://github.com/frasertweedale/blog-fp/commit/fe72af9144fea3ece5295ac5446f647560119088">view the commit</a> that implements this feature.</p>
-<p>There’s not much else to say, really. Pandoc is still awesome. Hakyll is still awesome. And I am very happy with the results of this little enhancement. Go forth and pilcrow-ise your Hakyll sites!</p>]]></summary>
 </entry>
 
 </feed>
