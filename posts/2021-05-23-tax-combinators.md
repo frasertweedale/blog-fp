@@ -35,10 +35,10 @@ values.  The `GeneralizedNewtypeDeriving` extension enables
 automatic derivation of the following type class instances:
 
 ```haskell
+instance Semigroup a => Semigroup (Tax b a)
+instance    Monoid a =>    Monoid (Tax b a)
+instance Functor (Tax b)
 instance Profunctor Tax
-instance Functor (Tax a)
-instance Monoid b => Monoid (Tax a b)
-instance Semigroup b => Semigroup (Tax a b)
 ```
 
 The `Semigroup` operation sums outputs.  The `Monoid` identity
@@ -181,11 +181,14 @@ completeness *tax* exports the general variants.
 
 ### Progressive tax
 
-Many countries use *progressive taxes*, where different bands of
-income are taxed at increasing flat rates.  For example, in
-Australia for the 2020–21 financial year the first $18,200 is tax
-free, with income between $18,200 and $45,000 taxed at 19%, then
-32.5% up to $120,000, 37% up to $180,000, and 45% above $180,000.
+Many countries use [*progressive taxes*][progressive], where
+different bands of income are taxed at increasing flat rates.  For
+example, in Australia for the 2020–21 financial year the first
+$18,200 is tax free, with income between $18,200 and $45,000 taxed
+at 19%, then 32.5% up to $120,000, 37% up to $180,000, and 45% above
+$180,000.
+
+[progressive]: https://en.wikipedia.org/wiki/Progressive_tax
 
 Observe that the `Monoid` instance for `Tax` sums the outputs of
 constituent taxes applied to the same input.  We can define a
@@ -299,8 +302,8 @@ examples in this article.  But *tax* provides building blocks for
 defining many kinds of taxes.
 
 My [*tax-ato*][tax-ato-github] package builds upon *tax* to provide
-types and behaviour for tax in Australia.  In additional to the
-kinds of taxes described in this article it also handles captial
+types and behaviour for tax in Australia.  In addition to the
+kinds of taxes described in this article it also handles capital
 gains tax, [franking credits][], student loan repayments,
 deductions, and other concepts.  I use it to predict and record my
 own tax obligations.  If you need to perform calculations related to
