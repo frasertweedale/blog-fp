@@ -197,10 +197,11 @@ firstHeader (Pandoc _ xs) = go xs
   go (_ : xs) = go xs
 ```
 
-And define the "strip formatting" function.  `removeFormatting` uses
-[`Text.Pandoc.Walk.query`][query] to yield, in order, only the
+[And define the "strip formatting" function.  `removeFormatting`
+uses [`Text.Pandoc.Walk.query`][query] to yield, in order, only the
 "terminal" or "leaf" data from a `[Inline]`.  `query` monoidally
-appends the values yielded by the inner function `f`.
+appends the values yielded by the inner function
+`f`.]{#removeFormatting}
 
 [query]: https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query
 
