@@ -130,7 +130,7 @@ did not find expected alphabetic or numeric character
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  go [] <span class="ot">=</span> <span class="dt">Nothing</span></span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>  go (<span class="dt">Header</span> _ _ ys <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> ys</span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>  go (_ <span class="op">:</span> xs) <span class="ot">=</span> go xs</span></code></pre></div>
-<p>And define the “strip formatting” function. <code>removeFormatting</code> uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the “terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally appends the values yielded by the inner function <code>f</code>.</p>
+<p><span id="removeFormatting">And define the “strip formatting” function. <code>removeFormatting</code> uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the “terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally appends the values yielded by the inner function <code>f</code>.</span></p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="ot">removeFormatting ::</span> [<span class="dt">Inline</span>] <span class="ot">-&gt;</span> [<span class="dt">Inline</span>]</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>removeFormatting <span class="ot">=</span> query f</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>  <span class="kw">where</span></span>
@@ -255,6 +255,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-05-23-tax-combinators.html">A combinator library for taxes</a>
         </li>
     
@@ -268,10 +272,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-03-18-dyre-cabal-store.html">How Dyre works with Cabal Nix-style builds</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-02-21-dyre-0.9-rc.html">Announcing Dyre 0.9 release candidate</a>
         </li>
     
 </ul>

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Generating abstracts for Hakyll articles</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Generating abstracts for Hakyll articles","datePublished":"2021-06-11T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html" /><meta property="og:title" content="Generating abstracts for Hakyll articles" /><meta property="og:description" content="In this post I demonstrate several ways to declare or generate abstracts for content on your Hakyll site." />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'hakyll'." href="../tags/hakyll.html">hakyll</a>, <a title="All pages tagged 'pandoc'." href="../tags/pandoc.html">pandoc</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="generating-abstracts-for-hakyll-articles">Generating abstracts for Hakyll articles</h1>
+<p>Suppose you have a list of recent posts and want to include an abstract for each one. Or maybe you want to include brief article summaries in metadata about your content. <span class="abstract">In this post I demonstrate several ways to declare or generate abstracts for content on your <a href="https://jaspervdj.be/hakyll/">Hakyll</a> site.</span></p>
+<h2 id="objective">Objective <a href="#objective">§</a></h2>
+<p>The goal is to include an <code>$abstract$</code> field in each article’s context. The field value should be a brief abstract or description of the article. What to actually <em>do</em> with the value is outside the scope of this post. But it is fair to include an example, so here’s how you could use it in a “recent posts” list:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;ul&gt;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  $for(posts)$</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>    <span class="kw">&lt;li&gt;&lt;a</span><span class="ot"> href=</span><span class="st">&quot;$url$&quot;</span><span class="kw">&gt;</span>$title$<span class="kw">&lt;/a&gt;</span>: $abstract$<span class="kw">&lt;/li&gt;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>  $endfor$</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="kw">&lt;/ul&gt;</span></span></code></pre></div>
+<p>I will discuss a more interesting use case in a future post.</p>
+<h2 id="metadata">Metadata <a href="#metadata">§</a></h2>
+<p>Hakyll processes optional metadata at the top of the article source. The format is YAML. Fields in the YAML map are available via <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:metadataField"><code>metadataField</code></a>, which is also part of the <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>.</p>
+<p>So you can define an abstract in the metadata, like so:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="pp">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="fu">tags</span><span class="kw">:</span><span class="at"> hakyll, pandoc</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="fu">abstract</span><span class="kw">: </span><span class="ch">&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>  In this post I demonstrate several ways to generate</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>  abstracts for articles in your Hakyll site.</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a><span class="pp">---</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a><span class="co"># Generating abstracts for Hakyll articles</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true"></a><span class="at">…</span></span></code></pre></div>
+<div class="note">
+<p>Be careful of including HTML special characters (<code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, <code>'</code>) in the metadata. These will <em>not</em> be escaped automatically, and could break the page. I avoid this pitfall by escaping all values that come from <code>metadataField</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>  mapContext escapeHtml metadataField </span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+</div>
+<h2 id="markup">Markup <a href="#markup">§</a></h2>
+<p>I don’t like repeating myself. If I were to use <code>metadataField</code>, the abstract I write would often be a repeat the article’s introduction or some part thereof. Wouldn’t it be nice if I could just indicate—<em>inline</em>—a portion of the article to use as the abstract? For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="fu"># Generating abstracts for Hakyll articles</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>Suppose you have … [In this post I demonstrate several</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>ways to generate abstracts for articles in your Hakyll</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>site.]{.abstract}</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>…</span></code></pre></div>
+<p>The example above uses Pandoc’s <code>bracketed_spans</code> extension. You could achieve the same with explicit <code>&lt;span&gt;</code> tags. Other input formats may or may not provide a way to do it.</p>
+<p>On the Hakyll side, we first need a function to locate a span with the <code>abstract</code> class in the <code>Pandoc</code> AST:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  removeFormatting <span class="op">&lt;$&gt;</span> findSpan blocks</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  findSpan <span class="ot">=</span> <span class="fu">fmap</span> getFirst <span class="op">.</span> query <span class="op">$</span> \inl <span class="ot">-&gt;</span> <span class="kw">case</span> inl <span class="kw">of</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    <span class="dt">Span</span> (_id, cls, _attrs) inls</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>        <span class="op">|</span> <span class="st">&quot;abstract&quot;</span> <span class="ot">`elem`</span> cls <span class="ot">-&gt;</span> <span class="dt">First</span> (<span class="dt">Just</span> inls)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>    _                           <span class="ot">-&gt;</span> <span class="fu">mempty</span></span></code></pre></div>
+<p>In the unlikely event that there are multiple spans with class <code>abstract</code>, the <code>First [Inline]</code> monoid keeps only the first. I strip all formatting via <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting"><code>removeFormatting</code></a>, which I <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting">described</a> in a previous post.</p>
+<p>The next step is to update the compiler to save a snapshot of the abstract. <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a> gives access to the <code>Pandoc</code> AST, and allows arbitrary <code>Compiler</code> actions including <code>saveSnapshot</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>match <span class="st">&quot;posts/*&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  compile <span class="op">$</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    pandocCompilerWithTransformM</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>      defaultHakyllReaderOptions</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>      defaultHakyllWriterOptions</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a>      (\pandoc <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>        <span class="kw">let</span> render <span class="ot">=</span> <span class="fu">fmap</span> writePandoc <span class="op">.</span> makeItem</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>                     <span class="op">.</span> <span class="dt">Pandoc</span> <span class="fu">mempty</span> <span class="op">.</span> <span class="fu">pure</span> <span class="op">.</span> <span class="dt">Plain</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>        <span class="fu">maybe</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true"></a>            (<span class="fu">pure</span> ())</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true"></a>            (void <span class="op">.</span> (saveSnapshot <span class="st">&quot;abstract&quot;</span> <span class="op">&lt;=&lt;</span> render))</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true"></a>            (abstract pandoc)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true"></a>        <span class="fu">pure</span> pandoc</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true"></a>      )</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true"></a>    <span class="op">&gt;&gt;=</span> loadAndApplyTemplate <span class="st">&quot;templates/post.html&quot;</span> context</span></code></pre></div>
+<p>Finally we define a new kind of context field that can read snapshots:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="ot">snapshotField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Snapshot</span> <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>snapshotField key snap <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>  loadSnapshotBody item snap</span></code></pre></div>
+<p>and add the field to the context:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+<h2 id="autogeneration">Autogeneration <a href="#autogeneration">§</a></h2>
+<p>Consider the following heuristic for autogenerating an abstract: Take the first paragraph that immediately precedes a heading; that is the abstract.</p>
+<p>This is a very basic heuristic. But absent other data it’s probably better than nothing. So let’s implement it:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  removeFormatting <span class="op">&lt;$&gt;</span> fallback</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>  fallback (<span class="dt">Para</span> inlines <span class="op">:</span> <span class="dt">Header</span> _ _ _ <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> inlines</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  fallback (_h <span class="op">:</span> t) <span class="ot">=</span> fallback t</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  fallback [] <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
+<p>This version of <code>abstract</code> scans the list of block elements at the top level of the <code>Pandoc</code> AST. The first time it sees a <code>Para</code> preceding a <code>Header</code>, it returns the paragraph content.</p>
+<h2 id="putting-it-all-together">Putting it all together <a href="#putting-it-all-together">§</a></h2>
+<p>For my sites, I want to use all three methods described above. An abstract specified in the <em>metadata</em> is preferred. Explicit <em>markup</em> is my second preference and the <em>autogeneration</em> heuristic is a last resort. This will provide a good user experience for me. With a tiny bit of markup I can avoid repeating myself most of the time. But if it is warranted, I can use the metadata to write something different. Sometimes I’ll get a fair result without doing anything.</p>
+<p>Combining the two versions of <code>abstract</code> is left as an exercise for the reader (hint: <code>Control.Applicative.&lt;|&gt;</code>).</p>
+<p>Take care when composing the context. The <code>metadataField</code> has to come before the <code>snapshotField</code> (if that’s the priority you want):</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>  mapContext escapeHtml metadataField</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+<p>Now I have a nice way to generate abstracts for my articles. I will explore an interesting use case in an upcoming post.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-05-23-tax-combinators.html">A combinator library for taxes</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-03-18-dyre-cabal-store.html">How Dyre works with Cabal Nix-style builds</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>

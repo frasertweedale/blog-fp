@@ -8,8 +8,112 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2021-05-23T00:00:00Z</updated>
+    <updated>2021-06-11T00:00:00Z</updated>
     <entry>
+    <title>Generating abstracts for Hakyll articles</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html</id>
+    <published>2021-06-11T00:00:00Z</published>
+    <updated>2021-06-11T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="generating-abstracts-for-hakyll-articles">Generating abstracts for Hakyll articles</h1>
+<p>Suppose you have a list of recent posts and want to include an abstract for each one. Or maybe you want to include brief article summaries in metadata about your content. <span class="abstract">In this post I demonstrate several ways to declare or generate abstracts for content on your <a href="https://jaspervdj.be/hakyll/">Hakyll</a> site.</span></p>
+<h2 id="objective">Objective <a href="#objective">§</a></h2>
+<p>The goal is to include an <code>$abstract$</code> field in each article’s context. The field value should be a brief abstract or description of the article. What to actually <em>do</em> with the value is outside the scope of this post. But it is fair to include an example, so here’s how you could use it in a “recent posts” list:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;ul&gt;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  $for(posts)$</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>    <span class="kw">&lt;li&gt;&lt;a</span><span class="ot"> href=</span><span class="st">&quot;$url$&quot;</span><span class="kw">&gt;</span>$title$<span class="kw">&lt;/a&gt;</span>: $abstract$<span class="kw">&lt;/li&gt;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>  $endfor$</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="kw">&lt;/ul&gt;</span></span></code></pre></div>
+<p>I will discuss a more interesting use case in a future post.</p>
+<h2 id="metadata">Metadata <a href="#metadata">§</a></h2>
+<p>Hakyll processes optional metadata at the top of the article source. The format is YAML. Fields in the YAML map are available via <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:metadataField"><code>metadataField</code></a>, which is also part of the <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>.</p>
+<p>So you can define an abstract in the metadata, like so:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="pp">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="fu">tags</span><span class="kw">:</span><span class="at"> hakyll, pandoc</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="fu">abstract</span><span class="kw">: </span><span class="ch">&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>  In this post I demonstrate several ways to generate</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>  abstracts for articles in your Hakyll site.</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a><span class="pp">---</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a><span class="co"># Generating abstracts for Hakyll articles</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true"></a><span class="at">…</span></span></code></pre></div>
+<div class="note">
+<p>Be careful of including HTML special characters (<code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, <code>'</code>) in the metadata. These will <em>not</em> be escaped automatically, and could break the page. I avoid this pitfall by escaping all values that come from <code>metadataField</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>  mapContext escapeHtml metadataField </span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+</div>
+<h2 id="markup">Markup <a href="#markup">§</a></h2>
+<p>I don’t like repeating myself. If I were to use <code>metadataField</code>, the abstract I write would often be a repeat the article’s introduction or some part thereof. Wouldn’t it be nice if I could just indicate—<em>inline</em>—a portion of the article to use as the abstract? For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="fu"># Generating abstracts for Hakyll articles</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>Suppose you have … [In this post I demonstrate several</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>ways to generate abstracts for articles in your Hakyll</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>site.]{.abstract}</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>…</span></code></pre></div>
+<p>The example above uses Pandoc’s <code>bracketed_spans</code> extension. You could achieve the same with explicit <code>&lt;span&gt;</code> tags. Other input formats may or may not provide a way to do it.</p>
+<p>On the Hakyll side, we first need a function to locate a span with the <code>abstract</code> class in the <code>Pandoc</code> AST:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  removeFormatting <span class="op">&lt;$&gt;</span> findSpan blocks</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  findSpan <span class="ot">=</span> <span class="fu">fmap</span> getFirst <span class="op">.</span> query <span class="op">$</span> \inl <span class="ot">-&gt;</span> <span class="kw">case</span> inl <span class="kw">of</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    <span class="dt">Span</span> (_id, cls, _attrs) inls</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>        <span class="op">|</span> <span class="st">&quot;abstract&quot;</span> <span class="ot">`elem`</span> cls <span class="ot">-&gt;</span> <span class="dt">First</span> (<span class="dt">Just</span> inls)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>    _                           <span class="ot">-&gt;</span> <span class="fu">mempty</span></span></code></pre></div>
+<p>In the unlikely event that there are multiple spans with class <code>abstract</code>, the <code>First [Inline]</code> monoid keeps only the first. I strip all formatting via <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting"><code>removeFormatting</code></a>, which I <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting">described</a> in a previous post.</p>
+<p>The next step is to update the compiler to save a snapshot of the abstract. <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a> gives access to the <code>Pandoc</code> AST, and allows arbitrary <code>Compiler</code> actions including <code>saveSnapshot</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>match <span class="st">&quot;posts/*&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  compile <span class="op">$</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    pandocCompilerWithTransformM</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>      defaultHakyllReaderOptions</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>      defaultHakyllWriterOptions</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a>      (\pandoc <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>        <span class="kw">let</span> render <span class="ot">=</span> <span class="fu">fmap</span> writePandoc <span class="op">.</span> makeItem</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>                     <span class="op">.</span> <span class="dt">Pandoc</span> <span class="fu">mempty</span> <span class="op">.</span> <span class="fu">pure</span> <span class="op">.</span> <span class="dt">Plain</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>        <span class="fu">maybe</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true"></a>            (<span class="fu">pure</span> ())</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true"></a>            (void <span class="op">.</span> (saveSnapshot <span class="st">&quot;abstract&quot;</span> <span class="op">&lt;=&lt;</span> render))</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true"></a>            (abstract pandoc)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true"></a>        <span class="fu">pure</span> pandoc</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true"></a>      )</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true"></a>    <span class="op">&gt;&gt;=</span> loadAndApplyTemplate <span class="st">&quot;templates/post.html&quot;</span> context</span></code></pre></div>
+<p>Finally we define a new kind of context field that can read snapshots:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="ot">snapshotField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Snapshot</span> <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>snapshotField key snap <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>  loadSnapshotBody item snap</span></code></pre></div>
+<p>and add the field to the context:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+<h2 id="autogeneration">Autogeneration <a href="#autogeneration">§</a></h2>
+<p>Consider the following heuristic for autogenerating an abstract: Take the first paragraph that immediately precedes a heading; that is the abstract.</p>
+<p>This is a very basic heuristic. But absent other data it’s probably better than nothing. So let’s implement it:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  removeFormatting <span class="op">&lt;$&gt;</span> fallback</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  <span class="kw">where</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>  fallback (<span class="dt">Para</span> inlines <span class="op">:</span> <span class="dt">Header</span> _ _ _ <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> inlines</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  fallback (_h <span class="op">:</span> t) <span class="ot">=</span> fallback t</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  fallback [] <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
+<p>This version of <code>abstract</code> scans the list of block elements at the top level of the <code>Pandoc</code> AST. The first time it sees a <code>Para</code> preceding a <code>Header</code>, it returns the paragraph content.</p>
+<h2 id="putting-it-all-together">Putting it all together <a href="#putting-it-all-together">§</a></h2>
+<p>For my sites, I want to use all three methods described above. An abstract specified in the <em>metadata</em> is preferred. Explicit <em>markup</em> is my second preference and the <em>autogeneration</em> heuristic is a last resort. This will provide a good user experience for me. With a tiny bit of markup I can avoid repeating myself most of the time. But if it is warranted, I can use the metadata to write something different. Sometimes I’ll get a fair result without doing anything.</p>
+<p>Combining the two versions of <code>abstract</code> is left as an exercise for the reader (hint: <code>Control.Applicative.&lt;|&gt;</code>).</p>
+<p>Take care when composing the context. The <code>metadataField</code> has to come before the <code>snapshotField</code> (if that’s the priority you want):</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>  mapContext escapeHtml metadataField</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
+<p>Now I have a nice way to generate abstracts for my articles. I will explore an interesting use case in an upcoming post.</p>]]></summary>
+</entry>
+<entry>
     <title>A combinator library for taxes</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html</id>
@@ -1303,7 +1407,7 @@ did not find expected alphabetic or numeric character
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  go [] <span class="ot">=</span> <span class="dt">Nothing</span></span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>  go (<span class="dt">Header</span> _ _ ys <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> ys</span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>  go (_ <span class="op">:</span> xs) <span class="ot">=</span> go xs</span></code></pre></div>
-<p>And define the “strip formatting” function. <code>removeFormatting</code> uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the “terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally appends the values yielded by the inner function <code>f</code>.</p>
+<p><span id="removeFormatting">And define the “strip formatting” function. <code>removeFormatting</code> uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the “terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally appends the values yielded by the inner function <code>f</code>.</span></p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="ot">removeFormatting ::</span> [<span class="dt">Inline</span>] <span class="ot">-&gt;</span> [<span class="dt">Inline</span>]</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>removeFormatting <span class="ot">=</span> query f</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>  <span class="kw">where</span></span>
@@ -1588,142 +1692,6 @@ kern.maxproc: 3828</code></pre>
 </ul>
 <p>The <em>“allocate, call continuation and cleanup”</em> pattern is prevalent in the Haskell <code>Foreign.*</code> modules. Even this small example goes three layers deep. More complex FFI use cases can go much deeper.</p>
 <p>Important FFI topics that this case study did not engage include marshalling structs (something <code>hsc2hs</code> helps), <code>ForeignPtr</code>s and finalizers, and callbacks. So although I hope this case study may be instructive in <em>some</em> aspects of Haskell FFI usage, it is far from comprehensive.</p>]]></summary>
-</entry>
-<entry>
-    <title>Refactoring using type classes and optics</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2020-12-21-refactoring-type-classes-optics.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2020-12-21-refactoring-type-classes-optics.html</id>
-    <published>2020-12-21T00:00:00Z</published>
-    <updated>2020-12-21T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="refactoring-using-type-classes-and-optics">Refactoring using type classes and optics</h1>
-<p>Often when writing programs and functions, one starts off with concrete types that solve the problem at hand. At some later time, due to emerging requirements or observed patterns, or just to improve code readability and reusability, we refactor to make the code more polymorphic. The importance of not breaking your API typically ranges from <em>nice to have</em> (e.g. minimise rework but not otherwise necessary) to <em>paramount</em> (e.g. in a popular, foundational library). This post is a case study of a refactoring in the <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a> library demonstrating how <em>type classes</em> help achieve API stability while admitting new use cases. Served with a side of <em>classy optics</em>.</p>
-<h2 id="background-verifying-a-jws">Background: verifying a JWS <a href="#background-verifying-a-jws">§</a></h2>
-<p>In the <em>jose</em> library, the <code>verifyJWS</code> function verifies a <em>JSON Web Signature (JWS)</em> object:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>verifyJWS</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="ot">  ::</span>  ( <span class="dt">HasAlgorithms</span> a, <span class="dt">HasValidationPolicy</span> a</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>      , <span class="dt">AsError</span> e, <span class="dt">MonadError</span> e m</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>      , <span class="dt">HasJWSHeader</span> h, <span class="dt">HasParams</span> h</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>      )</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>  <span class="ot">=&gt;</span> a</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWK</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWS</span> h</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> m ()</span></code></pre></div>
-<p><code>verifyJWS</code> is applied to a configuration value, a <em>JSON Web Key (JWK)</em> to use for validation, and the JWS, and returns <code>()</code> on success otherwise throws an error.</p>
-<p>A JWS can have multiple signatures, each by a different key. If an application requires all signatures to be valid, it is difficult to perform the correct validation using the existing <code>verifyJWS</code> function. Unsurprisingly, someone <a href="https://github.com/frasertweedale/hs-jose/issues/35">raised an issue</a> to address this. Specifically, the issue asked for a way to use a <em>JWK Set</em> instead of a single <em>JWK</em>, where the JWK Set contains all the keys that can be used for validation (and possibly others). JWK Set is <a href="https://tools.ietf.org/html/rfc7517#section-5">defined by RFC 7515</a> as an array of JWKs. Its definition in <em>jose</em> is below (it is a <code>newtype</code> because it needs custom instances for JSON encoding/decoding).</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">JWKSet</span> <span class="ot">=</span> <span class="dt">JWKSet</span> [<span class="dt">JWK</span>]</span></code></pre></div>
-<p>How can we support verification when the caller has a <code>JWKSet</code>? Do we add an alternative verification function that applies to <code>JWKSet</code> instead of <code>JWK</code>? I did not want multiple functions in the API for essentially the same thing. We could make the caller construct a singleton <code>JWKSet</code>, but changing the signature of <code>verifyJWS</code> would break the API, so we won’t do that either.</p>
-<h2 id="looking-beyond-jwk-set">Looking beyond JWK Set <a href="#looking-beyond-jwk-set">§</a></h2>
-<p>At first, we could only validate with a single <code>JWK</code> at a time. Now, we want to be able to handle a <code>JWKSet</code> too. So are there other “key-bearing” structures we might need to handle?</p>
-<p>Indeed there are. One might want to use a <code>[JWK]</code>, <code>NonEmpty JWK</code> or other container types. Many container types constructors have an instance of <a href="https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Foldable.html"><code>Foldable</code></a>, so we could try to use that abstraction. This is rather boring, but it’s an additional valid use case. So, can we refactor <code>verifyJWS</code> to use <code>Foldable</code>?</p>
-<p>It is a nice idea, but the answer is <em>no</em>. First, <code>Foldable t =&gt; t</code> has kind <code>(* -&gt; *)</code>, but <code>JWKSet</code> has kind <code>*</code>. Turning <code>JWKSet</code> into a generic container doesn’t make sense either. Second, we still want our function to work with a plain old JWK, which also has kind <code>*</code>.</p>
-<p>At this point I realised that that if I want to make <code>verifyJWS</code> polymorphic, <em>and</em> support <code>JWK</code> and <code>JWKSet</code> and arbitrary containers as “key sources”, <em>and</em> avoid breaking the API, there was only one way forward. It was necessary to define a new type class to represent a “provider of keys”:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="op">???</span></span></code></pre></div>
-<p>What should the type of <code>keys</code> be? Conceptually, it would be applied to a <code>JWKStore a =&gt; a</code> and yield the <code>JWK</code> values contained within. For the validation use case there is no need to be able to add or update keys, i.e. it is read-only. <code>Fold a JWK</code> is a good fit for the requirement. A <a href="https://hackage.haskell.org/package/lens-4.15/docs/Control-Lens-Fold.html"><code>Fold</code></a> is a read-only <em>optic</em> that that can retrieve multiple (zero or more) values. The beauty of optics is that they can be composed together and <code>Fold</code> is no different. The <code>Fold</code> type is provided by the <a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html"><em>lens</em></a> library, along with a bunch of useful helper functions.</p>
-<p>The key store interface (type class) and instances were defined as follows:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">JWK</span> <span class="kw">where</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>  keys <span class="ot">=</span> <span class="fu">id</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Foldable</span> t <span class="ot">=&gt;</span> <span class="dt">JWKStore</span> (t <span class="dt">JWK</span>) <span class="kw">where</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a>  keys <span class="ot">=</span> folding <span class="fu">id</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">JWKSet</span> <span class="kw">where</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>  keys <span class="ot">=</span> folding (\(<span class="dt">JWKSet</span> xs) <span class="ot">-&gt;</span> xs)</span></code></pre></div>
-<p>(Note that the instance for <code>Foldable t =&gt; t JWK</code> requires the <a href="https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#extension-FlexibleInstances"><code>FlexibleInstances</code></a> GHC extension.)</p>
-<p>The updated type signature for <code>verifyJWS</code>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>verifyJWS</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a><span class="ot">  ::</span>  ( <span class="dt">HasAlgorithms</span> a, <span class="dt">HasValidationPolicy</span> a</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>      , <span class="dt">AsError</span> e, <span class="dt">MonadError</span> e m</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>      , <span class="dt">HasJWSHeader</span> h, <span class="dt">HasParams</span> h</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>      , <span class="dt">JWKStore</span> k</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>      )</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>  <span class="ot">=&gt;</span> a</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> k</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">JWS</span> h</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a>  <span class="ot">-&gt;</span> m ()</span></code></pre></div>
-<p>Existing code applying <code>verifyJWS</code> to a <code>JWK</code> works without changes. The only internal change that was needed was to apply <code>anyOf keys</code> to the existing test. (<a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Fold.html#v:anyOf"><code>anyOf</code></a> is a function provided in <em>lens</em> that returns <code>True</code> if any target of a <code>Fold</code> satisfies a predicate.) The line:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>validate s <span class="ot">=</span> verifySig p s k <span class="op">==</span> <span class="dt">Right</span> <span class="dt">True</span></span></code></pre></div>
-<p>became:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a>validate s <span class="ot">=</span> anyOf keys ((<span class="op">==</span> <span class="dt">Right</span> <span class="dt">True</span>) <span class="op">.</span> verifySig p s) k</span></code></pre></div>
-<p>The technique of using type classes to select optics is called <em>classy optics</em>. The terms <em>classy lenses</em> and <em>classy prisms</em> are also used when referring to those kinds of optics specifically.</p>
-<p>My goal was to support validation using a <code>JWKSet</code> without breaking the API or adding more functions. At this point the goal has been achieved. But I mentioned above that <code>JWKSet</code> and <code>Foldable t =&gt; t JWK</code> were the boring use cases. Let’s discuss some <em>interesting</em> ones!</p>
-<h2 id="efficient-key-lookup">Efficient key lookup <a href="#efficient-key-lookup">§</a></h2>
-<p>JWS signatures each have a <em>header</em> which, at minimum, indicates the algorithm used (the <code>"alg"</code> member). It can optionally contain other data including a Key ID (<code>"kid"</code>), thumbprint of an X.509 certificate containing the key used make the signature (<code>"x5t@S256"</code>), a JWK for the signing key (<code>"jwk"</code>), and so on. It is not a stretch that if your use case involves many signing keys, you would want to use data available from the signature header to speed up key lookup. Such techniques are common in applied cryptography where many keys are involved. For example, X.509 certificates contain an <em>Authority Key Identifier</em> field, and certificate databases usually provide efficient lookup by key identifier.</p>
-<p>So in addition to being able to enumerate keys, we want <code>JWKStore</code> instances to potentially be able to look up keys based on data in the JWS header. I added another function to the type class to accomplish this, along with a sensible default implementation:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a><span class="ot">  keysFor ::</span> (<span class="dt">HasJWSHeader</span> h) <span class="ot">=&gt;</span> h <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>  keysFor _ <span class="ot">=</span> keys</span></code></pre></div>
-<p>As an example, we can instantiate <code>JWKStore a =&gt; a</code> at a data type based on <code>HashMap</code>, where keys are indexed by key identifier (an arbitrary string). The <code>keysFor</code> function can efficiently search for a <code>JWK</code> based on the <code>"kid"</code> (Key ID) header parameter from the JWS header. If the <code>"kid"</code> parameter is missing, it yields all the <code>keys</code>.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">KidMap</span> <span class="ot">=</span> <span class="dt">KidMap</span> {<span class="ot"> getMap ::</span> <span class="dt">HashMap</span> <span class="dt">String</span> <span class="dt">JWK</span> }</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">JWKStore</span> <span class="dt">KidMap</span> <span class="kw">where</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  keys <span class="ot">=</span> folding getMap</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  keyFor h <span class="ot">=</span> <span class="kw">case</span> preview (kid <span class="op">.</span> _Just <span class="op">.</span> param) h <span class="kw">of</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>    <span class="dt">Just</span> k  <span class="ot">-&gt;</span> folding (<span class="fu">lookup</span> k <span class="op">.</span> getMap)</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>    <span class="dt">Nothing</span> <span class="ot">-&gt;</span> keys</span></code></pre></div>
-<h2 id="a-jwkstore-is-not-just-for-jws">A <code>JWKStore</code> is not just for JWS <a href="#a-jwkstore-is-not-just-for-jws">§</a></h2>
-<p>Recall the type of <code>keysFor</code>:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="ot">keysFor ::</span> (<span class="dt">HasJWSHeader</span> h) <span class="ot">=&gt;</span> h <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span></code></pre></div>
-<p><code>h</code> has an explicit <code>HasJWSHeader</code> type class constraint, which allows the implementation to use any information available via that type class to decide what to do. For JWS we’re basically done, but we have forgotten about <em>JSON Web Encryption (JWE)</em>. The concept of looking up keys in a key database applies to JWE as well as JWS, but the <code>HasJWSHeader</code> constraint is not suitable when you have a <em>JWE header</em>.</p>
-<p>But JWE headers and JWS headers consist of mostly the same fields, with the same types and semantics. So instead of having a type class constraint mentioning the kind of header, we can define a type class for every shared header parameter and constrain <code>keysFor</code> to <em>all of them</em>. I will use classy optics again (<a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html">lenses</a> this time). There are eleven header fields shared by JWS and JWE headers, but for brevity I’ll pretend there are only three.</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasAlg</span> a <span class="kw">where</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="ot">  alg ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">HeaderParam</span> <span class="dt">JWA.JWS.Alg</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasKid</span> a <span class="kw">where</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a><span class="ot">  kid ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">Maybe</span> (<span class="dt">HeaderParam</span> <span class="dt">String</span>))</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">HasX5tS256</span> a <span class="kw">where</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a><span class="ot">  x5tS256 ::</span> <span class="dt">Lens&#39;</span> a (<span class="dt">Maybe</span> (<span class="dt">HeaderParam</span> <span class="dt">Types.Base64SHA256</span>))</span></code></pre></div>
-<p>The class definitions are mundane, as are the instances for <code>JWSHeader</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasAlg</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>  alg f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderAlg <span class="ot">=</span> a }) <span class="ot">=</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderAlg <span class="ot">=</span> a&#39; }) (f a)</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasKid</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>  kid f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderKid <span class="ot">=</span> a }) <span class="ot">=</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderKid <span class="ot">=</span> a&#39; }) (f a)</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">HasX5tS256</span> <span class="dt">JWSHeader</span> <span class="kw">where</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true"></a>  x5tS256 f h<span class="op">@</span>(<span class="dt">JWSHeader</span> { _jwsHeaderX5tS256 <span class="ot">=</span> a }) <span class="ot">=</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true"></a>    <span class="fu">fmap</span> (\a&#39; <span class="ot">-&gt;</span> h { _jwsHeaderX5tS256 <span class="ot">=</span> a&#39; }) (f a)</span></code></pre></div>
-<p>And finally, the updated <code>keysFor</code> type signature:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">JWKStore</span> a <span class="kw">where</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="ot">  keys ::</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  keysFor</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a><span class="ot">    ::</span> (<span class="dt">HasAlg</span> h, <span class="dt">HasKid</span> h, <span class="dt">HasX5tS256</span>)</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>    <span class="ot">=&gt;</span> h</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Fold</span> a <span class="dt">JWK</span></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true"></a>  keysFor _ <span class="ot">=</span> keys</span></code></pre></div>
-<h2 id="further-development">Further development <a href="#further-development">§</a></h2>
-<p>I mentioned that the refactor I outlined in this post was not the end of the story. In fact, much more was done since I performed this initial refactoring:</p>
-<ul>
-<li><p>Implementing an <a href="https://github.com/frasertweedale/hs-jose/commit/e15ac3a34cf4a2f193f4b68345d8839c791ec2ed">effectful key store</a>, so that key lookup can perform I/O.</p></li>
-<li><p>Allow the key store to <a href="https://github.com/frasertweedale/hs-jose/commit/dedcd82787bb533885211c3e7ff8f8bcd4adc3c9">inspect the JWS payload</a> during lookup. The motivating use case is to allow key lookup to read the JWT <code>"iss"</code> (Issuer) field.</p></li>
-<li><p>Parameterised the key store <a href="https://github.com/frasertweedale/hs-jose/commit/2fc1b0b8e7196f90ce68bae93fde591812dd3f22">over the header type</a>. This allows implementations to use data from extended header types during key lookup.</p></li>
-</ul>
-<p>All of these features involved adding type parameters to the <code>JWKStore</code> class. Again, I achieved <strong>backwards compatible</strong> admittance of new features through increased generality.</p>
-<p>However, parameterisation over the header type did make my use of classy lenses (as described in this post) obsolete. It is always beneficial to define classy lenses and use them to document (and restrict) functions that access specific fields of “types that have those fields”. But if the type is even more general than that, there’s nothing more to do.</p>
-<p>Finally, implementing payload inspection was incompatible with having a unified key store interface for both decryption and verification keys. (You can’t use the payload to help choose a decryption key becaues it is encrypted!) Therefore I <a href="https://github.com/frasertweedale/hs-jose/commit/c08431fb31fb2a0bae86f6c4a5af20428e681230">renamed <code>JWKStore</code> to <code>VerificationKeyStore</code></a>.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
-<p>Let’s recap what this post was all about and draw some conclusions.</p>
-<p>First, I discussed a requirement to generalise the <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a> library’s JWS validation code. Previously, validation worked only with a single <code>JWK</code>. It needed to handle other use cases like <code>JWKSet</code> or key databases. I defined the <code>JWKStore</code> <strong>type class</strong>, which provides access to JWKs inside arbitrary data types, and refactored <code>verifyJWS</code> to use it. Instances for <code>JWK</code> and <code>JWKSet</code> are included. The refactor was a <strong>backwards-compatible generalisation</strong> of <code>verifyJWS</code> function, so existing code using <em>jose</em> continued to work without changes.</p>
-<p>After this, I added another function to <code>JWKStore</code> to allow instances to support efficient key lookup. Finally, I observed that key databases are needed for JWE as well as JWS, and further generalised <code>JWKStore</code> to account for this.</p>
-<p><strong>Classy optics</strong> were an important part of the implementation resulting from this refactoring effort. They were employed in two different ways. First, a <a href="https://hackage.haskell.org/package/lens-4.15/docs/Control-Lens-Fold.html"><code>Fold</code></a> provides a read-only, composable interface to the keys in a <code>JWKStore</code>. Second, I used classy <a href="https://hackage.haskell.org/package/lens-4.19.2/docs/Control-Lens-Lens.html">lenses</a> to parameterise key lookup over the fields that are common to both JWS and JWE headers. Classy lenses provide the generality we desire <em>and</em> improve readability by documenting the data that can be used during key lookup (and enforcing these restrictions).</p>
-<p>Finally I briefly discussed subsequent developments of the key store interface in <em>jose</em>. The important thing to note is that substantive <strong>backwards-compatible</strong> enhancements were achieved through <strong>more generality</strong> (polymorphism).</p>
-<p>So here are some final take-aways:</p>
-<ul>
-<li><p>Starting with code that handles a single use case is normal. But you may have to revisit and change that code (especially in libraries).</p></li>
-<li><p>When you have to revisit some code to admit more use cases, it is worth having a good think about what other use cases exist. Discovering a more general (polymorphic) interface is preferable to multiple concrete interfaces. There will be <strong>less code</strong> to document and maintain, <strong>less potential confusion</strong> for users, and more potential for <strong>reuse</strong> (more use cases admitted).</p></li>
-<li><p>Introducing a <strong>type class</strong> may let you admit new use cases while preserving backwards compatibility for library users. Further parameterising an existing type class can also achieve this. I have done this many times (in <em>jose</em> and other projects) and have <em>never</em> regretted introducing another type parameter.</p></li>
-<li><p><strong>Classy optics</strong> enable reuse; more types can be used with the function, including types you didn’t even know about. And they document and enforce the data a function can access, which is helpful when dealing with record types.</p></li>
-</ul>]]></summary>
 </entry>
 
 </feed>
