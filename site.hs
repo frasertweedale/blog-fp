@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import Control.Applicative ((<|>))
+import Control.Monad ((<=<), void)
+import Data.Monoid (First(..))
+
 import Text.Pandoc.Definition
-  ( Pandoc(..), Block(Header, Plain), Inline(..), nullAttr )
+  ( Pandoc(..), Block(Header, Para, Plain), Inline(..), nullAttr )
 import Text.Pandoc.Walk (query, walk)
 import Hakyll
 
@@ -68,9 +72,10 @@ main = hakyll $ do
         (\pandoc -> do
           let
             h1 = maybe [Str "no title"] id . firstHeader $ pandoc
-            render f = fmap writePandoc . makeItem . Pandoc mempty . pure . Plain . f
-          _ <- render removeFormatting h1 >>= saveSnapshot "title"
-          _ <- render id h1 >>= saveSnapshot "fancyTitle"
+            render = fmap writePandoc . makeItem . Pandoc mempty . pure . Plain
+          _ <- render (removeFormatting h1) >>= saveSnapshot "title"
+          _ <- render h1 >>= saveSnapshot "fancyTitle"
+          maybe (pure ()) (void . (saveSnapshot "abstract" <=< render)) (abstract pandoc)
           pure $ addSectionLinks pandoc
         )
       >>= saveSnapshot "content"
@@ -82,8 +87,7 @@ main = hakyll $ do
       let ctx = constField "tag" tag
                 <> listField "posts" context (pure posts)
                 <> constField "title" (tag <> " posts")
-                <> constField "blogTitle" blogTitle
-                <> defaultContext
+                <> context
 
       makeItem ""
         >>= loadAndApplyTemplate "templates/tag.html" ctx
@@ -126,11 +130,16 @@ loadRecentPosts =
 
 context :: Context String
 context =
-  dateField "date" "%Y-%m-%d"
+  mapContext escapeHtml metadataField
+  <> dateField "date" "%Y-%m-%d"
   <> snapshotField "title" "title"
   <> snapshotField "fancyTitle" "fancyTitle"
+  <> snapshotField "abstract" "abstract"
   <> constField "blogTitle" blogTitle
-  <> defaultContext
+  <> bodyField "body"
+  <> urlField "url"
+  <> pathField "path"
+  <> constField "root" blogRoot
 
 
 -- | Get field content from snapshot (at item version "recent")
@@ -180,3 +189,20 @@ addSectionLinks = walk f where
       let link = Link ("", ["section"], []) [Str "§"] ("#" <> idAttr, "")
       in Header n attr (inlines <> [Space, link])
   f x = x
+
+-- | Extract the abstract, or autogenerate one (badly).
+--
+-- Looks for a Span with class "abstract".  If not found,
+-- takes the first paragraph that immediately precedes a
+-- header.  Strips all formatting.
+--
+abstract :: Pandoc -> Maybe [Inline]
+abstract (Pandoc _ blocks) =
+  removeFormatting <$> (markedUp blocks <|> fallback blocks)
+  where
+  markedUp = fmap getFirst . query $ \inl -> case inl of
+    Span (_id, cls, _attrs) inls | "abstract" `elem` cls -> First (Just inls)
+    _ -> mempty
+  fallback (Para inlines : Header _ _ _ : _) = Just inlines
+  fallback (_h : t) = fallback t
+  fallback [] = Nothing
