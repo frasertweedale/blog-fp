@@ -8,8 +8,110 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2021-06-11T00:00:00Z</updated>
+    <updated>2021-07-26T00:00:00Z</updated>
     <entry>
+    <title>Hakyll how-to: pages without source files</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-07-26-hakyll-without-sources.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2021-07-26-hakyll-without-sources.html</id>
+    <published>2021-07-26T00:00:00Z</published>
+    <updated>2021-07-26T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="hakyll-how-to-pages-without-source-files">Hakyll how-to: pages without source files</h1>
+<p><a href="https://jaspervdj.be/hakyll/">Hakyll</a> is a static website builder. The typical use case is to take some files written in lightweight markup and compile them into static HTML. Besides the sources for the main content, there are also HTML templates, CSS, perhaps some JavaScript, images and so on.</p>
+<p>But perhaps you need to build a site from sources other than local files. Possible scenarios include:</p>
+<ul>
+<li>Crawl and mirror another site</li>
+<li>Generate and publish calendars files for a conference</li>
+<li>Create a directory of content from some other source</li>
+</ul>
+<p>As a static site builder, Hakyll can be a good choice for publishing data that change infrequently. <span class="abstract">In this post I demonstrate how to use Hakyll to generate site content without any source files.</span></p>
+<h2 id="use-case-web-key-directory">Use case: Web Key Directory <a href="#use-case-web-key-directory" class="section">§</a></h2>
+<p>My use case was to generate a <a href="https://wiki.gnupg.org/WKD"><em>Web Key Directory (WKD)</em></a> for my personal OpenPGP keys. OpenPGP clients can use WKD for key discovery. WKD is an alternative to the older keyserver system, which <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">has some problems</a>. It works as follows:</p>
+<ol type="1">
+<li><p>The client seeks a key for identity <code>Joe.Doe@example.org</code>.</p></li>
+<li><p>Lower-case, digest (SHA-1) and <a href="https://philzimmermann.com/docs/human-oriented-base-32-encoding.txt">z-base-32</a> encode the address local part (<code>Joe.Doe</code> → <code>iy9q119eutrkn8s1mk4r39qejnbu3n5q</code>).</p></li>
+<li><p>The client performs HTTP GET request for:</p>
+<pre><code>https://openpgpkey.example.org
+  /.well-known/openpgpkey/example.org
+  /hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe</code></pre>
+<p>This is called the <em>advanced method</em>.</p></li>
+<li><p>The server responds with the binary encoding of the key (or a <code>404</code>).</p></li>
+<li><p>As a fallback, the client tries:</p>
+<pre><code>https://example.org
+  /.well-known/openpgpkey
+  /hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe</code></pre>
+<p>This is called the <em>direct method</em>.</p></li>
+</ol>
+<p>Observe that, up to case-sensitivity of the email local part, the server does not necessarily need to use the <code>?l=Joe.Doe</code> query parameter. If the local part is case-<strong><em>in</em></strong>sensitive (it usually is) then the digest, which is part of the URI path, is enough. Therefore an HTTP server serving static files can be a functional WKD server. You just need to build the directory.</p>
+<div class="note">
+<p>The <em>advanced method</em> has several advantages over the <em>direct method</em>. Users or organisations with multiple domains can maintain a single unified WKD, or delegate to an external service. The advanced method does not interfere with existing sites. On the down side, the <code>openpgpkey</code> DNS subdomain must be configured for each domain. The TLS requirement is hardly a disadvantage, because of <a href="https://en.wikipedia.org/wiki/Automated_Certificate_Management_Environment">ACME</a>.</p>
+</div>
+<h2 id="building-a-web-key-directory-with-hakyll">Building a Web Key Directory with Hakyll <a href="#building-a-web-key-directory-with-hakyll" class="section">§</a></h2>
+<h3 id="reading-keys-from-gnupg">Reading keys from GnuPG <a href="#reading-keys-from-gnupg" class="section">§</a></h3>
+<p><a href="https://gnupg.org/">GnuPG</a> is my OpenPGP client. My Hakyll program invokes <code>gpg</code> to list and extract keys. Here are the types of the functions involved (I will not detail their implementations):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">KeyId</span> <span class="ot">=</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Uid</span> <span class="ot">=</span> (<span class="dt">String</span>, <span class="dt">String</span>) <span class="co">-- ^ local-part, domain</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="ot">listKeys ::</span> <span class="dt">IO</span> (<span class="dt">L8.ByteString</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="ot">exportKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L8.ByteString</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="ot">hashLocalPart ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">String</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="ot">extractUserIds ::</span> <span class="dt">L8.ByteString</span> <span class="ot">-&gt;</span> [<span class="dt">Uid</span>]</span></code></pre></div>
+<div class="note">
+<p>I used the <a href="https://hackage.haskell.org/package/typed-process"><em>typed-process</em></a> package to execute GnuPG. The <code>--with-colons</code> option is helpful for inspecting keys and their user IDs. You can use an <code>--export-filter</code> to select the user ID(s) to export. The man pages and <a href="https://github.com/gpg/gnupg/blob/master/doc/DETAILS"><code>DETAILS</code></a> file contain all the information you need for programmatic interaction with GnuPG.</p>
+</div>
+<h3 id="creating-resources">Creating resources <a href="#creating-resources" class="section">§</a></h3>
+<p>Hakyll sites use <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:match"><code>match</code></a> to generate compilation rules for local resources. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a>match <span class="st">&quot;posts/*.md&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  compile pandocCompiler</span></code></pre></div>
+<p>But there are no local files to <code>match</code>. Instead, we use <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:create"><code>create</code></a> to declare new resources. These resources can be routed to like any other, but we must synthesise the content. The following function, given a key ID and an email address, exports the key from GnuPG and establishes the route.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="ot">wkdUid ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>wkdUid keyId uid<span class="op">@</span>(localPart, domain) <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  <span class="kw">let</span> path <span class="ot">=</span> <span class="st">&quot;.well-known/openpgpkey/&quot;</span> <span class="op">&lt;&gt;</span> domain <span class="op">&lt;&gt;</span> <span class="st">&quot;/hu/&quot;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>             <span class="op">&lt;&gt;</span> hashLocalPart localPart</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  create [fromFilePath path] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    route <span class="op">$</span> idRoute</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>    compile <span class="op">$</span> exportKey keyId uid</span></code></pre></div>
+<p><code>create</code> is applied to a list of resource identifiers, and a <code>Rules ()</code> for compiling and routing the resource. I am not showing the implementation of <code>exportKey</code>; it’s enough to know that it uses <code>IO</code>. Hakyll provides <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Compiler.html#v:unsafeCompiler"><code class="sourceCode haskell"><span class="ot">unsafeCompiler ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Compiler</span> a</code></a> for executing I/O actions in compiler context.</p>
+<p><code>wkdUid</code> creates the key resource for a single user ID. A key can have multiple user IDs. <code>wkUIDs on a specified KeydKey</code> creates the Hakyll <code>Rules ()</code> for all user IDs on a given key:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="ot">wkdKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>wkdKey keyId <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  out <span class="ot">&lt;-</span> preprocess listKeys</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>  <span class="kw">let</span> uids <span class="ot">=</span> extractUserIds out</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>  traverse_ (wkdUid keyId) uids</span></code></pre></div>
+<p><code class="sourceCode haskell"><span class="ot">preprocess ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Rules</span> a</code> embeds an I/O action in the <code>Rules</code> context. Hakyll executes the action eagerly, unlike <code>unsafeCompiler</code> which is run on demand. This makes sense—we need to <code>listKeys</code> first to work out what resources to create.</p>
+<p>Having extracted the user IDs, we <code>traverse_</code> them to create the WKD resources. We also use <code>traverse_</code> at the outmost layer of the program to invoke <code>wkdKey</code> for each key ID given on standard input:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>  keys <span class="ot">&lt;-</span> <span class="fu">words</span> <span class="op">&lt;$&gt;</span> <span class="fu">getContents</span> <span class="co">-- read stdin</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>  hakyll <span class="op">$</span> traverse_ wkdKey keys</span></code></pre></div>
+<h2 id="how-hakyll-compiling-works">How Hakyll compiling works <a href="#how-hakyll-compiling-works" class="section">§</a></h2>
+<p>Let’s dive a bit deeper into how compiling works. The <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:compile"><code>compile</code></a> function adds a content compiler to the <code>Rules</code> for resources. It’s type is:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>compile</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="ot">    ::</span> (<span class="dt">Binary</span> a, <span class="dt">Typeable</span> a, <span class="dt">Writable</span> a)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>    <span class="ot">=&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> a)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span></code></pre></div>
+<p>The compiler argument has to return an <code>Item a</code>, where <code>a</code> has several type class constraints. <code>Binary</code> and <code>Typeable</code> are used by Hakyll’s caching mechanism. <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Writable.html#t:Writable"><code>Writable</code></a> is what Hakyll uses to write the compiled resource to the site output. There are several instances, including for <code>String</code>, <code>ByteString</code> (lazy and strict), and <code>Html</code>. Hakyll provides <code>makeItem :: a -&gt; Compiler (Item a)</code> for returning an <code>Item a</code>.</p>
+<p>As an example, here is a compiler that executes a subprocess and returns the standard output:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>processCompiler</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>] <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L.ByteString</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>processCompiler exe args <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  (_status, out, _err) <span class="ot">&lt;-</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>    unsafeCompiler <span class="op">.</span> readProcess <span class="op">$</span> proc exe args</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  makeItem out</span></code></pre></div>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>I have demonstrated how to use Hakyll to create content derived not from local files, but other sources (GnuPG in my case). Is this actually a good idea? For one-shot applications and data that don’t change frequently, I think it is fine. Hakyll takes care of all the filesystem I/O, relieving me of some tedium and avoiding a possible source of bugs.</p>
+<p>For my WKD use case, I can rebuild the site when my keys have been updated, then <code>rsync</code> it to my web server. The program is well under 100 lines of code—including imports! Source code is <a href="https://github.com/frasertweedale/hakyll-wkd">available on GitHub</a> under AGPLv3. At time of writing I have not published it on Hackage.</p>
+<div class="note">
+<p>Because there are no local file dependencies for the resources, Hakyll does not know to recompile it. You have to <strong><code>rebuild</code></strong> every time. This may be a practical issue for some use cases, though not for mine.</p>
+</div>
+<p>In general, it would be useful to be able to specify arbitrary freshness checks for resources. Unfortunately Hakyll’s implementation does not readily admit such a feature. But it was straightforward to add <em>unconditional</em> rebuilding on a per-resource basis. I submitted a <a href="https://github.com/jaspervdj/hakyll/pull/857">pull request</a> to add the <code>forceCompile</code> helper function. Example usage:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">-- compile this resource every time</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>forceCompile <span class="op">$</span> create [<span class="st">&quot;foo&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>  route <span class="op">$</span> idRoute</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>  compile <span class="op">$</span> unsafeCompiler <span class="op">$</span> doStuff</span></code></pre></div>
+<p>This feature was accepted and will appear in a future release of Hakyll.</p>]]></summary>
+</entry>
+<entry>
     <title>Generating abstracts for Hakyll articles</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html</id>
@@ -1525,173 +1627,6 @@ did not find expected alphabetic or numeric character
 <span id="cb25-5"><a href="#cb25-5" aria-hidden="true"></a>    ident&#39; <span class="ot">=</span> setVersion (<span class="dt">Just</span> <span class="st">&quot;recent&quot;</span>) ident</span>
 <span id="cb25-6"><a href="#cb25-6" aria-hidden="true"></a>  <span class="kw">in</span></span>
 <span id="cb25-7"><a href="#cb25-7" aria-hidden="true"></a>    loadSnapshotBody ident&#39; snap</span></code></pre></div>]]></summary>
-</entry>
-<entry>
-    <title>Fixing getExecutablePath on FreeBSD</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-01-01-fixing-getExecutablePath-FreeBSD.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-01-01-fixing-getExecutablePath-FreeBSD.html</id>
-    <published>2021-01-01T00:00:00Z</published>
-    <updated>2021-01-01T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="fixing-getexecutablepath-on-freebsd">Fixing <code>getExecutablePath</code> on FreeBSD</h1>
-<p><a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Environment.html#v:getExecutablePath"><code>System.Environment.getExecutablePath</code></a> (part of the <em>base</em> library) returns the absolute pathname of the current executable. Except when it doesn’t. From my work on <a href="https://hackage.haskell.org/package/dyre">Dyre</a> (a <strong>dy</strong>namic <strong>re</strong>configuration system for Haskell programs) I discovered that <code>getExecutablePath</code> did not work properly on FreeBSD. Fixing it involved FreeBSD’s <a href="https://www.freebsd.org/cgi/man.cgi?query=sysctl&amp;sektion=3&amp;manpath=FreeBSD+12.2-RELEASE"><code>sysctl(3)</code></a> interface and the Haskell <a href="https://downloads.haskell.org/ghc/8.10.1/docs/html/users_guide/ffi-chap.html"><em>Foreign Function Interface</em></a> <em>(FFI)</em>.</p>
-<h2 id="how-getexecutablepath-is-implemented">How <code>getExecutablePath</code> is implemented <a href="#how-getexecutablepath-is-implemented">§</a></h2>
-<p>The <em>base</em> library is part of GHC. <code>getExecutablePath</code> is defined in <a href="https://gitlab.haskell.org/ghc/ghc/-/blob/ghc-8.6.5-release/libraries/base/System/Environment/ExecutablePath.hsc"><code>libraries/base/System/Environment/ExecutablePath.hsc</code></a> (link is to the GHC 8.6.5 version). <code>.hsc</code> files are processed by <a href="https://github.com/haskell/hsc2hs"><code>hsc2hs</code></a>, which provides helper directives for working with the FFI (it is also distributed with GHC).</p>
-<p><code>ExecutablePath.hsc</code> uses C Preprocessor (CPP) directives to select different implementations of <code>getExecutablePath</code> for different operating systems. In GHC 8.6 and earlier there were platform-specific implementations for Linux, Mac OS X and Windows (all the <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/platforms#tier-1-platforms">GHC Tier 1 platforms</a>). And there is a fallback implementation when no platform-specific implementation is available (we shall see that it has some problems). All of the implementations use the FFI to some extent.</p>
-<h3 id="the-linux-implementation">The Linux implementation <a href="#the-linux-implementation">§</a></h3>
-<p>Linux systems almost always mount <a href="https://en.wikipedia.org/wiki/Procfs#Linux"><code>procfs(5)</code></a>, a filesystem of information about running processes. Information about a particular process is published in files under <code>/proc/{pid}/</code>. A process can also find information about itself under <code>/proc/self/</code>.</p>
-<p>A process can find out its own executable by reading <code>/proc/self/exe</code>, which is a symbolic link. And this is exactly what the implementation of <code>getExecutablePath</code> for Linux does:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span> readSymbolicLink <span class="op">$</span> <span class="st">&quot;/proc/self/exe&quot;</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ot">readSymbolicLink ::</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>readSymbolicLink file <span class="ot">=</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>    <span class="co">-- uses readlink(3) via FFI</span></span></code></pre></div>
-<h3 id="the-fallback-implementation-has-problems">The fallback implementation (has problems) <a href="#the-fallback-implementation-has-problems">§</a></h3>
-<p>When the <em>base</em> library does not have an operating system-specific implementation for <code>getExecutablePath</code> it falls back to <code>argv[0]</code>: the first value in the program’s argument array. However, this is not a reliable way to determine the actual executable that supplied the program text. Many programs and environments manipulate the contents of <code>argv[0]</code>. The <code>execv*(3)</code> family of calls, which replaces the current process with a new process image, allow the caller to specify an arbitrary <code>argv</code>.</p>
-<p>As an example of <code>argv[0]</code> manipulation, consider <a href="https://hackage.haskell.org/package/unix-2.7.2.2/docs/System-Posix-Process.html#v:executeFile"><code>System.Posix.Process.executeFile</code></a> from the <a href="https://hackage.haskell.org/package/unix"><em>unix</em></a> package. <code>executeFile</code> calls one of the <code>execv*(3)</code> subroutines (exactly which one depends on its own argument). But, as stated in the documentation:</p>
-<blockquote>
-<p>The basename (leading directory names suppressed) of the command is passed to execv* as <code>arg[0]</code>.</p>
-</blockquote>
-<p>So if you use <code>executeFile</code>, <code>argv[0]</code> of the resulting process does not contain a full pathname. And you may not be able to resolve the <em>basename</em> to an executable via the <code>PATH</code> environment variable. Worse still, you may successfully resolve it <em>to the wrong executable!</em></p>
-<p>In fact, this was exactly the problem I experienced using <em>Dyre</em> on FreeBSD. <em>Dyre</em> automatically builds and caches an executable when it detects that configuration has changed, and <code>exec(3)</code>s the cached executable. On FreeBSD, the combination of <code>executeFile</code> <code>argv[0]</code> behaviour and use of the fallback <code>getExecutablePath</code> implementation caused <em>Dyre</em> to never recognise that it was running the cached executable. As a result, it entered an infinite loop of <code>execv*(3)</code>.</p>
-<h2 id="querying-the-current-executable-on-freebsd">Querying the current executable on FreeBSD <a href="#querying-the-current-executable-on-freebsd">§</a></h2>
-<p>It was clear that GHC needed a FreeBSD-specific implementation of <code>getExecutablePath</code>. So, what is the “proper” way to query the current process’ executable on FreeBSD?</p>
-<p><a href="https://www.freebsd.org/cgi/man.cgi?query=procfs&amp;manpath=FreeBSD+12.2-RELEASE">FreeBSD does implement a <code>procfs</code></a>. Some of the file names differ from Linux’s <code>procfs</code>. For example, the “current executable” symlink path is <code>/proc/curproc/file</code> instead of <code>/proc/self/exe</code>. It would be a small change to parameterise the Linux implementation so that it can be used for FreeBSD. But unlike typical Linux systems, FreeBSD’s <code>procfs</code> is often unused and not even mounted (especially on servers). Therefore the <code>procfs</code> approach is not suitable for FreeBSD.</p>
-<p>A bit of research revealed that the <a href="https://www.freebsd.org/cgi/man.cgi?query=sysctl&amp;sektion=3&amp;manpath=FreeBSD+12.2-RELEASE"><code>sysctl(3)</code></a> interface is the proper and ubiquitous way to query the executable path on FreeBSD. <code>sysctl(3)</code> exposes a <em>management information base (MIB)</em>, a tree structure where nodes are identified by a sequence of integers (<em>object identifier</em> or <em>OID</em>). For example, the kernel “maximum processes” setting has the OID <code>[1, 6]</code>. Some (but not all) OIDs have a string representation so that values can be queried or changed by the userland <code>sysctl(8)</code> utility:</p>
-<pre><code>% sysctl kern.maxproc 
-kern.maxproc: 3828</code></pre>
-<p>To assist programmers reading and writing programs that use <code>sysctl(3)</code>, important OID components are defined in <code>&lt;sys/sysctl.h&gt;</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="co">/*</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="co"> * Top-level identifiers</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="co"> */</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="pp">#define CTL_UNSPEC  0  </span><span class="co">/* unused */</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="pp">#define CTL_KERN    1  </span><span class="co">/* &quot;high kernel&quot;: proc, limits */</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>...</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="co">/*</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a><span class="co"> * CTL_KERN identifiers</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a><span class="co"> */</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>...</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true"></a><span class="pp">#define KERN_MAXPROC  6  </span><span class="co">/* int: max processes */</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true"></a>...</span></code></pre></div>
-<p>The OID containing a process’ executable pathname is <code>[1, 14, 12, $PID]</code> where <code>PID</code> is the process ID, or <code>-1</code> to refer to the current process. The C <code>#define</code>s for the first three components are <code>CTL_KERN</code>, <code>KERN_PROC</code>, and <code>KERN_PROC_PATHNAME</code>.</p>
-<p>Now that we know the OID, consider the signature of <code>sysctl(3)</code>:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="dt">int</span> sysctl(</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>    <span class="dt">const</span> <span class="dt">int</span> *name,</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    u_int namelen,</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    <span class="dt">void</span> *oldp,</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    <span class="dt">size_t</span> *oldlenp,</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    <span class="dt">const</span> <span class="dt">void</span> *newp,</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>    <span class="dt">size_t</span> newlen);</span></code></pre></div>
-<ul>
-<li><p><code>name</code> is the OID; an array of <code>int</code>.</p></li>
-<li><p><code>namelen</code> is the number of components in <code>name</code></p></li>
-<li><p><code>oldp</code> is a pointer to a buffer to hold the current/old value. It can be <code>NULL</code>. It is a <code>void *</code> because sysctl nodes have a variety of types.</p></li>
-<li><p><code>oldlenp</code> is an in/out argument that gives the size of <code>outp</code> before the call, and holds the actual size of the datum after the call (including when <code>oldp</code> is <code>NULL</code>).</p></li>
-<li><p><code>newp</code> and <code>newlen</code> supply a new value. These are not needed for my use case and I will set them to <code>NULL</code> and <code>0</code> respectively.</p></li>
-</ul>
-<p>Therefore the procedure to query the current executable is:</p>
-<ol type="1">
-<li>Invoke <code>sysctl</code> with <code>oldp = NULL</code>.</li>
-<li>Read <code>oldlenp</code> to determine size of datum.</li>
-<li>Allocate big enough buffer.</li>
-<li>Call <code>sysctl</code> again, with newly allocated buffer as <code>oldp</code>.</li>
-<li>Process the data in <code>oldp</code>.</li>
-<li>Free the buffer.</li>
-</ol>
-<p>This is what the FreeBSD-specific implementation of <code>getExecutablePath</code> must do.</p>
-<h2 id="the-freebsd-implementation">The FreeBSD implementation <a href="#the-freebsd-implementation">§</a></h2>
-<p>I will now walk through the different parts of the FreeBSD-specific implementation of <code>getExecutablePath</code>.</p>
-<h3 id="c-preprocessor-guards">C Preprocessor guards <a href="#c-preprocessor-guards">§</a></h3>
-<p>System-specific implementations are guarded by CPP conditionals:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="pp">#if defined(darwin_HOST_OS)</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>... MacOS implementation</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a><span class="pp">#elif defined(linux_HOST_OS)</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>... Linux implementation</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a><span class="pp">#elif defined(mingw32_HOST_OS)</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true"></a>... Windows implementation</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true"></a></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true"></a><span class="pp">#else</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true"></a></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true"></a>... fallback implementation</span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true"></a></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true"></a><span class="pp">#endif</span></span></code></pre></div>
-<p>I added the appropriate guard to encapsulate the FreeBSD-specific implementation:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>... FreeBSD implementation</span></code></pre></div>
-<p>Similarly, in the <code>import</code> area CPP conditionals wrap the FreeBSD-specific Haskell imports and C header includes:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.C</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Alloc</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Array</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Ptr</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Storable</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.Posix.Internals</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true"></a><span class="pp">#include &lt;sys/types.h&gt;</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true"></a><span class="pp">#include &lt;sys/sysctl.h&gt;</span></span></code></pre></div>
-<h3 id="foreign-import">Foreign import <a href="#foreign-import">§</a></h3>
-<p>A <code>foreign import</code> declaration makes <code>sysctl(3)</code> available to Haskell code as <code>c_sysctl</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>foreign <span class="kw">import</span> ccall unsafe &quot;sysctl&quot;</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  c_sysctl</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a><span class="ot">    ::</span> <span class="dt">Ptr</span> <span class="dt">CInt</span>   <span class="co">-- MIB</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">CUInt</span>      <span class="co">-- MIB size</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- old / current value buffer</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CSize</span>  <span class="co">-- old / current value buffer size</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- new value</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">CSize</span>      <span class="co">-- new value size</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span>    <span class="co">-- result</span></span></code></pre></div>
-<p>Observe the correspondence to the C function signature. Because this function is not referentially transparent (different calls with the same arguments could have different results) the result type is <code>IO CInt</code>.</p>
-<h3 id="defining-the-mib">Defining the MIB <a href="#defining-the-mib">§</a></h3>
-<p>The <code>hsc2hs</code> <code>(#const ...)</code> directive assists in the definition of the “current process executable” MIB:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">mib ::</span> [<span class="dt">CInt</span>]</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>mib <span class="ot">=</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  [ (<span class="op">#</span>const <span class="dt">CTL_KERN</span>)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC</span>)</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC_PATHNAME</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  , <span class="op">-</span><span class="dv">1</span>   <span class="co">-- current process</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  ]</span></code></pre></div>
-<h3 id="defining-getexecutablepath">Defining <code>getExecutablePath</code> <a href="#defining-getexecutablepath">§</a></h3>
-<p>The <code>getExecutablePath</code> implementation closely follows the abstract procedure outlined above. So here it is, broken up with commentary (<a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276/diffs">full diff</a>):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>  withArrayLen mib <span class="op">$</span> \n mibPtr <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
-<p><a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Array.html#v:withArrayLen"><code>withArrayLen</code></a> converts a Haskell list to a heap-allocated C array, passing it (as a pointer) <em>and</em> its length to the given continuation function. It will free the array after the continuation returns.</p>
-<pre><code>    let mibLen = fromIntegral n
-    alloca $ \bufSizePtr -&gt; do</code></pre>
-<p>Convert <code>mibLen</code> from <code>Int</code> to <code>CInt</code>. <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Alloc.html#v:alloca"><code>alloca</code></a> allocates memory to hold a <code>CSize</code> (<code>size_t</code>) and passes a pointer to that memory to the given continuation (and frees it when the continuation returns).</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>      status <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>                         nullPtr bufSizePtr nullPtr <span class="dv">0</span></span></code></pre></div>
-<p>Call <code>sysctl(3)</code> with <code>oldp = NULL</code>.</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>      <span class="kw">case</span> status <span class="kw">of</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>        <span class="dv">0</span> <span class="ot">-&gt;</span> <span class="kw">do</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>          reqBufSize <span class="ot">&lt;-</span> <span class="fu">fromIntegral</span> <span class="op">&lt;$&gt;</span> peek bufSizePtr</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>          allocaBytes reqBufSize <span class="op">$</span> \buf <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
-<p>If the initial call to <code>sysctl(3)</code> succeeded, <code>bufSizePtr</code> holds the required buffer size. <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Storable.html#v:peek"><code>peek</code></a> reads the value. Then <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Alloc.html#v:allocaBytes"><code>allocaBytes</code></a> allocates that much space on the heap and passes the pointer to the continuation (and frees it after).</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>            newStatus <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>                                  buf bufSizePtr nullPtr <span class="dv">0</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>            <span class="kw">case</span> newStatus <span class="kw">of</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>              <span class="dv">0</span> <span class="ot">-&gt;</span> peekFilePath buf</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>              _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>        _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span></code></pre></div>
-<p>Call <code>sysctl(3)</code> again, this time using the new buffer (<code>buf</code>) as <code>oldp</code>. If successful, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Posix-Internals.html#v:peekFilePath"><code>peekFilePath</code></a> converts the C string to a Haskell <code>FilePath</code>. Although it is three continuations deep, this <code>FilePath</code> will be the return value. If either call to <code>sysctl(3)</code> failed, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-C-Error.html#v:throwErrno"><code>throwErrno</code></a> throws an <code>IOError</code>.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
-<p>This was a small enhancement to GHC, but for me a critical one. I submitted a <a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276">merge request</a>. It was quickly accepted and the fix was released in GHC 8.8.1.</p>
-<p>Although I didn’t address it in my pull request, there is an error in the <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Environment.html#v:getExecutablePath"><code>getExecutablePath</code></a> documentation. The <code>argv[0]</code> fallback implementation <em>does not</em> necessarily return an absolute pathname, as claimed. It would be better if platform-specific and fallback behaviours were fully explained.</p>
-<p>If you would like to see fixes, enhancements or documentation improvements (<em>hint, hint</em>) in GHC, do not be afraid! GHC is a huge project. But after you work out what bits go where, it’s not necessarily hard to make changes. It helps a lot that it is written in Haskell! You can submit a pull request via the <a href="https://gitlab.haskell.org/ghc/ghc">Haskell GitLab instance</a> (you can sign in with GitHub credentials). Apart from this FreeBSD-related fix I have submitted a couple other changes to GHC. I have found the GHC developers are always friendly and willing to assist new and less experienced contributors.</p>
-<p>By the way, I do not mean to trivialise GHC development. Some parts of it are truly daunting. But many parts are not. I believe that no Haskell developer—not even beginners—should be daunted by the <em>idea</em> of contributing to GHC, or believe that they cannot do it.</p>
-<p>In terms of the <a href="https://downloads.haskell.org/ghc/8.10.1/docs/html/users_guide/ffi-chap.html">Haskell FFI</a>, this change captured a few interesting concepts, including:</p>
-<ul>
-<li>allocation memory of arbitrary size (<a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Alloc.html#v:alloca"><code>alloca</code></a>)</li>
-<li>converting Haskell lists to C arrays (<a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Array.html#v:withArrayLen"><code>withArrayLen</code></a>)</li>
-<li>reading data from pointers (<a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Storable.html#v:peek"><code>peek</code></a>)</li>
-<li>referencing constants via the <code>hsc2hs</code> <code>(#const ...)</code> directive</li>
-</ul>
-<p>The <em>“allocate, call continuation and cleanup”</em> pattern is prevalent in the Haskell <code>Foreign.*</code> modules. Even this small example goes three layers deep. More complex FFI use cases can go much deeper.</p>
-<p>Important FFI topics that this case study did not engage include marshalling structs (something <code>hsc2hs</code> helps), <code>ForeignPtr</code>s and finalizers, and callbacks. So although I hope this case study may be instructive in <em>some</em> aspects of Haskell FFI usage, it is far from comprehensive.</p>]]></summary>
 </entry>
 
 </feed>
