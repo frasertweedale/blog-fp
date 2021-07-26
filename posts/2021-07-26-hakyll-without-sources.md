@@ -18,7 +18,7 @@ files.  Possible scenarios include:
 
 As a static site builder, Hakyll can be a good choice for publishing
 data that change infrequently.  [In this post I demonstrate how to
-use Hakyll to generate site content without any source
+generate Hakyll site content without corresponding source
 files.]{.abstract}
 
 [Hakyll]: https://jaspervdj.be/hakyll/
