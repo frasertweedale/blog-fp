@@ -5,7 +5,7 @@ import Control.Monad ((<=<), void)
 import Data.Monoid (First(..))
 
 import Text.Pandoc.Definition
-  ( Pandoc(..), Block(Header, Para, Plain), Inline(..), nullAttr )
+  ( Pandoc(..), Block(Header, Para, Plain), Inline(..) )
 import Text.Pandoc.Walk (query, walk)
 import Hakyll
 
