@@ -5,6 +5,9 @@
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
         <title>pureblog - Hakyll how-to: pages without source files</title>
         <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Hakyll how-to: pages without source files","datePublished":"2021-07-26T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-07-26-hakyll-without-sources.html" /><meta property="og:title" content="Hakyll how-to: pages without source files" /><meta property="og:description" content="In this post I demonstrate how to generate Hakyll site content without corresponding source files." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
     </head>
     <body>
         <div id="header">
@@ -33,7 +36,7 @@
 <li>Generate and publish calendars files for a conference</li>
 <li>Create a directory of content from some other source</li>
 </ul>
-<p>As a static site builder, Hakyll can be a good choice for publishing data that change infrequently. <span class="abstract">In this post I demonstrate how to use Hakyll to generate site content without any source files.</span></p>
+<p>As a static site builder, Hakyll can be a good choice for publishing data that change infrequently. <span class="abstract">In this post I demonstrate how to generate Hakyll site content without corresponding source files.</span></p>
 <h2 id="use-case-web-key-directory">Use case: Web Key Directory <a href="#use-case-web-key-directory" class="section">§</a></h2>
 <p>My use case was to generate a <a href="https://wiki.gnupg.org/WKD"><em>Web Key Directory (WKD)</em></a> for my personal OpenPGP keys. OpenPGP clients can use WKD for key discovery. WKD is an alternative to the older keyserver system, which <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">has some problems</a>. It works as follows:</p>
 <ol type="1">
