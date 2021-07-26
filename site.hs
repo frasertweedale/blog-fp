@@ -9,6 +9,9 @@ import Text.Pandoc.Definition
 import Text.Pandoc.Walk (query, walk)
 import Hakyll
 
+import Hakyll.Contrib.JSONLD
+import Hakyll.Contrib.OpenGraph
+import Hakyll.Contrib.TwitterCard
 
 blogTitle, blogDescription, blogAuthorName, blogAuthorEmail, blogRoot :: String
 blogTitle = "pureblog"
@@ -101,6 +104,9 @@ main = hakyll $ do
       let postContext =
             listField "posts" context (pure posts)
             <> tagsField "tags" tags
+            <> jsonldField "jsonld" context
+            <> openGraphField "opengraph" context
+            <> twitterCardField "twitter" context
             <> context
 
       ident <- getUnderlying
@@ -134,8 +140,10 @@ context =
   <> dateField "date" "%Y-%m-%d"
   <> snapshotField "title" "title"
   <> snapshotField "fancyTitle" "fancyTitle"
-  <> snapshotField "abstract" "abstract"
   <> constField "blogTitle" blogTitle
+  <> snapshotField "og-description" "abstract"
+  <> constField "og-image" "https://frase.id.au/photo_crikey_large.jpg"
+  <> constField "twitter-creator" "@hackuador"
   <> bodyField "body"
   <> urlField "url"
   <> pathField "path"

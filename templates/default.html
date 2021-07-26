@@ -6,6 +6,9 @@
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
         <title>$blogTitle$ - $title$</title>
         <link rel="stylesheet" type="text/css" href="/css/default.css" />
+        $if(jsonld)$$jsonld("embed")$$endif$
+        $if(opengraph)$$opengraph$$endif$
+        $if(twitter)$$twitter$$endif$
     </head>
     <body>
         <div id="header">
