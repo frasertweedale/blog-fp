@@ -31,7 +31,7 @@
     <h1 id="how-dyre-works-with-cabal-nix-style-builds">How Dyre works with Cabal Nix-style builds</h1>
 <p><a href="https://hackage.haskell.org/package/dyre">Dyre</a> is a tool for Haskell program configuration by (re)compilation. In <a href="2021-02-21-dyre-0.9-rc.html">my previous post</a> I discussed the changes planned for the Dyre 0.9 release. That release happened a couple of days ago… but I soon discovered a critical bug in Dyre’s support for <em>cabal-install</em> Nix-style local builds.</p>
 <p>I have now <a href="https://github.com/willdonnelly/dyre/commit/414d961222b5b864933f35f0a0d74b1a2f501a23">fixed the bug</a> and <a href="https://hackage.haskell.org/package/dyre-0.9.1">released v0.9.1</a>. As a result of the experience I decided to write this post about how Nix-style local builds work, and how Dyre works with programs built and installed that way.</p>
-<h2 id="ghc-and-package-databases">GHC and package databases <a href="#ghc-and-package-databases">§</a></h2>
+<h2 id="ghc-and-package-databases">GHC and package databases <a href="#ghc-and-package-databases" class="section">§</a></h2>
 <p>Haskell packages are installed in <em>package databases</em>. The package database contains libraries’ object code and Haskell interface (<code>*.hi</code>) files, as well as package descriptions and references to the library’s dependencies. When compiling and linking a program or library, GHC looks for dependencies in the configured package database(s).</p>
 <p>By default, GHC knows about two package databases. The <em>global package database</em> is where <em>base</em> and the other libraries bundled with GHC are installed. The database location is tied to the GHC release; for example: <code>/usr/lib64/ghc-8.8.4/package.conf.d</code>. On most operating systems, the system package manager will install Haskell libraries in the global package database.</p>
 <p>GHC also knows about <em>user package databases</em>. On Unix systems these are located at <code>~/.ghc/ARCH-OS-GHCVER/package.conf.d</code>. As the name and location suggests, unprivileged users can install packages to their user package database. GHC will also search for dependencies in there, unless told otherwise.</p>
@@ -78,14 +78,14 @@ haddock-html:         /usr/share/doc/ghc/html/libraries/mtl-2.2.2</code></pre>
 <li><p><strong><code>exposed</code></strong> controls whether the modules in the package are available to import during compilation. This is just the default. GHC command line options and <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html#package-environments"><em>package environment files</em></a> can alter package visibility.</p></li>
 </ul>
 <p>For more details see the <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html"><em>Packages</em> chapter</a> of the GHC User’s Guide.</p>
-<h2 id="cabal-install-and-package-databases"><em>cabal-install</em> and package databases <a href="#cabal-install-and-package-databases">§</a></h2>
+<h2 id="cabal-install-and-package-databases"><em>cabal-install</em> and package databases <a href="#cabal-install-and-package-databases" class="section">§</a></h2>
 <p>In earlier times, the <em>cabal-install</em> build tool would install all dependencies of a package into the global or user package database. But when you have multiple packages with conflicting dependencies, this approach does not work. It also makes updating packages very risky. Updating one package (because some dependent program or library requires a newer version) would often break other installed dependent packages.</p>
 <p><em>cabal-install</em>’s first solution to this problem was <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#developing-with-sandboxes">per-project sandboxes</a>. When using a sandbox, <em>cabal-install</em> installs dependencies (those that are not in the global or user package database) under <code>.cabal-sandbox/</code> in the project directory. Sandboxes are isolated from each other. This solved the main problem but introduced another. Many projects meant many sandboxes, wasting a lot of time and space as common dependencies got built over and over again, in different sandboxes.</p>
 <p>Furthermore, users had to deliberately create sandboxes. The problematic behaviour (install to the user package database) was the default behaviour. You had to <em>know</em> about, and use, sandboxes to avoid trouble.</p>
 <div class="note">
 <p>Sandbox support was removed in <em>cabal-install</em> 3.4.</p>
 </div>
-<h2 id="nix-style-local-builds">Nix-style local builds <a href="#nix-style-local-builds">§</a></h2>
+<h2 id="nix-style-local-builds">Nix-style local builds <a href="#nix-style-local-builds" class="section">§</a></h2>
 <p><em>cabal-install</em> since version 1.24 supports <a href="https://cabal.readthedocs.io/en/3.4/nix-local-build-overview.html"><em>Nix-style local builds</em></a>. It is the default behaviour (i.e. what <code>cabal build</code> does) since version 2.0. The feature is also called <em><code>v2-build</code></em> or <em><code>new-build</code></em></p>
 <p>This build system caches dependencies in a package database at <code>~/.cabal/store/GHCVER/package.db</code>. I call this package database the <strong><em>Cabal store</em></strong>. The unit IDs of packages in the Cabal store include the name, version, and a digest (hash) of the entire package contents, which prevents collisions. For example, <code>ghc-pkg</code> can print the unit IDs of all the variants of <em>purebred-email</em> in my Cabal store. Note that there are multiple variants even of particular versions (some were development builds):</p>
 <pre class="shell"><code>% ghc-pkg \
@@ -137,7 +137,7 @@ libHSpurebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16
 ~/.cabal/bin/purebred
 % readlink ~/.cabal/bin/purebred
 ../store/ghc-8.8.4/purebred-0.1.0.0-ffa8d363a9788cf11f71e6dbad787526a4fa1f9f750969f4d55036610f5cb027/bin/purebred</code></pre>
-<h2 id="dyre-and-the-cabal-store">Dyre and the Cabal store <a href="#dyre-and-the-cabal-store">§</a></h2>
+<h2 id="dyre-and-the-cabal-store">Dyre and the Cabal store <a href="#dyre-and-the-cabal-store" class="section">§</a></h2>
 <p>When using <em>cabal-install</em>, the details about the Cabal store are hidden from the user. But a Dyre-enabled program does not have the luxury of using <em>cabal-install</em> when (re)compiling a custom executable. We cannot assume that the <code>cabal</code> program is available. Even if we did make that assumption, using <em>cabal-install</em> would introduce <strong>a lot</strong> of additional complexity. And maintenance overhead, because <em>cabal-install</em>’s behaviour is continually evolving, whereas GHC’s command line interface is stable.</p>
 <p>So Dyre invokes GHC directly. When a Dyre application’s main library is in the global or user package database, GHC finds it and all is well. But when the library is in the Cabal store, GHC cannot find it:</p>
 <pre class="shell"><code>% purebred
@@ -218,7 +218,7 @@ Recompiling.
 Program reconfiguration successful.
 Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
 … (realMain executes)</code></pre>
-<h2 id="discussion">Discussion <a href="#discussion">§</a></h2>
+<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
 <p>It is unfortunate that the author of a Dyre application must do extra work to enable it to work with the Cabal store. Even though it is a small effort, it is something most programs will want to do. I have so far been unable to conceive a robust solution that avoids this work.</p>
 <p>Dyre pre-0.9 did not have this feature. To enable <a href="https://github.com/purebred-mua/purebred">Purebred</a> to work with the Cabal store, we performed the detection and constructed the extra GHC options ourselves. Then we passed the extra options to Dyre via the <a href="https://hackage.haskell.org/package/dyre-0.9.1/docs/Config-Dyre.html#v:ghcOpts"><code>ghcOpts</code></a> fields of the <code>Params</code> type. This behaviour was ported to Dyre more or less <em>as-is</em> for the 0.9 release. Except for the bit that I forgot to port, which was restored in v0.9.1.</p>
 <p>My Purebred co-author reported a regression with Nix support in Dyre 0.9.x. Under Nix, GHC fails to find the application library during custom binary compilation. I suspect the cause is an incidental behavioural change as a result of porting the detection logic from Purebred to Dyre. But I have not yet started a proper investigation.</p>

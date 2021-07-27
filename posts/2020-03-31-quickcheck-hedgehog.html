@@ -31,7 +31,7 @@
     <h1 id="migrating-from-quickcheck-to-hedgehog-mixed-results">Migrating from QuickCheck to Hedgehog: mixed results</h1>
 <p>I’ve known about <a href="https://hackage.haskell.org/package/hedgehog">Hedgehog</a> from its early days. Having used QuickCheck before Hedgehog arrived, I am familiar with QuickCheck’s pain points, in particular the lack of automatic shrinking and the frustrations of its type class-driven approach. Hedgehog was designed to—and does—solve these problems.</p>
 <p>Yet, being already a user of QuickCheck in most of my Haskell projects, I did not feel a need to make the switch. “Some day, but not today”. And finally, the day has come. In this post I will explain the catalyst and the results of the switch including a surprising and (for me) detrimental behavioural difference between QuickCheck and Hedgehog.</p>
-<h2 id="background">Background <a href="#background">§</a></h2>
+<h2 id="background">Background <a href="#background" class="section">§</a></h2>
 <p><a href="https://hackage.haskell.org/package/purebred-email"><em>purebred-email</em></a> is a comprehensive mail processing library. It has plenty of tests, example and property-based, including serialiser/parser round-trip tests. Email has a 7-bit (ASCII) wire format; there are various mechanisms for including 8-bit data in messages. For including 8-bit data in header values, <a href="https://tools.ietf.org/html/rfc2047">RFC 2047</a> defines the <code>encoded-word</code> mechanism. Serialised Unicode data in the <code>To</code> and <code>From</code> headers can look something like this:</p>
 <pre><code>MIME-Version: 1.0
 From: =?utf-8?B?0JDQu9C40YHQsA==?= &lt;alice@example.com&gt;
@@ -70,7 +70,7 @@ Hello, Bob!</code></pre>
 <span id="cb2-26"><a href="#cb2-26" aria-hidden="true"></a>genMailbox <span class="ot">=</span> <span class="dt">Mailbox</span> <span class="op">&lt;$&gt;</span> arbitrary <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
 <p>Note that I explicitly define and directly use the generators. Defining <code>Arbitrary</code> instances for these types was too restrictive. I also felt it would be difficult to implement accurate and useful shrinking heuristics for these domain objects.</p>
 <p>And this is where the fun began.</p>
-<h2 id="from-quickcheck-to-hedgehog">From QuickCheck to Hedgehog <a href="#from-quickcheck-to-hedgehog">§</a></h2>
+<h2 id="from-quickcheck-to-hedgehog">From QuickCheck to Hedgehog <a href="#from-quickcheck-to-hedgehog" class="section">§</a></h2>
 <p>By default, QuickCheck checks properties 100 times with random inputs. I had a hunch that for this property, 100 was not enough, so I overrode the default to check <code>prop_messageRoundTrip</code> 10,000 times. And hey, what do you know, QuickCheck found a bug:</p>
 <pre><code>    message round trip with From header:        FAIL (3.89s)
       *** Failed! Falsified (after 1090 tests):
@@ -145,7 +145,7 @@ ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4'rMzXs&quot;])))
 <p>I ran the tests again, expecting Hedgehog to find the bug and, thanks to integrated shrinking, present me with a digestable counterexample. But the tests passed. Even after 10,000 iterations it could not detect the bug:</p>
 <pre><code>message round trip with From header:             OK (4.75s)
   ✓ message round trip with From header passed 10000 tests.</code></pre>
-<h2 id="generator-bias">Generator bias <a href="#generator-bias">§</a></h2>
+<h2 id="generator-bias">Generator bias <a href="#generator-bias" class="section">§</a></h2>
 <p>Hedgehog’s inability to find a counterexample surprised me, and several other people in <code>#bfpg</code>. The search for answers soon led me to the source code, where all was laid bare. Hedgehog’s <code>Gen.unicode</code> has a uniform distribution over all Unicode characters:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a><span class="co">-- | Generates a Unicode character, excluding noncharacters</span></span>
@@ -181,7 +181,7 @@ ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4'rMzXs&quot;])))
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>  <span class="op">&lt;$&gt;</span> Gen.maybe (Gen.text (Range.linear <span class="dv">0</span> <span class="dv">100</span>)</span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>                 unicodeCharAsciiBias)</span>
 <span id="cb8-10"><a href="#cb8-10" aria-hidden="true"></a>  <span class="op">&lt;*&gt;</span> genAddrSpec</span></code></pre></div>
-<h2 id="shrink-to-win">Shrink to win <a href="#shrink-to-win">§</a></h2>
+<h2 id="shrink-to-win">Shrink to win <a href="#shrink-to-win" class="section">§</a></h2>
 <p>This time Hedgehog found the counterexample. The automatic shrinking produced a minimal counterexample and Hedgehog presented its findings:</p>
 <pre><code>message round trip with From header:                  FAIL (47.81s)
  ✗ message round trip with From header failed at tests/Message.hs:106:3
@@ -205,14 +205,14 @@ ZExv&quot;,&quot;wP{kH9SF2v?hH`81GI{aJyGmje3d1o`DRS4r4'rMzXs&quot;])))
        ┃   │         AddrSpec &quot;!&quot; (DomainDotAtom (&quot;!&quot; :| []))
        ┃   │     ]</code></pre>
 <p>Isn’t the presentation—that neatly formatted diff of the data structure—just <em>gorgeous</em>?! It is easy to see the problem: <em>purebred-email</em> did not round-trip an email address correctly when then display name was (perhaps more generally, <em>contained</em>) a carriage return followed by a newline/line feed (CRLF). <code>"\r\n" !@!</code> is a pretty bonkers email address but the types and grammar do permit it so <em>purebred-email</em> must handle it correctly.</p>
-<h2 id="probabilities">Probabilities <a href="#probabilities">§</a></h2>
+<h2 id="probabilities">Probabilities <a href="#probabilities" class="section">§</a></h2>
 <p>So now we can see why QuickCheck was able to find a counterexample and Hedgehog (when using <code>Gen.unicode</code>) was not. It is a matter of probability distribution. The probability of selecting CR followed by LF from a uniform distribution of all 1112062 unicode characters is 1 in 1236681891844, whereas for the 75% ASCII distribution (noting that the other 25% for all Unicode characters <em>also</em> includes the ASCII codepoints) is 2782747776649 over 81047184463888384 or roughly 0.0000433491.</p>
 <p>Note that 0.0000433491 is a bit less than half of 1 in 10000. We expect then that if we were executing 10000 tests, the framework would find this counterexample less than half the time. But this probability is for two-character sequences. The probability of a CRLF subsequence occuring in a longer string of randomly selected characters is, intuitively, much greater. But my probability-fu is not strong enough to work all that out. As it happens, with the ASCII-biased distribution both QuickCheck and Hedgehog usually find the counterexample somewhere around the 1000th test (but sometimes much sooner).</p>
-<h2 id="shrinking-performance">Shrinking performance <a href="#shrinking-performance">§</a></h2>
+<h2 id="shrinking-performance">Shrinking performance <a href="#shrinking-performance" class="section">§</a></h2>
 <p>Automatic shrinking is a joy. But Hedgehog’s shrinking is slow compared to QuickCheck. In the example above, it took almost a whole minute, most of which was the shrinking (compare with the earlier <code>Gen.unicode</code> example which tested the property 10,000 times in 4.7 seconds).</p>
 <p>I don’t see this has a problem: if it takes a long time to find a minimal counterexample, so be it. The tradeoff is worth it. And it is only the shrinking that is slow. If your tests are passing (and hopefully they do, most of the time) then there is no penalty.</p>
 <p>While I was discussing these things, one person shared with me that Hedgehog ate all their memory during shrinking, and crashed. So the slowness might be due to space usage (at least in part). I didn’t experience any crashes (yet) but it was prudent to share this anecdote. Your mileage may vary.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>Hedgehog is great. It solves the major pain points of QuickCheck. Automated shrinking for all generators is a killer feature, but it is computationally (and/or space) expensive, and might eat all your memory and crash (I have not experienced this myself). The pretty output with a nicely formatted diff of the data structure makes it easier to comprehend the counterexamples than QuickCheck’s <code>Show</code>-based output.</p>
 <p>Converting from QuickCheck to Hedgehog is a breeze; a simple mechanical translation. But <strong>do not blindly convert</strong>. I would probably never have found this bug if I had already converted <em>purebred-email</em> to Hedgehog, because of a critical difference in the distribution of one of the generators. When you are converting, pay careful attention to the behaviour of the generators, especially if they produce character or string types.</p>
 <p>The issue I experienced comes down to a lack of documentation. Arguably QuickCheck is the bad guy in this tale: the non-uniform distribution should have been documented. But it would be good for <em>all</em> generators or <code>Arbitrary</code> instances to say something about their distribution, even if it’s just <em>“uniform distribution”</em>.</p>

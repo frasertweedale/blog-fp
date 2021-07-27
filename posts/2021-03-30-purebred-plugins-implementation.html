@@ -30,7 +30,7 @@
 <div id="postContent">
     <h1 id="purebred-plugin-system-implementation">Purebred plugin system: implementation</h1>
 <p>I previously wrote about a <a href="2021-02-02-plugin-system-prototype.html">prototype plugin system</a> for <a href="https://github.com/purebred-mua/purebred">Purebred</a>. In this post I discuss some improvements to the design, and report on the implementation progress.</p>
-<h2 id="recap">Recap <a href="#recap">§</a></h2>
+<h2 id="recap">Recap <a href="#recap" class="section">§</a></h2>
 <p>The requirements for the plugin system were:</p>
 <ul>
 <li><p>Plugin types must express the <strong>capabilities</strong> they use, to help users understand what the plugin can and cannot do.</p></li>
@@ -40,7 +40,7 @@
 <li><p>It must be possible to <strong>configure</strong> plugins, if required.</p></li>
 </ul>
 <p>The prototype design satisfied these requirements, with some caveats. The biggest deficiencies were that the plugin’s type does not reveal which hook(s) the plugin uses, and the plugin’s type expresses the <em>union</em> of capabilities needed by all its hook functions. There was no way for a plugin to say, for example, that it uses <code>CanIO</code> for one hook, and <code>CanRWState</code> for some other hook.</p>
-<h2 id="plugin-record-type-improvements">Plugin record type improvements <a href="#plugin-record-type-improvements">§</a></h2>
+<h2 id="plugin-record-type-improvements">Plugin record type improvements <a href="#plugin-record-type-improvements" class="section">§</a></h2>
 <p>Recall the <code>Plugin</code> record type from the previous article:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="dt">Plugin</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  {<span class="ot"> pluginName ::</span> <span class="dt">String</span></span>
@@ -64,7 +64,7 @@
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="ot">      ::</span> <span class="kw">forall</span> m<span class="op">.</span> (cap m) <span class="ot">=&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  }</span></code></pre></div>
 <p>Finally, I added a field to store the plugin version, and a boolean to distinguish between built-in and external plugins. We (the Purebred authors) intend to use the plugin system to provide some baseline functionality. But we do not want to treat these behaviours as plugins from the user’s point of view. The <code>_pluginBuiltIn</code> field lets us discriminate.</p>
-<h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements">§</a></h2>
+<h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements" class="section">§</a></h2>
 <p>Plugin modules no longer export a plugin record value (what we now call <code>PluginDict</code>). The <code>Plugin</code> type lives on, in a different form:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Plugin</span> hooks <span class="ot">=</span> <span class="dt">Plugin</span> <span class="dt">String</span> <span class="dt">Version</span> hooks</span></code></pre></div>
 <p>A <code>Plugin</code> value has a name, version, and <code>hooks</code>. What is <code>hooks</code>? It is best understood in the context of the <code>usePlugin</code> function. Like the <code>relax</code> function from the prototype, <code>usePlugin</code> monomorphises plugins and prepares them for use in the main program.</p>
@@ -86,7 +86,7 @@
 <p>To support plugins that use multiple hooks, we declare an instance of <code>Hook</code> for pairs (2-tuples). This allows plugins to define as many hooks as they need, using nested tuples:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
-<h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins">§</a></h2>
+<h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h2>
 <p>Plugins construct and export a <code>Plugin hook</code> value, where <code>hook</code> is a hook function type or a nested tuple of the same.</p>
 <div class="note">
 <p>If a plugin defines the same hook multiple times, <code>usePlugin</code> discards all but the “leftmost” occurrence.</p>
@@ -132,7 +132,7 @@
 <span id="cb10-19"><a href="#cb10-19" aria-hidden="true"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig (IO)&quot;</span> version</span>
 <span id="cb10-20"><a href="#cb10-20" aria-hidden="true"></a>    (<span class="dt">ConfigHook</span> hook)</span></code></pre></div>
 <p>The <code>TweakConfig</code> module provides two variants of a plugin to adjust Purebred’s configuration at startup. <code>tweakConfig</code> takes a pure transformation and yields a <code>Plugin (ConfigHook Pure)</code>, whereas <code>tweakConfigWithIO</code> allows the use of <code>IO</code>.</p>
-<h2 id="using-plugins">Using plugins <a href="#using-plugins">§</a></h2>
+<h2 id="using-plugins">Using plugins <a href="#using-plugins" class="section">§</a></h2>
 <p>Users apply <code>usePlugin</code> to each plugin and produce a <code>[PluginDict]</code>. That list is then given as argument to the main Purebred entry point:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
 <p>The user configuration file, in a basic sense, is a program that constructs a list of plugins and applies <code>purebred</code> to it. Here is a cut-down version of my <code>~/.config/purebred/purebred.hs</code>:</p>
@@ -155,7 +155,7 @@
 <span id="cb12-17"><a href="#cb12-17" aria-hidden="true"></a>      Purebred.Plugin.ICU.plugin</span>
 <span id="cb12-18"><a href="#cb12-18" aria-hidden="true"></a>  ]</span></code></pre></div>
 <p>Some plugins have no configuration and just do their thing. But other plugins may require the user to construct a substantial configuration. A PGP/MIME plugin that uses GnuPG, though not written yet, seems likely to have a lot of knobs. Plugins that require configuration should offer ergonomic ways to construct sensible, safe configurations.</p>
-<h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins">§</a></h3>
+<h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins" class="section">§</a></h3>
 <p><code>defaultConfig</code> is the default <code>UserConfiguration</code> value. It is not exported, but it can be modified by <code>ConfigHook</code>s. Built-in plugins are already set in the <code>confPlugins</code> field of <code>defaultConfig</code>:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="ot">defaultConfig ::</span> <span class="dt">UserConfiguration</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>defaultConfig <span class="ot">=</span> <span class="dt">Configuration</span></span>
@@ -174,7 +174,7 @@
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>    cfg <span class="ot">=</span> over confPlugins (plugins <span class="op">&lt;&gt;</span>) defaultConfig</span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>    dyreParams <span class="ot">=</span> …</span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a>  Dyre.wrapMain dyreParams cfg</span></code></pre></div>
-<h2 id="executing-plugins">Executing plugins <a href="#executing-plugins">§</a></h2>
+<h2 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h2>
 <p>Purebred executes <code>ConfigHook</code>s immediately after Dyre (the configuration system) invokes the “real main” action (called <code>launch</code>):</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="ot">launch ::</span> <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>launch inCfg <span class="ot">=</span> <span class="kw">do</span></span>
@@ -197,7 +197,7 @@
 <li><p>Execute the composed action, using transformers if necessary.</p></li>
 </ol>
 <p>This pattern applies when the hook function type has the shape <code>a -&gt; m a</code>. So far, all the hook functions have that shape.</p>
-<h2 id="hooks-in-purebred">Hooks in Purebred <a href="#hooks-in-purebred">§</a></h2>
+<h2 id="hooks-in-purebred">Hooks in Purebred <a href="#hooks-in-purebred" class="section">§</a></h2>
 <p>The hooks we have already implemented are:</p>
 <ul>
 <li><p><strong><code>ConfigHook</code></strong>: modify configuration at program startup.</p></li>
@@ -215,7 +215,7 @@
 <li><p><strong><code>ReadHook</code></strong>: process raw message data when reading from disk. A plugin could use this to detect compressed files and inflate them. Another use case could be to attempt to “repair” corrupt or nonconformant messages.</p></li>
 </ul>
 <p>Purebred also needs an “address book” interface. We want plugins to be able to provide address book behaviour. But we haven’t designed it yet. It remains to be seen whether we will do it by way of hooks (as described in this post), or by updating the main configuration (via <code>ConfigHook</code>), or by some other means.</p>
-<h2 id="discussion">Discussion <a href="#discussion">§</a></h2>
+<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
 <p>Although I felt that the prototype design did satisfy the <em>capabilities</em> requirement, there were some deficiencies. I identified and discussed these in <a href="2021-02-02-plugin-system-prototype.html">the original article</a>. In particular, the <code>Plugin</code> type did not express which hooks the plugin uses, nor could a plugin acquire different capabilities for different hooks. The updated design eliminates these deficiencies.</p>
 <p>Plugins now have a version field, and the internal representation also distinguishes between built-in and external plugins. We use this to hide built-ins when listing plugins in the <code>--version</code> output.</p>
 <p>The problems of UI interaction, and how plugins can store and use plugin-specific state, remain unsolved.</p>

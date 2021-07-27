@@ -30,10 +30,10 @@
 <div id="postContent">
     <h1 id="adding-section-links-to-hakyll-articles-with-text.pandoc.walk">Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></h1>
 <p>It is handy to be able to link to section headings in long articles. <a href="https://pandoc.org/">Pandoc</a> and <a href="https://jaspervdj.be/hakyll/">Hakyll</a> don’t do that out of the box. But they give you all the power you need to implement it yourself. In this post I’ll show you how.</p>
-<h2 id="objective">Objective <a href="#objective">§</a></h2>
+<h2 id="objective">Objective <a href="#objective" class="section">§</a></h2>
 <p>The main objective is to provide links (HTML <code>&lt;a&gt;</code> element) to section headings. They should be located near or within the heading element. Having them in the document will make it easy for readers to grab a link to a specific section of the article. (I myself often want to do this!)</p>
 <p>You could make the whole heading a link, but I like the approach that reveals a link when the pointer hovers over the heading. Some sites use a pilcrow (¶), pound (#) or a link symbol (🔗) as the link text. I will use a section sign (§).</p>
-<h2 id="building-blocks">Building blocks <a href="#building-blocks">§</a></h2>
+<h2 id="building-blocks">Building blocks <a href="#building-blocks" class="section">§</a></h2>
 <p>Pandoc does set the <code>id</code> attribute of HTML heading elements to a value derived from the heading text. For example, one of my previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The resulting HTML for the heading is:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span>Probabilities<span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
 <p>The value of the <code>id</code> attribute will be the <code>href</code> target of the <code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI fragment).</p>
@@ -49,7 +49,7 @@
 <p><code>walk f x</code> walks the structure <code>x :: b</code> (bottom up) and replaces every occurrence of a value of type <code>a</code> with the result of applying <code>f :: (a -&gt; a)</code> to it.</p>
 <p>There are many instances of <code>Walkable</code>. We are interested in the one that visits all the <code>Block</code> elements (that’s what headings are) in the <code>Pandoc</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">instance</span> <span class="dt">Walkable</span> <span class="dt">Block</span> <span class="dt">Pandoc</span></span></code></pre></div>
-<h2 id="putting-it-together">Putting it together <a href="#putting-it-together">§</a></h2>
+<h2 id="putting-it-together">Putting it together <a href="#putting-it-together" class="section">§</a></h2>
 <p>I needed a handful of Pandoc constructors to implement the transformation. The <code>Header</code> constructor (of the <code>Block</code> data type) represents a document (sub)heading with <code>Int</code> depth, attributes, and the list of <code>Inline</code> elements that constitute the header content.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Block</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  <span class="op">...</span></span>
@@ -83,7 +83,7 @@
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>        defaultHakyllReaderOptions</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>        defaultHakyllWriterOptions</span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>        addSectionLinks</span></code></pre></div>
-<h2 id="style">Style <a href="#style">§</a></h2>
+<h2 id="style">Style <a href="#style" class="section">§</a></h2>
 <p>I want to hide the heading link unless the cursor is hovering over the heading. I would like to accomplish it with this small dose of CSS:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="in">:is(h2, h3, h4, h5, h6)</span> a {</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
@@ -105,7 +105,7 @@
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a>}</span></code></pre></div>
 <p>I also used <code>text-decoration</code> and <code>color</code> to make the link appearance clean and understated.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>As a result of this change, the HTML emitted for section headers (of depth &gt; 1) looks like:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">&lt;h2</span><span class="ot"> id=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>  Probabilities <span class="kw">&lt;a</span><span class="ot"> href=</span><span class="st">&quot;#probabilities&quot;</span><span class="kw">&gt;</span>§<span class="kw">&lt;/a&gt;</span></span>

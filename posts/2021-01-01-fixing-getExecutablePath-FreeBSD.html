@@ -30,10 +30,10 @@
 <div id="postContent">
     <h1 id="fixing-getexecutablepath-on-freebsd">Fixing <code>getExecutablePath</code> on FreeBSD</h1>
 <p><a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Environment.html#v:getExecutablePath"><code>System.Environment.getExecutablePath</code></a> (part of the <em>base</em> library) returns the absolute pathname of the current executable. Except when it doesn’t. From my work on <a href="https://hackage.haskell.org/package/dyre">Dyre</a> (a <strong>dy</strong>namic <strong>re</strong>configuration system for Haskell programs) I discovered that <code>getExecutablePath</code> did not work properly on FreeBSD. Fixing it involved FreeBSD’s <a href="https://www.freebsd.org/cgi/man.cgi?query=sysctl&amp;sektion=3&amp;manpath=FreeBSD+12.2-RELEASE"><code>sysctl(3)</code></a> interface and the Haskell <a href="https://downloads.haskell.org/ghc/8.10.1/docs/html/users_guide/ffi-chap.html"><em>Foreign Function Interface</em></a> <em>(FFI)</em>.</p>
-<h2 id="how-getexecutablepath-is-implemented">How <code>getExecutablePath</code> is implemented <a href="#how-getexecutablepath-is-implemented">§</a></h2>
+<h2 id="how-getexecutablepath-is-implemented">How <code>getExecutablePath</code> is implemented <a href="#how-getexecutablepath-is-implemented" class="section">§</a></h2>
 <p>The <em>base</em> library is part of GHC. <code>getExecutablePath</code> is defined in <a href="https://gitlab.haskell.org/ghc/ghc/-/blob/ghc-8.6.5-release/libraries/base/System/Environment/ExecutablePath.hsc"><code>libraries/base/System/Environment/ExecutablePath.hsc</code></a> (link is to the GHC 8.6.5 version). <code>.hsc</code> files are processed by <a href="https://github.com/haskell/hsc2hs"><code>hsc2hs</code></a>, which provides helper directives for working with the FFI (it is also distributed with GHC).</p>
 <p><code>ExecutablePath.hsc</code> uses C Preprocessor (CPP) directives to select different implementations of <code>getExecutablePath</code> for different operating systems. In GHC 8.6 and earlier there were platform-specific implementations for Linux, Mac OS X and Windows (all the <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/platforms#tier-1-platforms">GHC Tier 1 platforms</a>). And there is a fallback implementation when no platform-specific implementation is available (we shall see that it has some problems). All of the implementations use the FFI to some extent.</p>
-<h3 id="the-linux-implementation">The Linux implementation <a href="#the-linux-implementation">§</a></h3>
+<h3 id="the-linux-implementation">The Linux implementation <a href="#the-linux-implementation" class="section">§</a></h3>
 <p>Linux systems almost always mount <a href="https://en.wikipedia.org/wiki/Procfs#Linux"><code>procfs(5)</code></a>, a filesystem of information about running processes. Information about a particular process is published in files under <code>/proc/{pid}/</code>. A process can also find information about itself under <code>/proc/self/</code>.</p>
 <p>A process can find out its own executable by reading <code>/proc/self/exe</code>, which is a symbolic link. And this is exactly what the implementation of <code>getExecutablePath</code> for Linux does:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span> readSymbolicLink <span class="op">$</span> <span class="st">&quot;/proc/self/exe&quot;</span></span>
@@ -41,7 +41,7 @@
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ot">readSymbolicLink ::</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>readSymbolicLink file <span class="ot">=</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>    <span class="co">-- uses readlink(3) via FFI</span></span></code></pre></div>
-<h3 id="the-fallback-implementation-has-problems">The fallback implementation (has problems) <a href="#the-fallback-implementation-has-problems">§</a></h3>
+<h3 id="the-fallback-implementation-has-problems">The fallback implementation (has problems) <a href="#the-fallback-implementation-has-problems" class="section">§</a></h3>
 <p>When the <em>base</em> library does not have an operating system-specific implementation for <code>getExecutablePath</code> it falls back to <code>argv[0]</code>: the first value in the program’s argument array. However, this is not a reliable way to determine the actual executable that supplied the program text. Many programs and environments manipulate the contents of <code>argv[0]</code>. The <code>execv*(3)</code> family of calls, which replaces the current process with a new process image, allow the caller to specify an arbitrary <code>argv</code>.</p>
 <p>As an example of <code>argv[0]</code> manipulation, consider <a href="https://hackage.haskell.org/package/unix-2.7.2.2/docs/System-Posix-Process.html#v:executeFile"><code>System.Posix.Process.executeFile</code></a> from the <a href="https://hackage.haskell.org/package/unix"><em>unix</em></a> package. <code>executeFile</code> calls one of the <code>execv*(3)</code> subroutines (exactly which one depends on its own argument). But, as stated in the documentation:</p>
 <blockquote>
@@ -49,7 +49,7 @@
 </blockquote>
 <p>So if you use <code>executeFile</code>, <code>argv[0]</code> of the resulting process does not contain a full pathname. And you may not be able to resolve the <em>basename</em> to an executable via the <code>PATH</code> environment variable. Worse still, you may successfully resolve it <em>to the wrong executable!</em></p>
 <p>In fact, this was exactly the problem I experienced using <em>Dyre</em> on FreeBSD. <em>Dyre</em> automatically builds and caches an executable when it detects that configuration has changed, and <code>exec(3)</code>s the cached executable. On FreeBSD, the combination of <code>executeFile</code> <code>argv[0]</code> behaviour and use of the fallback <code>getExecutablePath</code> implementation caused <em>Dyre</em> to never recognise that it was running the cached executable. As a result, it entered an infinite loop of <code>execv*(3)</code>.</p>
-<h2 id="querying-the-current-executable-on-freebsd">Querying the current executable on FreeBSD <a href="#querying-the-current-executable-on-freebsd">§</a></h2>
+<h2 id="querying-the-current-executable-on-freebsd">Querying the current executable on FreeBSD <a href="#querying-the-current-executable-on-freebsd" class="section">§</a></h2>
 <p>It was clear that GHC needed a FreeBSD-specific implementation of <code>getExecutablePath</code>. So, what is the “proper” way to query the current process’ executable on FreeBSD?</p>
 <p><a href="https://www.freebsd.org/cgi/man.cgi?query=procfs&amp;manpath=FreeBSD+12.2-RELEASE">FreeBSD does implement a <code>procfs</code></a>. Some of the file names differ from Linux’s <code>procfs</code>. For example, the “current executable” symlink path is <code>/proc/curproc/file</code> instead of <code>/proc/self/exe</code>. It would be a small change to parameterise the Linux implementation so that it can be used for FreeBSD. But unlike typical Linux systems, FreeBSD’s <code>procfs</code> is often unused and not even mounted (especially on servers). Therefore the <code>procfs</code> approach is not suitable for FreeBSD.</p>
 <p>A bit of research revealed that the <a href="https://www.freebsd.org/cgi/man.cgi?query=sysctl&amp;sektion=3&amp;manpath=FreeBSD+12.2-RELEASE"><code>sysctl(3)</code></a> interface is the proper and ubiquitous way to query the executable path on FreeBSD. <code>sysctl(3)</code> exposes a <em>management information base (MIB)</em>, a tree structure where nodes are identified by a sequence of integers (<em>object identifier</em> or <em>OID</em>). For example, the kernel “maximum processes” setting has the OID <code>[1, 6]</code>. Some (but not all) OIDs have a string representation so that values can be queried or changed by the userland <code>sysctl(8)</code> utility:</p>
@@ -95,9 +95,9 @@ kern.maxproc: 3828</code></pre>
 <li>Free the buffer.</li>
 </ol>
 <p>This is what the FreeBSD-specific implementation of <code>getExecutablePath</code> must do.</p>
-<h2 id="the-freebsd-implementation">The FreeBSD implementation <a href="#the-freebsd-implementation">§</a></h2>
+<h2 id="the-freebsd-implementation">The FreeBSD implementation <a href="#the-freebsd-implementation" class="section">§</a></h2>
 <p>I will now walk through the different parts of the FreeBSD-specific implementation of <code>getExecutablePath</code>.</p>
-<h3 id="c-preprocessor-guards">C Preprocessor guards <a href="#c-preprocessor-guards">§</a></h3>
+<h3 id="c-preprocessor-guards">C Preprocessor guards <a href="#c-preprocessor-guards" class="section">§</a></h3>
 <p>System-specific implementations are guarded by CPP conditionals:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="pp">#if defined(darwin_HOST_OS)</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a></span>
@@ -130,7 +130,7 @@ kern.maxproc: 3828</code></pre>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.Posix.Internals</span></span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true"></a><span class="pp">#include &lt;sys/types.h&gt;</span></span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true"></a><span class="pp">#include &lt;sys/sysctl.h&gt;</span></span></code></pre></div>
-<h3 id="foreign-import">Foreign import <a href="#foreign-import">§</a></h3>
+<h3 id="foreign-import">Foreign import <a href="#foreign-import" class="section">§</a></h3>
 <p>A <code>foreign import</code> declaration makes <code>sysctl(3)</code> available to Haskell code as <code>c_sysctl</code>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>foreign <span class="kw">import</span> ccall unsafe &quot;sysctl&quot;</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  c_sysctl</span>
@@ -142,7 +142,7 @@ kern.maxproc: 3828</code></pre>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">CSize</span>      <span class="co">-- new value size</span></span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span>    <span class="co">-- result</span></span></code></pre></div>
 <p>Observe the correspondence to the C function signature. Because this function is not referentially transparent (different calls with the same arguments could have different results) the result type is <code>IO CInt</code>.</p>
-<h3 id="defining-the-mib">Defining the MIB <a href="#defining-the-mib">§</a></h3>
+<h3 id="defining-the-mib">Defining the MIB <a href="#defining-the-mib" class="section">§</a></h3>
 <p>The <code>hsc2hs</code> <code>(#const ...)</code> directive assists in the definition of the “current process executable” MIB:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">mib ::</span> [<span class="dt">CInt</span>]</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>mib <span class="ot">=</span></span>
@@ -151,7 +151,7 @@ kern.maxproc: 3828</code></pre>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC_PATHNAME</span>)</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  , <span class="op">-</span><span class="dv">1</span>   <span class="co">-- current process</span></span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  ]</span></code></pre></div>
-<h3 id="defining-getexecutablepath">Defining <code>getExecutablePath</code> <a href="#defining-getexecutablepath">§</a></h3>
+<h3 id="defining-getexecutablepath">Defining <code>getExecutablePath</code> <a href="#defining-getexecutablepath" class="section">§</a></h3>
 <p>The <code>getExecutablePath</code> implementation closely follows the abstract procedure outlined above. So here it is, broken up with commentary (<a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276/diffs">full diff</a>):</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>  withArrayLen mib <span class="op">$</span> \n mibPtr <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
@@ -174,7 +174,7 @@ kern.maxproc: 3828</code></pre>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>              _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>        _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span></code></pre></div>
 <p>Call <code>sysctl(3)</code> again, this time using the new buffer (<code>buf</code>) as <code>oldp</code>. If successful, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Posix-Internals.html#v:peekFilePath"><code>peekFilePath</code></a> converts the C string to a Haskell <code>FilePath</code>. Although it is three continuations deep, this <code>FilePath</code> will be the return value. If either call to <code>sysctl(3)</code> failed, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-C-Error.html#v:throwErrno"><code>throwErrno</code></a> throws an <code>IOError</code>.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>This was a small enhancement to GHC, but for me a critical one. I submitted a <a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276">merge request</a>. It was quickly accepted and the fix was released in GHC 8.8.1.</p>
 <p>Although I didn’t address it in my pull request, there is an error in the <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Environment.html#v:getExecutablePath"><code>getExecutablePath</code></a> documentation. The <code>argv[0]</code> fallback implementation <em>does not</em> necessarily return an absolute pathname, as claimed. It would be better if platform-specific and fallback behaviours were fully explained.</p>
 <p>If you would like to see fixes, enhancements or documentation improvements (<em>hint, hint</em>) in GHC, do not be afraid! GHC is a huge project. But after you work out what bits go where, it’s not necessarily hard to make changes. It helps a lot that it is written in Haskell! You can submit a pull request via the <a href="https://gitlab.haskell.org/ghc/ghc">Haskell GitLab instance</a> (you can sign in with GitHub credentials). Apart from this FreeBSD-related fix I have submitted a couple other changes to GHC. I have found the GHC developers are always friendly and willing to assist new and less experienced contributors.</p>

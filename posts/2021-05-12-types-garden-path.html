@@ -31,7 +31,7 @@
     <h1 id="type-guided-development-and-garden-paths">Type-guided development and garden paths</h1>
 <p><em>“Types help you reason about effects”</em>, we declare. And they do! Except when they don’t. <em>“Just follow the types!”</em> we insist. But sometimes the types take you down a garden path.</p>
 <p>When the type checker is happy but the behaviour is all wrong, it can be hard to find where you took the wrong turn. In this post I’ll share real-world examples of this phenomenon, and offer some tips on how to avoid it.</p>
-<h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives">§</a></h2>
+<h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives" class="section">§</a></h2>
 <p>The <code>Applicative</code> type class provides a function for lifting a “pure” value into the applicative data type:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">Applicative</span> (<span class="ot">k ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>) <span class="kw">where</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="ot">  pure ::</span> a <span class="ot">-&gt;</span> k a</span>
@@ -80,7 +80,7 @@ V3 251 198 213</code></pre>
 <div class="note">
 <p><code>V3</code> is one of many types for which <code>fmap pure</code> and <code>sequenceA . pure</code> behave differently. Other examples include <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,)</code></a> and <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy</code></a>.</p>
 </div>
-<h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them">§</a></h2>
+<h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them" class="section">§</a></h2>
 <p>In <a href="https://github.com/purebred-mua/purebred">Purebred</a> we have an input validation system that checks inputs as the user types. It dispatches the validation work to a background thread, so the UI stays responsive. Each time the user edits the input, the program kills the outstanding validation thread (if any) and spawns a new one. The program code (simplified for this article) is:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a>dispatchValidation <span class="ot">=</span> <span class="kw">do</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>  <span class="kw">let</span> spawn <span class="ot">=</span> forkIO doValidation</span>
@@ -101,7 +101,7 @@ V3 251 198 213</code></pre>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>killThread <span class="op">$&gt;</span> spawn  <span class="co">-- broken</span></span></code></pre></div>
 <p>with:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>\t <span class="ot">-&gt;</span> killThread t <span class="op">*&gt;</span> spawn  <span class="co">-- fixed</span></span></code></pre></div>
-<h2 id="lessons-learned">Lessons learned <a href="#lessons-learned">§</a></h2>
+<h2 id="lessons-learned">Lessons learned <a href="#lessons-learned" class="section">§</a></h2>
 <p>I discussed two bugs where the type checker was happy and the code seemed <em>superficially</em> reasonable. Both had implementations guided by “type tetris” (<em>what fits here?</em>) that turned out to be fundamentally wrong. What strategies can help avoid such traps?</p>
 <p>The first bug involved use of the wrong abstraction; <code>Functor</code> instead of <code>Applicative</code>. Making an effort to test generic functions with a greater diversity of instances might have helped discover this bug sooner. In the case of applicatives, don’t just test with <code>[]</code>, <code>Maybe</code> and other “common” types where <code>pure</code> constructs a “singleton” value. Test with <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy a</code></a> (which has zero <code>a</code> values), <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,) a</code></a> (two <code>a</code> values), and so on.</p>
 <p>As for the second bug, my advice is don’t try to be clever when writing effectful code. <code>do</code> notation and explicit binds are fine. Using underscore binds to ignore values may result in more readable code than <code>const</code> and related functions. If you have a hole with a function type, start by writing the lambda, and work step by step to complete the definition. Make sure it’s correct first, and only then tidy it up (if you want to).</p>

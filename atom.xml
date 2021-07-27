@@ -119,7 +119,7 @@
     <updated>2021-06-11T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="generating-abstracts-for-hakyll-articles">Generating abstracts for Hakyll articles</h1>
 <p>Suppose you have a list of recent posts and want to include an abstract for each one. Or maybe you want to include brief article summaries in metadata about your content. <span class="abstract">In this post I demonstrate several ways to declare or generate abstracts for content on your <a href="https://jaspervdj.be/hakyll/">Hakyll</a> site.</span></p>
-<h2 id="objective">Objective <a href="#objective">§</a></h2>
+<h2 id="objective">Objective <a href="#objective" class="section">§</a></h2>
 <p>The goal is to include an <code>$abstract$</code> field in each article’s context. The field value should be a brief abstract or description of the article. What to actually <em>do</em> with the value is outside the scope of this post. But it is fair to include an example, so here’s how you could use it in a “recent posts” list:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">&lt;ul&gt;</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  $for(posts)$</span>
@@ -127,7 +127,7 @@
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>  $endfor$</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="kw">&lt;/ul&gt;</span></span></code></pre></div>
 <p>I will discuss a more interesting use case in a future post.</p>
-<h2 id="metadata">Metadata <a href="#metadata">§</a></h2>
+<h2 id="metadata">Metadata <a href="#metadata" class="section">§</a></h2>
 <p>Hakyll processes optional metadata at the top of the article source. The format is YAML. Fields in the YAML map are available via <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:metadataField"><code>metadataField</code></a>, which is also part of the <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>.</p>
 <p>So you can define an abstract in the metadata, like so:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="pp">---</span></span>
@@ -147,7 +147,7 @@
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>  mapContext escapeHtml metadataField </span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
 </div>
-<h2 id="markup">Markup <a href="#markup">§</a></h2>
+<h2 id="markup">Markup <a href="#markup" class="section">§</a></h2>
 <p>I don’t like repeating myself. If I were to use <code>metadataField</code>, the abstract I write would often be a repeat the article’s introduction or some part thereof. Wouldn’t it be nice if I could just indicate—<em>inline</em>—a portion of the article to use as the abstract? For example:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="fu"># Generating abstracts for Hakyll articles</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
@@ -193,7 +193,7 @@
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>context <span class="ot">=</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
-<h2 id="autogeneration">Autogeneration <a href="#autogeneration">§</a></h2>
+<h2 id="autogeneration">Autogeneration <a href="#autogeneration" class="section">§</a></h2>
 <p>Consider the following heuristic for autogenerating an abstract: Take the first paragraph that immediately precedes a heading; that is the abstract.</p>
 <p>This is a very basic heuristic. But absent other data it’s probably better than nothing. So let’s implement it:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
@@ -204,7 +204,7 @@
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  fallback (_h <span class="op">:</span> t) <span class="ot">=</span> fallback t</span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  fallback [] <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
 <p>This version of <code>abstract</code> scans the list of block elements at the top level of the <code>Pandoc</code> AST. The first time it sees a <code>Para</code> preceding a <code>Header</code>, it returns the paragraph content.</p>
-<h2 id="putting-it-all-together">Putting it all together <a href="#putting-it-all-together">§</a></h2>
+<h2 id="putting-it-all-together">Putting it all together <a href="#putting-it-all-together" class="section">§</a></h2>
 <p>For my sites, I want to use all three methods described above. An abstract specified in the <em>metadata</em> is preferred. Explicit <em>markup</em> is my second preference and the <em>autogeneration</em> heuristic is a last resort. This will provide a good user experience for me. With a tiny bit of markup I can avoid repeating myself most of the time. But if it is warranted, I can use the metadata to write something different. Sometimes I’ll get a fair result without doing anything.</p>
 <p>Combining the two versions of <code>abstract</code> is left as an exercise for the reader (hint: <code>Control.Applicative.&lt;|&gt;</code>).</p>
 <p>Take care when composing the context. The <code>metadataField</code> has to come before the <code>snapshotField</code> (if that’s the priority you want):</p>
@@ -223,7 +223,7 @@
     <updated>2021-05-23T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="a-combinator-library-for-taxes">A combinator library for taxes</h1>
 <p>Doing your taxes is no fun. But functional programming can ease the pain. In this post I describe and demonstrate the Haskell <a href="https://hackage.haskell.org/package/tax"><em>tax</em></a> library, which provides data types and combinators for defining taxes.</p>
-<h2 id="what-is-a-tax">What is a tax? <a href="#what-is-a-tax">§</a></h2>
+<h2 id="what-is-a-tax">What is a tax? <a href="#what-is-a-tax" class="section">§</a></h2>
 <p>Wikipedia <a href="https://en.wikipedia.org/wiki/Tax">defines</a> a tax as <em>a compulsory financial charge or some other type of levy imposed on a taxpayer</em>. Most taxes have monetary “inputs and outputs” but other kinds of taxation exist, such as the <a href="https://en.wikipedia.org/wiki/Corv%C3%A9e#Modern_instances"><em>corvée</em></a>. Therefore <em>tax</em> defines a type that is abstracted over its inputs and outputs:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">newtype</span> <span class="dt">Tax</span> b a <span class="ot">=</span> <span class="dt">Tax</span> {<span class="ot"> getTax ::</span> b <span class="ot">-&gt;</span> a }</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  <span class="kw">deriving</span> (<span class="dt">Semigroup</span>, <span class="dt">Monoid</span>, <span class="dt">Functor</span>, <span class="dt">Profunctor</span>)</span></code></pre></div>
@@ -247,7 +247,7 @@
 <div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> <span class="dt">Semigroup</span> (<span class="dt">Money</span> a)</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span>    <span class="dt">Monoid</span> (<span class="dt">Money</span> a)</span></code></pre></div>
 <p>All types in <em>tax</em> are abstracted over the numeric representation. Different applications can have different requirements for precision. Users may want to use a type that carries additional context, such as a currency. Therefore <em>tax</em> lets the user choose the numeric representation to use.</p>
-<h2 id="constructing-taxes">Constructing taxes <a href="#constructing-taxes">§</a></h2>
+<h2 id="constructing-taxes">Constructing taxes <a href="#constructing-taxes" class="section">§</a></h2>
 <p>The most basic taxes are <strong>lump</strong> sums, and <strong>flat</strong>-rate taxes:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ot">lump ::</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>lump <span class="ot">=</span> <span class="dt">Tax</span> <span class="op">.</span> <span class="fu">const</span></span>
@@ -258,7 +258,7 @@
 <div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>above, threshold</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span></code></pre></div>
-<h2 id="combinators">Combinators <a href="#combinators">§</a></h2>
+<h2 id="combinators">Combinators <a href="#combinators" class="section">§</a></h2>
 <p>More complex taxes can be built using a handful of <a href="https://wiki.haskell.org/Combinator_pattern"><em>combinators</em></a> (functions that assemble smaller components into more complicated structures). This section describes the combinators provided by the <em>tax</em> package.</p>
 <p>Levy the <strong>lesser</strong> or <strong>greater</strong> of two taxes:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>lesserOf, greaterOf</span>
@@ -284,8 +284,8 @@
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>above     l <span class="ot">=</span> above&#39;     l <span class="op">.</span> flat</span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>threshold l <span class="ot">=</span> threshold&#39; l <span class="op">.</span> flat</span></code></pre></div>
 <p>In real world use, I have not (so far) used <code>above'</code> or <code>threshold'</code>; the flat rate variants sufficed. Nevertheless, for completeness <em>tax</em> exports the general variants.</p>
-<h2 id="examples">Examples <a href="#examples">§</a></h2>
-<h3 id="progressive-tax">Progressive tax <a href="#progressive-tax">§</a></h3>
+<h2 id="examples">Examples <a href="#examples" class="section">§</a></h2>
+<h3 id="progressive-tax">Progressive tax <a href="#progressive-tax" class="section">§</a></h3>
 <p>Many countries use <a href="https://en.wikipedia.org/wiki/Progressive_tax"><em>progressive taxes</em></a>, where different bands of income are taxed at increasing flat rates. For example, in Australia for the 2020–21 financial year the first $18,200 is tax free, with income between $18,200 and $45,000 taxed at 19%, then 32.5% up to $120,000, 37% up to $180,000, and 45% above $180,000.</p>
 <p>Observe that the <code>Monoid</code> instance for <code>Tax</code> sums the outputs of constituent taxes applied to the same input. We can define a function that takes a list of thresholds and rates, and constructs a progressive tax:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="ot">marginal ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
@@ -299,21 +299,21 @@
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a>  , ( <span class="dt">Money</span> <span class="dv">120000</span>, <span class="fl">0.37</span>  <span class="op">-</span> <span class="fl">0.325</span> )</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a>  , ( <span class="dt">Money</span> <span class="dv">180000</span>, <span class="fl">0.45</span>  <span class="op">-</span> <span class="fl">0.37</span>  ) ]</span></code></pre></div>
 <p>The <code>marginal</code> function is useful enough that the <em>tax</em> package provides it.</p>
-<h3 id="shade-in">Shade in <a href="#shade-in">§</a></h3>
+<h3 id="shade-in">Shade in <a href="#shade-in" class="section">§</a></h3>
 <p>Australia’s public health system is funded by the <em>Medicare Levy</em>. It is currently 2% of income, but people below a certain threshold are exempt (the threshold changes each year). The amount above the threshold is taxed at 10% until it reaches 2% of the input. This prevents a sudden jump in tax owed and eliminates a perverse incentive to earn less than the threshold (if your income is around that number). The Australian Taxation Office calls this construction a <em>shade in</em>.</p>
 <p>Using the functions defined above and taking the lower shade in threshold as a parameter, this tax is an elegant one-liner:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a>medicareLevy</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a>medicareLevy l <span class="ot">=</span> lesserOf (above l <span class="fl">0.1</span>) (flat <span class="fl">0.02</span>)</span></code></pre></div>
-<h3 id="tax-offsets">Tax offsets <a href="#tax-offsets">§</a></h3>
+<h3 id="tax-offsets">Tax offsets <a href="#tax-offsets" class="section">§</a></h3>
 <p>A tax doesn’t have to result in an amount owed. Maybe your government will <em>give</em> you some money based on your income. Indeed Australia has some <em>tax offsets</em> that reduce the tax paid by people on lower incomes.</p>
 <p>An example is the <em>Low Income Tax Offset</em>, which was previously defined as: <em>$445, reduced by 1.5c for every dollar earned over $37,000</em> (the current definition is more complex). We can implement it like so:</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="ot">lito ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>lito <span class="ot">=</span> limit <span class="fu">mempty</span></span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>  (lump (<span class="dt">Money</span> (<span class="op">-</span><span class="dv">445</span>)) <span class="op">&lt;&gt;</span> above (<span class="dt">Money</span> <span class="dv">37000</span>) <span class="fl">0.015</span>)</span></code></pre></div>
 <p><code>limit mempty</code> ensures that the result does not exceed $0.</p>
-<h3 id="withholding-tax">Withholding tax <a href="#withholding-tax">§</a></h3>
+<h3 id="withholding-tax">Withholding tax <a href="#withholding-tax" class="section">§</a></h3>
 <p>Many jurisdictions collect income taxes by requiring employers to remit a portion of employees’ wages directly to the tax authority. In Australia, the amount to <em>withhold</em> from a payment can be determined by extrapolating the amount to an annual income, computing the tax due, then dividing it back down to the pay period.</p>
 <p>We can use the <code>Profunctor</code> instance to compute the amount to withhold for different pay periods. Think of <code>dimap f g</code> as an adapter that modifies that data flowing in (via <code>f</code>) and out (via <code>g</code>) of the target computation.</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a>allTaxes <span class="ot">=</span> ausTax <span class="op">&lt;&gt;</span> medicareLevy (<span class="dt">Money</span> <span class="dv">23226</span>) <span class="op">&lt;&gt;</span> lito</span>
@@ -325,7 +325,7 @@
 <p>The examples above are not correct when there are 53 weekly or 27 fortnightly payments in a financial year. Can you see how to define the correct computation?</p>
 <p>In the example I ignored some <strong>rounding</strong> rules. I also omitted several other tax components. It is an example, not a complete solution!</p>
 </div>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>I hope you have enjoyed this tour of the <em>tax</em> library. Of course, most real tax systems are much more complex than the handful of examples in this article. But <em>tax</em> provides building blocks for defining many kinds of taxes.</p>
 <p>My <a href="https://github.com/frasertweedale/hs-tax-ato"><em>tax-ato</em></a> package builds upon <em>tax</em> to provide types and behaviour for tax in Australia. In addition to the kinds of taxes described in this article it also handles capital gains tax, <a href="https://en.wikipedia.org/wiki/Dividend_imputation">franking credits</a>, student loan repayments, deductions, and other concepts. I use it to predict and record my own tax obligations. If you need to perform calculations related to tax in Australia, you might find it useful too. It is definitely not complete and comes with no guarantee of correctness.</p>
 <p>One final note: oh how I wish Haskell would decouple numeric literals from the <code>Num</code> and <code>Fractional</code> type classes. <code>Money</code> cannot have instances of these type classes because like other dimensional types, it is is not <a href="https://en.wikipedia.org/wiki/Closure_(mathematics)">closed</a> under multiplication and division. As a consequence, we have to lift bare numeric values into <code>Money</code> in several places. Separate type classes for numeric literals would avoid this. (<code>IsIntegral</code> and <code>IsRational</code> might be sensible names, following the pattern of <code>IsString</code> and <code>IsList</code>). Ultimately this is a minor inconvenience, but does add friction to using <em>dollaridoos</em>, <em>tax</em>, and programs that use these libraries.</p>]]></summary>
@@ -339,7 +339,7 @@
     <summary type="html"><![CDATA[<h1 id="type-guided-development-and-garden-paths">Type-guided development and garden paths</h1>
 <p><em>“Types help you reason about effects”</em>, we declare. And they do! Except when they don’t. <em>“Just follow the types!”</em> we insist. But sometimes the types take you down a garden path.</p>
 <p>When the type checker is happy but the behaviour is all wrong, it can be hard to find where you took the wrong turn. In this post I’ll share real-world examples of this phenomenon, and offer some tips on how to avoid it.</p>
-<h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives">§</a></h2>
+<h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives" class="section">§</a></h2>
 <p>The <code>Applicative</code> type class provides a function for lifting a “pure” value into the applicative data type:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">class</span> <span class="dt">Applicative</span> (<span class="ot">k ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>) <span class="kw">where</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="ot">  pure ::</span> a <span class="ot">-&gt;</span> k a</span>
@@ -388,7 +388,7 @@ V3 251 198 213</code></pre>
 <div class="note">
 <p><code>V3</code> is one of many types for which <code>fmap pure</code> and <code>sequenceA . pure</code> behave differently. Other examples include <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,)</code></a> and <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy</code></a>.</p>
 </div>
-<h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them">§</a></h2>
+<h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them" class="section">§</a></h2>
 <p>In <a href="https://github.com/purebred-mua/purebred">Purebred</a> we have an input validation system that checks inputs as the user types. It dispatches the validation work to a background thread, so the UI stays responsive. Each time the user edits the input, the program kills the outstanding validation thread (if any) and spawns a new one. The program code (simplified for this article) is:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a>dispatchValidation <span class="ot">=</span> <span class="kw">do</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>  <span class="kw">let</span> spawn <span class="ot">=</span> forkIO doValidation</span>
@@ -409,7 +409,7 @@ V3 251 198 213</code></pre>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>killThread <span class="op">$&gt;</span> spawn  <span class="co">-- broken</span></span></code></pre></div>
 <p>with:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>\t <span class="ot">-&gt;</span> killThread t <span class="op">*&gt;</span> spawn  <span class="co">-- fixed</span></span></code></pre></div>
-<h2 id="lessons-learned">Lessons learned <a href="#lessons-learned">§</a></h2>
+<h2 id="lessons-learned">Lessons learned <a href="#lessons-learned" class="section">§</a></h2>
 <p>I discussed two bugs where the type checker was happy and the code seemed <em>superficially</em> reasonable. Both had implementations guided by “type tetris” (<em>what fits here?</em>) that turned out to be fundamentally wrong. What strategies can help avoid such traps?</p>
 <p>The first bug involved use of the wrong abstraction; <code>Functor</code> instead of <code>Applicative</code>. Making an effort to test generic functions with a greater diversity of instances might have helped discover this bug sooner. In the case of applicatives, don’t just test with <code>[]</code>, <code>Maybe</code> and other “common” types where <code>pure</code> constructs a “singleton” value. Test with <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy a</code></a> (which has zero <code>a</code> values), <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,) a</code></a> (two <code>a</code> values), and so on.</p>
 <p>As for the second bug, my advice is don’t try to be clever when writing effectful code. <code>do</code> notation and explicit binds are fine. Using underscore binds to ignore values may result in more readable code than <code>const</code> and related functions. If you have a hole with a function type, start by writing the lambda, and work step by step to complete the definition. Make sure it’s correct first, and only then tidy it up (if you want to).</p>
@@ -424,7 +424,7 @@ V3 251 198 213</code></pre>
     <updated>2021-03-30T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="purebred-plugin-system-implementation">Purebred plugin system: implementation</h1>
 <p>I previously wrote about a <a href="2021-02-02-plugin-system-prototype.html">prototype plugin system</a> for <a href="https://github.com/purebred-mua/purebred">Purebred</a>. In this post I discuss some improvements to the design, and report on the implementation progress.</p>
-<h2 id="recap">Recap <a href="#recap">§</a></h2>
+<h2 id="recap">Recap <a href="#recap" class="section">§</a></h2>
 <p>The requirements for the plugin system were:</p>
 <ul>
 <li><p>Plugin types must express the <strong>capabilities</strong> they use, to help users understand what the plugin can and cannot do.</p></li>
@@ -434,7 +434,7 @@ V3 251 198 213</code></pre>
 <li><p>It must be possible to <strong>configure</strong> plugins, if required.</p></li>
 </ul>
 <p>The prototype design satisfied these requirements, with some caveats. The biggest deficiencies were that the plugin’s type does not reveal which hook(s) the plugin uses, and the plugin’s type expresses the <em>union</em> of capabilities needed by all its hook functions. There was no way for a plugin to say, for example, that it uses <code>CanIO</code> for one hook, and <code>CanRWState</code> for some other hook.</p>
-<h2 id="plugin-record-type-improvements">Plugin record type improvements <a href="#plugin-record-type-improvements">§</a></h2>
+<h2 id="plugin-record-type-improvements">Plugin record type improvements <a href="#plugin-record-type-improvements" class="section">§</a></h2>
 <p>Recall the <code>Plugin</code> record type from the previous article:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="dt">Plugin</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  {<span class="ot"> pluginName ::</span> <span class="dt">String</span></span>
@@ -458,7 +458,7 @@ V3 251 198 213</code></pre>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="ot">      ::</span> <span class="kw">forall</span> m<span class="op">.</span> (cap m) <span class="ot">=&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  }</span></code></pre></div>
 <p>Finally, I added a field to store the plugin version, and a boolean to distinguish between built-in and external plugins. We (the Purebred authors) intend to use the plugin system to provide some baseline functionality. But we do not want to treat these behaviours as plugins from the user’s point of view. The <code>_pluginBuiltIn</code> field lets us discriminate.</p>
-<h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements">§</a></h2>
+<h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements" class="section">§</a></h2>
 <p>Plugin modules no longer export a plugin record value (what we now call <code>PluginDict</code>). The <code>Plugin</code> type lives on, in a different form:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Plugin</span> hooks <span class="ot">=</span> <span class="dt">Plugin</span> <span class="dt">String</span> <span class="dt">Version</span> hooks</span></code></pre></div>
 <p>A <code>Plugin</code> value has a name, version, and <code>hooks</code>. What is <code>hooks</code>? It is best understood in the context of the <code>usePlugin</code> function. Like the <code>relax</code> function from the prototype, <code>usePlugin</code> monomorphises plugins and prepares them for use in the main program.</p>
@@ -480,7 +480,7 @@ V3 251 198 213</code></pre>
 <p>To support plugins that use multiple hooks, we declare an instance of <code>Hook</code> for pairs (2-tuples). This allows plugins to define as many hooks as they need, using nested tuples:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
-<h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins">§</a></h2>
+<h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h2>
 <p>Plugins construct and export a <code>Plugin hook</code> value, where <code>hook</code> is a hook function type or a nested tuple of the same.</p>
 <div class="note">
 <p>If a plugin defines the same hook multiple times, <code>usePlugin</code> discards all but the “leftmost” occurrence.</p>
@@ -526,7 +526,7 @@ V3 251 198 213</code></pre>
 <span id="cb10-19"><a href="#cb10-19" aria-hidden="true"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig (IO)&quot;</span> version</span>
 <span id="cb10-20"><a href="#cb10-20" aria-hidden="true"></a>    (<span class="dt">ConfigHook</span> hook)</span></code></pre></div>
 <p>The <code>TweakConfig</code> module provides two variants of a plugin to adjust Purebred’s configuration at startup. <code>tweakConfig</code> takes a pure transformation and yields a <code>Plugin (ConfigHook Pure)</code>, whereas <code>tweakConfigWithIO</code> allows the use of <code>IO</code>.</p>
-<h2 id="using-plugins">Using plugins <a href="#using-plugins">§</a></h2>
+<h2 id="using-plugins">Using plugins <a href="#using-plugins" class="section">§</a></h2>
 <p>Users apply <code>usePlugin</code> to each plugin and produce a <code>[PluginDict]</code>. That list is then given as argument to the main Purebred entry point:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
 <p>The user configuration file, in a basic sense, is a program that constructs a list of plugins and applies <code>purebred</code> to it. Here is a cut-down version of my <code>~/.config/purebred/purebred.hs</code>:</p>
@@ -549,7 +549,7 @@ V3 251 198 213</code></pre>
 <span id="cb12-17"><a href="#cb12-17" aria-hidden="true"></a>      Purebred.Plugin.ICU.plugin</span>
 <span id="cb12-18"><a href="#cb12-18" aria-hidden="true"></a>  ]</span></code></pre></div>
 <p>Some plugins have no configuration and just do their thing. But other plugins may require the user to construct a substantial configuration. A PGP/MIME plugin that uses GnuPG, though not written yet, seems likely to have a lot of knobs. Plugins that require configuration should offer ergonomic ways to construct sensible, safe configurations.</p>
-<h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins">§</a></h3>
+<h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins" class="section">§</a></h3>
 <p><code>defaultConfig</code> is the default <code>UserConfiguration</code> value. It is not exported, but it can be modified by <code>ConfigHook</code>s. Built-in plugins are already set in the <code>confPlugins</code> field of <code>defaultConfig</code>:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="ot">defaultConfig ::</span> <span class="dt">UserConfiguration</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>defaultConfig <span class="ot">=</span> <span class="dt">Configuration</span></span>
@@ -568,7 +568,7 @@ V3 251 198 213</code></pre>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>    cfg <span class="ot">=</span> over confPlugins (plugins <span class="op">&lt;&gt;</span>) defaultConfig</span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>    dyreParams <span class="ot">=</span> …</span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a>  Dyre.wrapMain dyreParams cfg</span></code></pre></div>
-<h2 id="executing-plugins">Executing plugins <a href="#executing-plugins">§</a></h2>
+<h2 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h2>
 <p>Purebred executes <code>ConfigHook</code>s immediately after Dyre (the configuration system) invokes the “real main” action (called <code>launch</code>):</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="ot">launch ::</span> <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>launch inCfg <span class="ot">=</span> <span class="kw">do</span></span>
@@ -591,7 +591,7 @@ V3 251 198 213</code></pre>
 <li><p>Execute the composed action, using transformers if necessary.</p></li>
 </ol>
 <p>This pattern applies when the hook function type has the shape <code>a -&gt; m a</code>. So far, all the hook functions have that shape.</p>
-<h2 id="hooks-in-purebred">Hooks in Purebred <a href="#hooks-in-purebred">§</a></h2>
+<h2 id="hooks-in-purebred">Hooks in Purebred <a href="#hooks-in-purebred" class="section">§</a></h2>
 <p>The hooks we have already implemented are:</p>
 <ul>
 <li><p><strong><code>ConfigHook</code></strong>: modify configuration at program startup.</p></li>
@@ -609,7 +609,7 @@ V3 251 198 213</code></pre>
 <li><p><strong><code>ReadHook</code></strong>: process raw message data when reading from disk. A plugin could use this to detect compressed files and inflate them. Another use case could be to attempt to “repair” corrupt or nonconformant messages.</p></li>
 </ul>
 <p>Purebred also needs an “address book” interface. We want plugins to be able to provide address book behaviour. But we haven’t designed it yet. It remains to be seen whether we will do it by way of hooks (as described in this post), or by updating the main configuration (via <code>ConfigHook</code>), or by some other means.</p>
-<h2 id="discussion">Discussion <a href="#discussion">§</a></h2>
+<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
 <p>Although I felt that the prototype design did satisfy the <em>capabilities</em> requirement, there were some deficiencies. I identified and discussed these in <a href="2021-02-02-plugin-system-prototype.html">the original article</a>. In particular, the <code>Plugin</code> type did not express which hooks the plugin uses, nor could a plugin acquire different capabilities for different hooks. The updated design eliminates these deficiencies.</p>
 <p>Plugins now have a version field, and the internal representation also distinguishes between built-in and external plugins. We use this to hide built-ins when listing plugins in the <code>--version</code> output.</p>
 <p>The problems of UI interaction, and how plugins can store and use plugin-specific state, remain unsolved.</p>
@@ -625,7 +625,7 @@ V3 251 198 213</code></pre>
     <summary type="html"><![CDATA[<h1 id="how-dyre-works-with-cabal-nix-style-builds">How Dyre works with Cabal Nix-style builds</h1>
 <p><a href="https://hackage.haskell.org/package/dyre">Dyre</a> is a tool for Haskell program configuration by (re)compilation. In <a href="2021-02-21-dyre-0.9-rc.html">my previous post</a> I discussed the changes planned for the Dyre 0.9 release. That release happened a couple of days ago… but I soon discovered a critical bug in Dyre’s support for <em>cabal-install</em> Nix-style local builds.</p>
 <p>I have now <a href="https://github.com/willdonnelly/dyre/commit/414d961222b5b864933f35f0a0d74b1a2f501a23">fixed the bug</a> and <a href="https://hackage.haskell.org/package/dyre-0.9.1">released v0.9.1</a>. As a result of the experience I decided to write this post about how Nix-style local builds work, and how Dyre works with programs built and installed that way.</p>
-<h2 id="ghc-and-package-databases">GHC and package databases <a href="#ghc-and-package-databases">§</a></h2>
+<h2 id="ghc-and-package-databases">GHC and package databases <a href="#ghc-and-package-databases" class="section">§</a></h2>
 <p>Haskell packages are installed in <em>package databases</em>. The package database contains libraries’ object code and Haskell interface (<code>*.hi</code>) files, as well as package descriptions and references to the library’s dependencies. When compiling and linking a program or library, GHC looks for dependencies in the configured package database(s).</p>
 <p>By default, GHC knows about two package databases. The <em>global package database</em> is where <em>base</em> and the other libraries bundled with GHC are installed. The database location is tied to the GHC release; for example: <code>/usr/lib64/ghc-8.8.4/package.conf.d</code>. On most operating systems, the system package manager will install Haskell libraries in the global package database.</p>
 <p>GHC also knows about <em>user package databases</em>. On Unix systems these are located at <code>~/.ghc/ARCH-OS-GHCVER/package.conf.d</code>. As the name and location suggests, unprivileged users can install packages to their user package database. GHC will also search for dependencies in there, unless told otherwise.</p>
@@ -672,14 +672,14 @@ haddock-html:         /usr/share/doc/ghc/html/libraries/mtl-2.2.2</code></pre>
 <li><p><strong><code>exposed</code></strong> controls whether the modules in the package are available to import during compilation. This is just the default. GHC command line options and <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html#package-environments"><em>package environment files</em></a> can alter package visibility.</p></li>
 </ul>
 <p>For more details see the <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html"><em>Packages</em> chapter</a> of the GHC User’s Guide.</p>
-<h2 id="cabal-install-and-package-databases"><em>cabal-install</em> and package databases <a href="#cabal-install-and-package-databases">§</a></h2>
+<h2 id="cabal-install-and-package-databases"><em>cabal-install</em> and package databases <a href="#cabal-install-and-package-databases" class="section">§</a></h2>
 <p>In earlier times, the <em>cabal-install</em> build tool would install all dependencies of a package into the global or user package database. But when you have multiple packages with conflicting dependencies, this approach does not work. It also makes updating packages very risky. Updating one package (because some dependent program or library requires a newer version) would often break other installed dependent packages.</p>
 <p><em>cabal-install</em>’s first solution to this problem was <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#developing-with-sandboxes">per-project sandboxes</a>. When using a sandbox, <em>cabal-install</em> installs dependencies (those that are not in the global or user package database) under <code>.cabal-sandbox/</code> in the project directory. Sandboxes are isolated from each other. This solved the main problem but introduced another. Many projects meant many sandboxes, wasting a lot of time and space as common dependencies got built over and over again, in different sandboxes.</p>
 <p>Furthermore, users had to deliberately create sandboxes. The problematic behaviour (install to the user package database) was the default behaviour. You had to <em>know</em> about, and use, sandboxes to avoid trouble.</p>
 <div class="note">
 <p>Sandbox support was removed in <em>cabal-install</em> 3.4.</p>
 </div>
-<h2 id="nix-style-local-builds">Nix-style local builds <a href="#nix-style-local-builds">§</a></h2>
+<h2 id="nix-style-local-builds">Nix-style local builds <a href="#nix-style-local-builds" class="section">§</a></h2>
 <p><em>cabal-install</em> since version 1.24 supports <a href="https://cabal.readthedocs.io/en/3.4/nix-local-build-overview.html"><em>Nix-style local builds</em></a>. It is the default behaviour (i.e. what <code>cabal build</code> does) since version 2.0. The feature is also called <em><code>v2-build</code></em> or <em><code>new-build</code></em></p>
 <p>This build system caches dependencies in a package database at <code>~/.cabal/store/GHCVER/package.db</code>. I call this package database the <strong><em>Cabal store</em></strong>. The unit IDs of packages in the Cabal store include the name, version, and a digest (hash) of the entire package contents, which prevents collisions. For example, <code>ghc-pkg</code> can print the unit IDs of all the variants of <em>purebred-email</em> in my Cabal store. Note that there are multiple variants even of particular versions (some were development builds):</p>
 <pre class="shell"><code>% ghc-pkg \
@@ -731,7 +731,7 @@ libHSpurebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16
 ~/.cabal/bin/purebred
 % readlink ~/.cabal/bin/purebred
 ../store/ghc-8.8.4/purebred-0.1.0.0-ffa8d363a9788cf11f71e6dbad787526a4fa1f9f750969f4d55036610f5cb027/bin/purebred</code></pre>
-<h2 id="dyre-and-the-cabal-store">Dyre and the Cabal store <a href="#dyre-and-the-cabal-store">§</a></h2>
+<h2 id="dyre-and-the-cabal-store">Dyre and the Cabal store <a href="#dyre-and-the-cabal-store" class="section">§</a></h2>
 <p>When using <em>cabal-install</em>, the details about the Cabal store are hidden from the user. But a Dyre-enabled program does not have the luxury of using <em>cabal-install</em> when (re)compiling a custom executable. We cannot assume that the <code>cabal</code> program is available. Even if we did make that assumption, using <em>cabal-install</em> would introduce <strong>a lot</strong> of additional complexity. And maintenance overhead, because <em>cabal-install</em>’s behaviour is continually evolving, whereas GHC’s command line interface is stable.</p>
 <p>So Dyre invokes GHC directly. When a Dyre application’s main library is in the global or user package database, GHC finds it and all is well. But when the library is in the Cabal store, GHC cannot find it:</p>
 <pre class="shell"><code>% purebred
@@ -812,7 +812,7 @@ Recompiling.
 Program reconfiguration successful.
 Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
 … (realMain executes)</code></pre>
-<h2 id="discussion">Discussion <a href="#discussion">§</a></h2>
+<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
 <p>It is unfortunate that the author of a Dyre application must do extra work to enable it to work with the Cabal store. Even though it is a small effort, it is something most programs will want to do. I have so far been unable to conceive a robust solution that avoids this work.</p>
 <p>Dyre pre-0.9 did not have this feature. To enable <a href="https://github.com/purebred-mua/purebred">Purebred</a> to work with the Cabal store, we performed the detection and constructed the extra GHC options ourselves. Then we passed the extra options to Dyre via the <a href="https://hackage.haskell.org/package/dyre-0.9.1/docs/Config-Dyre.html#v:ghcOpts"><code>ghcOpts</code></a> fields of the <code>Params</code> type. This behaviour was ported to Dyre more or less <em>as-is</em> for the 0.9 release. Except for the bit that I forgot to port, which was restored in v0.9.1.</p>
 <p>My Purebred co-author reported a regression with Nix support in Dyre 0.9.x. Under Nix, GHC fails to find the application library during custom binary compilation. I suspect the cause is an incidental behavioural change as a result of porting the detection logic from Purebred to Dyre. But I have not yet started a proper investigation.</p>]]></summary>
@@ -825,17 +825,17 @@ Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
     <updated>2021-02-21T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="announcing-dyre-0.9-release-candidate">Announcing Dyre 0.9 release candidate</h1>
 <p><a href="https://hackage.haskell.org/package/dyre">Dyre</a> is a tool for Haskell program configuration by (re)compilation. The last release was 0.8.12, way back in 2014. Since then, the project has been dormant… until now. I am pleased to announce a <a href="https://hackage.haskell.org/package/dyre-0.9.0/candidate">Dyre 0.9 release candidate</a>. In this post I outline what’s changed and put out a call for testing ahead of the official release.</p>
-<h2 id="dyre-overview">Dyre overview <a href="#dyre-overview">§</a></h2>
+<h2 id="dyre-overview">Dyre overview <a href="#dyre-overview" class="section">§</a></h2>
 <p>Dyre implements program configuration in the style of <a href="https://xmonad.org/"><em>xmonad</em></a>. Configurations are Haskell programs using native types and functions. When a Dyre-enabled program starts up, it detects whether the configuration has changed. If so, it (re)compiles and caches a custom executable. Then it executes the custom executable and enters the “main program”.</p>
 <p>Being able to configure a program using data types that are “native” to the program is both pleasant and powerful. Subtle user configuration errors that may go unnoticed, or lie dormant until they crash your program, instead become type errors. The program author has much less verification to perform compared to a configuration written in text formats such as YAML or JSON.</p>
 <p>This post is not intended to be a Dyre tutorial. Refer to the <a href="https://hackage.haskell.org/package/dyre/docs/Config-Dyre.html"><code>Config.Dyre</code></a> module documentation to see what Dyre looks like in practice.</p>
-<h2 id="becoming-dyres-maintainer">Becoming Dyre’s maintainer <a href="#becoming-dyres-maintainer">§</a></h2>
+<h2 id="becoming-dyres-maintainer">Becoming Dyre’s maintainer <a href="#becoming-dyres-maintainer" class="section">§</a></h2>
 <p><a href="http://www.willdonnelly.net/">Will Donnelly</a> is Dyre’s original author and maintainer. Credit and thanks to him for writing a very useful tool and actively maintaining it over several years.</p>
 <p>The most recent release of <a href="https://hackage.haskell.org/package/dyre">Dyre on Hackage</a> was 0.8.12 in 2014. There was activity on <a href="https://github.com/willdonnelly/dyre">GitHub</a> after that release, until early 2017. After that, Dyre was dormant.</p>
 <p>Meanwhile my major project <a href="https://github.com/purebred-mua/purebred">Purebred</a> uses Dyre for configuration. We encountered some dependency issues and behaviour in Dyre that caused problems with newer versions of GHC. We also noticed some things that could be improved.</p>
 <p>I decided to offer to take maintainership of Dyre. I emailed Will Donnelly but did not receive a response. Following the <a href="https://wiki.haskell.org/Taking_over_a_package"><em>Taking over a package</em></a> guide, I emailed the <em>Haskell-cafe</em> mailing list to <a href="https://mail.haskell.org/pipermail/haskell-cafe/2019-April/130923.html">announce my intent</a> to take over the package. This email <em>did</em> get noticed. Will graciously agreed that I should assume maintainership. He added me as a maintainer on Hackage and a collaborator on GitHub.</p>
 <p>I put my shiny new commit bit to use and soon pushed several changes to GitHub, before… <em>not</em> cutting a release, then doing nothing for another two years. But now—at last—I am putting the finishing touches on a new release for Dyre. So…</p>
-<h2 id="whats-changed-in-version-0.9">What’s changed in version 0.9? <a href="#whats-changed-in-version-0.9">§</a></h2>
+<h2 id="whats-changed-in-version-0.9">What’s changed in version 0.9? <a href="#whats-changed-in-version-0.9" class="section">§</a></h2>
 <p>Major changes since 0.8.12 include:</p>
 <ul>
 <li><p><code>realMain</code> can now <strong>return arbitrary types</strong>. To support this change, <code>Params</code> got a new type variable.</p>
@@ -881,12 +881,12 @@ Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
 <li><p>Fixes for <strong>Windows</strong>, including working with recent versions of the <em>process</em> package.</p></li>
 </ul>
 <p>Additionally, I set up <strong>continuous integration</strong> for the Dyre codebase. Initially it used Travis-CI but I recently migrated to GitHub Actions. It includes jobs for testing Dyre on MacOS and Windows.</p>
-<h2 id="call-for-testing">Call for testing <a href="#call-for-testing">§</a></h2>
+<h2 id="call-for-testing">Call for testing <a href="#call-for-testing" class="section">§</a></h2>
 <p>I would like testing and feedback on the <a href="https://hackage.haskell.org/package/dyre-0.9.0/candidate">release candidate</a> before I cut the final release of Dyre 0.9. In particular, I would welcome more testing on <strong>Windows</strong>, as well as the <strong>Stack</strong> support. I also need to test with GHC 7.10, which for technical reasons is not covered by the CI matrix.</p>
 <p><strong>You can help</strong> by testing Dyre in <em>any</em> environments, but especially those ones. Even if you only run <code>cabal test</code>, or implement the example from the <a href="https://hackage.haskell.org/package/dyre/docs/Config-Dyre.html"><code>Config.Dyre</code></a> module documentation, it will help. Please report testing outcomes in the <a href="https://github.com/willdonnelly/dyre/issues/39">testing checklist</a> issue. Failures <em>and successes</em> should be reported there.</p>
 <p>For testing on Windows, you can install the <code>cabal</code> and <code>ghc</code> packages from <a href="https://chocolatey.org/">Chocolatey</a>. To run the <code>cabal test</code> suite you’ll also need a POSIX shell installed as <code>sh.exe</code>. The one provided by the <code>gitsh</code> package worked for me.</p>
 <p>I hope to make the final release in a couple of weeks.</p>
-<h2 id="future-work">Future work <a href="#future-work">§</a></h2>
+<h2 id="future-work">Future work <a href="#future-work" class="section">§</a></h2>
 <p>One area I have identified for future development is recording file hashes to detect changes. This is important to support the <strong>Nix</strong> packaging system, which sets all files’ creation and modification times to the epoch. It will also help with <strong>downgrades</strong>, where the main executable’s modification time decreases.</p>
 <p>This known gap is the reason I didn’t release a new version in the almost two years since I became the maintainer. I kept thinking, <em>“I should really fix that first”</em>. But I still haven’t implemented file hashing, and don’t have immediate plans to. So I decided not to delay any longer the release of the improvements I <em>have</em> made.</p>
 <p>If Nix support or other features are particularly important to you, please consider contributing to Dyre. You can create issues and pull requests <a href="https://github.com/willdonnelly/dyre">on GitHub</a>, or reach out to me directly.</p>]]></summary>
@@ -899,14 +899,14 @@ Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
     <updated>2021-02-12T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="haskell-is-vulnerable-to-dependency-confusion">Haskell is vulnerable to dependency confusion</h1>
 <p>In this post, I demonstrate that critical parts of the Haskell package management system are vulnerable to the <em>dependency confusion</em> supply chain attack. I also discuss some potential approaches for Haskell tooling to mitigate this type of attack.</p>
-<h2 id="introduction">Introduction <a href="#introduction">§</a></h2>
+<h2 id="introduction">Introduction <a href="#introduction" class="section">§</a></h2>
 <p>A recent post, <a href="https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610"><em>Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies</em></a> by Alex Birsan, caused quite a stir. It describes an attack where the attacker uploads malicious packages with the same name as target organisations’ <em>internal</em> packages. If the version on the public repository is higher, most tools will prefer it. The malicious package compromises the developer’s machine, or the machines that run the program the developer builds, or the users who interact with that program over the network. Maybe all three.</p>
 <p>The author successfully executed the dependency confusion attacks using <code>npm</code> (NodeJS), PyPI/<code>pip</code> (Python) and RubyGems/<code>gem</code> (Ruby). In the conclusion, he raises the spectre of other languages and package repositories being likewise vulnerable:</p>
 <blockquote>
 <p>Specifically, I believe that finding new and clever ways to leak internal package names will expose even more vulnerable systems, and looking into alternate programming languages and repositories to target will reveal some additional attack surface for dependency confusion bugs.</p>
 </blockquote>
 <p>So, is the Haskell ecosystem vulnerable to this attack? I assume you read the post title or abstract and therefore know that the answer to that question is <em>yes!</em> In the following sections I demonstrate the attack and discuss possible mitigations.</p>
-<h2 id="terminology">Terminology <a href="#terminology">§</a></h2>
+<h2 id="terminology">Terminology <a href="#terminology" class="section">§</a></h2>
 <ul>
 <li><p><strong><em>hackage-server</em></strong>: the server program for running a Haskell package repository.</p></li>
 <li><p><strong><em>Hackage</em></strong>: in isolation, refers to the Haskell community’s central package repository. It runs <em>hackage-server</em> and is located at <a href="https://hackage.haskell.org/"><strong><code>hackage.haskell.org</code></strong></a>.</p></li>
@@ -914,15 +914,15 @@ Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
 <li><p><strong><em>cabal-install</em></strong>: the command line program for building and installing <em>Cabal</em> packages. The executable name is <strong><code>cabal</code></strong>. <em>cabal-install</em> uses the <em>Cabal</em> library and interacts with <em>hackage-server</em> servers (most commonly <code>hackage.haskell.org</code>).</p></li>
 <li><p><strong><em>Private Hackage</em></strong>: a <em>hackage-server</em> instance operated for the purpose of hosting private or internal packages.</p></li>
 </ul>
-<h2 id="preparation">Preparation <a href="#preparation">§</a></h2>
-<h3 id="private-hackage-repository">Private Hackage repository <a href="#private-hackage-repository">§</a></h3>
+<h2 id="preparation">Preparation <a href="#preparation" class="section">§</a></h2>
+<h3 id="private-hackage-repository">Private Hackage repository <a href="#private-hackage-repository" class="section">§</a></h3>
 <p>For reasons unrelated to this investigation, I already had a local instance of <em>hackage-server</em>, running on <code>localhost:8080</code>. In this exercise, it plays the role of the private Hackage repository.</p>
-<h3 id="subject-dependency">Subject dependency <a href="#subject-dependency">§</a></h3>
+<h3 id="subject-dependency">Subject dependency <a href="#subject-dependency" class="section">§</a></h3>
 <p>I created a new “internal package” to be the subject of the attack. I chose a silly name suggested by GitHub: <em>redesigned-carnival</em>. Hopefully it will not conflict with anyone’s legitimate needs. While the <a href="https://github.com/frasertweedale/redesigned-carnival">source code</a> is available on GitHub, there’s no need to look at it. The package is trivial, containing a single module whose content is:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
 <p>I uploaded <code>redesigned-carnival-0.1.0.0</code> to the private Hackage repository.</p>
-<h3 id="cabal-install-configuration"><em>cabal-install</em> configuration <a href="#cabal-install-configuration">§</a></h3>
+<h3 id="cabal-install-configuration"><em>cabal-install</em> configuration <a href="#cabal-install-configuration" class="section">§</a></h3>
 <p>The <em>cabal-install</em> configuration lives at <code>~/.cabal/config</code>. By default it contains a single <code>repository</code> clause, pointing at Hackage:</p>
 <pre><code>repository hackage.haskell.org
   url: http://hackage.haskell.org/</code></pre>
@@ -949,7 +949,7 @@ To revert to previous state run:
     Default available version: 0.1.0.0
     Installed versions: [ Not installed ]
     License:  PublicDomain</code></pre>
-<h3 id="vulnerable-dependent-package">Vulnerable dependent package <a href="#vulnerable-dependent-package">§</a></h3>
+<h3 id="vulnerable-dependent-package">Vulnerable dependent package <a href="#vulnerable-dependent-package" class="section">§</a></h3>
 <p>I wrote a tiny package called <em>super-fiesta</em> (cheerful suggestion thanks to GitHub, again). It depends on <em>redesigned-carnival</em>, and prints the value of <code>hello</code>. The <a href="https://github.com/frasertweedale/super-fiesta">source code</a> is on GitHub. Here is the whole program (<code>Main.hs</code>):</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a></span>
@@ -977,7 +977,7 @@ Building executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
 [1 of 1] Compiling Main             ( Main.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta-tmp/Main.o )
 Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
 Hello, world!</code></pre>
-<h3 id="determining-internal-package-names">Determining internal package names <a href="#determining-internal-package-names">§</a></h3>
+<h3 id="determining-internal-package-names">Determining internal package names <a href="#determining-internal-package-names" class="section">§</a></h3>
 <p>The attack requires knowing, or guessing, internal package names. Approaches that apply to Haskell code include:</p>
 <ul>
 <li><p>Search for mentions of internal libraries in public code, blog posts, presentations, and so on.</p></li>
@@ -986,7 +986,7 @@ Hello, world!</code></pre>
 <li><p>Use any other kind of exploit (including social engineering) to discover internal package names.</p></li>
 </ul>
 <p>I will assume that the hypothetical attacker has learned, somehow, that I have an internal package named <em>redesigned-carnival</em>, and will attempt to use dependency confusion to attack me. This is an appropriate assumption.</p>
-<h2 id="attack">Attack <a href="#attack">§</a></h2>
+<h2 id="attack">Attack <a href="#attack" class="section">§</a></h2>
 <p>I bumped the version of <em>redesigned-carnival</em> to <code>1.0.0.0</code>, and <a href="https://hackage.haskell.org/package/redesigned-carnival">uploaded it to Hackage</a>. A real-world attacker might upload <em>many</em> different versions, in the hope of matching a range of possible constraints.</p>
 <p>The version uploaded to Hackage does not contain any malicious behaviour. But I changed the <code>hello</code> string to <code>"Mwahaha"</code>. If we see this sinister-looking string, we’ll know the attack succeeded.</p>
 <p>After another <code>cabal update</code>, <em>cabal-install</em> is aware of the new version of <em>redesigned-carnival</em>:</p>
@@ -1016,9 +1016,9 @@ Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-
 Mwahaha</code></pre>
 <p>Owned. <em>cabal-install</em> saw that there was a new version of <em>redesigned-carnival</em> compatible with the constraints (because there are no constraints). So it downloaded, built, installed and linked to the “malicious” version from Hackage.</p>
 <p>The order the repositories appear in <code>~/.cabal/config</code> does not affect the result. My testing shows that <em>cabal-install</em> prefers the highest version, regardless of which repository it comes from. I have seen comments that repositories listed later are preferred over earlier ones, but maybe that only applies when the same version is hosted on both repositories.</p>
-<h2 id="mitigations">Mitigations <a href="#mitigations">§</a></h2>
+<h2 id="mitigations">Mitigations <a href="#mitigations" class="section">§</a></h2>
 <p>Alternative workflows and tools can mitigate the risk of dependency confusion attacks. I discuss some current approaches below, and also some ideas for future tooling enhancements.</p>
-<h3 id="local-packages-effective">Local packages (effective) <a href="#local-packages-effective">§</a></h3>
+<h3 id="local-packages-effective">Local packages (effective) <a href="#local-packages-effective" class="section">§</a></h3>
 <p>Instead of using a private Hackage server, you can specify local packages in <code>cabal.project</code> or <code>cabal.project.local</code>:</p>
 <pre class="shell"><code>% echo &quot;packages: ., ../redesigned-carnival&quot; &gt; cabal.project.local
 % cabal run exe:super-fiesta
@@ -1045,7 +1045,7 @@ TODO: add support for multiple packages in a directory
 CallStack (from HasCallStack):
   error, called at ./Distribution/Client/ProjectOrchestration.hs:542:9 in main:Distribution.Client.ProjectOrchestration
 </code></pre>
-<h3 id="cabal-freeze-effective-with-caveats"><code>cabal freeze</code> (effective, with caveats) <a href="#cabal-freeze-effective-with-caveats">§</a></h3>
+<h3 id="cabal-freeze-effective-with-caveats"><code>cabal freeze</code> (effective, with caveats) <a href="#cabal-freeze-effective-with-caveats" class="section">§</a></h3>
 <p>Dependency version pinning via <code>cabal freeze</code> is not an effective mitigation <em>in general</em>. To demonstrate, I uploaded <code>redesigned-carnival-0.3.0.0</code> to my private Hackage, and the same version (with “malicious” modification) to <code>hackage.haskell.org</code>. I executed <code>cabal freeze</code> and modified the <code>cabal.project.freeze</code> file to require <code>redesigned-carnival-0.3.0.0</code>:</p>
 <pre class="shell"><code>% cat cabal.project.freeze
 constraints: any.base ==4.13.0.0,
@@ -1059,14 +1059,14 @@ constraints: any.base ==4.13.0.0,
 <p>If you want, you can configure multiple repositories, and cabal will combine them and be able to download packages from any of them.</p>
 </blockquote>
 <p>The vagueness of the documentation means insecure configurations are likely. If you work in a Haskell team inside a company, <em>everyone</em> needs to get this configuration right.</p>
-<h3 id="use-nix-effective">Use Nix (effective) <a href="#use-nix-effective">§</a></h3>
+<h3 id="use-nix-effective">Use Nix (effective) <a href="#use-nix-effective" class="section">§</a></h3>
 <p><a href="https://nixos.org/">Nix</a> is a content-address package management system where all packages pin all dependencies by their cryptographic hashes. Many Haskell developers and teams use it, and enjoy certainty about their dependencies and reproducible builds.</p>
 <p>Nix has a steep learning curve, and it is not a complete solution for library and program authors who want to publish to Hackage. <em>“Use Nix”</em> is a valid way to mitigate dependency confusion risk for Haskell teams and some individuals.</p>
-<h3 id="use-stack-effective">Use Stack (effective?) <a href="#use-stack-effective">§</a></h3>
+<h3 id="use-stack-effective">Use Stack (effective?) <a href="#use-stack-effective" class="section">§</a></h3>
 <p>According to the results of annual Haskell developer surveys (<a href="https://taylor.fausak.me/2020/11/22/haskell-survey-results/#s3q0">2020</a>, <a href="https://taylor.fausak.me/2019/11/16/haskell-survey-results/#s3q0">2019</a>, <a href="https://taylor.fausak.me/2018/11/18/2018-state-of-haskell-survey-results/#question-041">2018</a>, <a href="https://taylor.fausak.me/2017/11/15/2017-state-of-haskell-survey-results/#question-22">2017</a>), around 75% of Haskell developers use the <a href="https://haskellstack.org/">Stack</a> build tool. Stack, by default, uses curated package sets from <a href="https://www.stackage.org/">Stackage</a>. For internal packages it allows pinning to exact Git commit hashes, and local packages.</p>
 <p>On the face of it, it would seem that Stack, in a standard configuration, protects against dependency confusion attacks. I don’t use Stack and I haven’t tested it as part of this investigation. I’ll give it the benefit of the doubt and hope that others might put it to the test and publish their findings.</p>
 <p>Even if Stack mitigates dependency confusion perfectly, according to the same surveys above, around 50% of Haskell developers use <em>cabal-install</em> (either exclusively or alongside other build tools). As was the case with Nix, Stack may be a solution for particular teams or individuals, but it is not a solution for the whole community.</p>
-<h3 id="exclusive-repositories-idea-effective-with-caveats">“Exclusive” repositories (<del>idea</del> effective, with caveats) <a href="#exclusive-repositories-idea-effective-with-caveats">§</a></h3>
+<h3 id="exclusive-repositories-idea-effective-with-caveats">“Exclusive” repositories (<del>idea</del> effective, with caveats) <a href="#exclusive-repositories-idea-effective-with-caveats" class="section">§</a></h3>
 <p>If you could mark a repository as “exclusive”, then for any package provided by that repository, <em>cabal-install</em> <strong>must</strong> only use a version provided by that repository. The idea is that private repositories would be marked as exclusive:</p>
 <pre><code>repository localhost
   url: http://localhost:8080/
@@ -1078,7 +1078,7 @@ repository hackage.haskell.org
 <p>This approach is easy for users to configure. But, as with the <code>cabal freeze</code> approach, security for organisations requires every developer to set the configuration properly.</p>
 <p>and requires no changes to the <em>hackage-server</em> program or the <em>Cabal</em> package description format. The changes are limited to <em>cabal-install</em>.</p>
 <p>One drawback is that if a person or organisation wants to publicly release a previously internal package, they will have to remove it from their private repository. As far as I can tell, <em>hackage-server</em> does not support package deletion. So this approach might entail changes to <em>hackage-server</em> after all.</p>
-<h4 id="update-coming-in-cabal-install-3.4"><em>Update</em>: coming in <em>cabal-install</em> 3.4 <a href="#update-coming-in-cabal-install-3.4">§</a></h4>
+<h4 id="update-coming-in-cabal-install-3.4"><em>Update</em>: coming in <em>cabal-install</em> 3.4 <a href="#update-coming-in-cabal-install-3.4" class="section">§</a></h4>
 <p>Oleg Grenrus <a href="https://www.reddit.com/r/haskell/comments/lhmbw3/haskell_is_vulnerable_to_dependency_confusion/gmz6qi0/">pointed out</a> a new feature arriving in <code>cabal-install-3.4</code>. The <code>active-repositories</code> field and <code>override</code> merge strategy can accomplish the goal of restricting packages to a particular repository:</p>
 <pre><code>-- Order is significant.  For packages in localhost,
 -- only versions in localhost are considered
@@ -1086,7 +1086,7 @@ active-repositories:
   , hackage.haskell.org
   , localhost:override</code></pre>
 <p>See also the <a href="https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=active-repositories#cfg-field-active-repositories">official documentation</a>. I have tested the feature, and it works. At time of writing the pre-release version is <code>3.4.0.0-rc7</code> so the final release should not be far away.</p>
-<h3 id="repository-scoped-dependencies-idea">Repository-scoped dependencies (idea) <a href="#repository-scoped-dependencies-idea">§</a></h3>
+<h3 id="repository-scoped-dependencies-idea">Repository-scoped dependencies (idea) <a href="#repository-scoped-dependencies-idea" class="section">§</a></h3>
 <p>Dependencies in <code>.cabal</code> files have no scoping or namespacing. What if you could scope a dependency to a particular repository? For example:</p>
 <pre class="cabal"><code>executable super-fiesta
   main-is: Main.hs
@@ -1096,7 +1096,7 @@ active-repositories:
   default-language:    Haskell2010</code></pre>
 <p>You could optionally constrain particular dependencies to come from a specified repository. This would be a more invasive change, involving a change to the package description format. <em>Cabal</em> (the library) and <em>cabal-install</em> would be impacted.</p>
 <p>To thwart attacks where people get confused or tricked into using the wrong repository, everyone would need to agree on the names of repositories (which are currently configured in <code>~/.cabal/config</code>). In other words, every agent would need to agree on what <code>&lt;repository&gt;</code> means. This could be accomplished by identifying repositories by URI, but there could be other valid approaches.</p>
-<h3 id="validated-namespaces-for-packages-idea">Validated namespaces for packages (idea) <a href="#validated-namespaces-for-packages-idea">§</a></h3>
+<h3 id="validated-namespaces-for-packages-idea">Validated namespaces for packages (idea) <a href="#validated-namespaces-for-packages-idea" class="section">§</a></h3>
 <p>Another possible approach is that taken by the Java <a href="https://en.wikipedia.org/wiki/Apache_Maven"><em>Maven</em></a> system. Packages are addressed by <code>&lt;Group ID&gt;:&lt;Artifact ID&gt;:&lt;Version&gt;</code>, where <code>group-id</code> is based on a DNS name. In order to publish a new artifact to the <a href="https://search.maven.org/"><em>Maven Central</em></a> public repository, the prospective publisher has to prove “control” of the Group ID. Most often this is done by publishing a particular DNS TXT record in the domain from which the Group ID is derived. But some Group IDs follow other validation rules (e.g. commit access for <code>org.github.*</code>. Brian Fox’s blog post <a href="https://blog.sonatype.com/why-namespacing-matters-in-public-open-source-repositories"><em>Why Namespacing Matters in Public Open Source Repositories</em></a> explains it well, and in more detail.</p>
 <p>Summary: if packages in public repositories are namespaced by <em>something</em>, and if that <em>something</em> can be validated by the repository before publishing, then the system is resistant to dependency confusion attacks (up to spoofing the validation mechanism). DNS-based namespaces strike a fair balance between verifiability and usability (for both publishers and users).</p>
 <p>So, what would this look like in the Haskell world? Retrofitting our package ecosystem with namespaces would be a <em>very</em> disruptive change. All tooling would be affected. In particular, <em>hackage-server</em> would need to learn how to validate package namespaces.</p>
@@ -1105,11 +1105,11 @@ active-repositories:
 <p>I think that with careful planning a smooth transition is possible. To give people time to adjust, packages could for some period remain accessible via namespaced and non-namespaced names. Duplicate names in different namespaces would be forbidden during the transition period. We can build tools to update <code>.cabal</code> files with the namespaces, removing most of the pain for maintainers.</p>
 <p>After the transition period ends, all the Haskell tooling will use namespaced packages. Importantly, users and developers do not need to configure anything to be safe from dependency confusion attacks. Only publishers will face some additional validation steps.</p>
 <p>Apart from security I see another possible benefit to this approach. Organisation-namespaced packages could give more visibility into which organisations are using Haskell. This could promote the perception of Haskell as a language of industry. <em>“Look, we are like Java”</em> is a legitimate selling point for many people.</p>
-<h2 id="other-attacks">Other attacks <a href="#other-attacks">§</a></h2>
+<h2 id="other-attacks">Other attacks <a href="#other-attacks" class="section">§</a></h2>
 <p>Dependency confusion is just one kind of software supply chain attack. The approaches I discussed mitigate this specific attack. But they do not protect against other attacks, such as an attacker acquiring Ed Kmett’s Hackage credentials and uploading a malicous new release of <em>lens</em>. Or the maintainer themselves turning evil. Different protections are needed for other kinds of attacks.</p>
 <p>Also, dependency confusion on its own is just a vector for malware. Does the malware target the developer’s machine, or the machines that run the program the developer is building, or network clients? All of the above? The range of possible attacks depends on the language, development environment and deployment environment. The different ways in which a Haskell dependency confusion victim could actually be exploited is a topic for a whole other blog post.</p>
 <p>These are all important topics to consider in the design of languages, build tooling and package management systems. In additional to known supply chain attacks, human factors (social engineering) should not be ignored either.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>In this post I demonstrated that the standard Haskell development tooling—Hackage and Cabal/<em>cabal-install</em>—is vulnerable to dependency confusion attacks. I discussed some mitigations that are feasible today, and some ideas for tool improvements that vary in complexity and usability. Finally I emphasised that dependency confusion is one of several types of supply chain attack, and just one small panel in the tapestry of software security.</p>
 <p>I think that Haskell has long, <em>long</em> way to go in terms of security. Sure, the language itself is mostly pretty good. But the compiler, build tools, and package repositories all fall far short when it comes to security. I will have more to say about this in future blog posts.</p>
 <p>In the meantime, I hope this post kick-starts a discussion about how we should address the particular threat of dependency confusion.</p>]]></summary>
@@ -1122,11 +1122,11 @@ active-repositories:
     <updated>2021-02-02T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="prototyping-a-plugin-system-for-purebred">Prototyping a plugin system for Purebred</h1>
 <p>In this post I present an experimental design for a plugin system, where plugins’ capabilities are expressed in their types. The types are user-visible and human-friendly. This is achieved without sacrificing composability—plugins with different capabilities can be composed together.</p>
-<h2 id="introduction">Introduction <a href="#introduction">§</a></h2>
+<h2 id="introduction">Introduction <a href="#introduction" class="section">§</a></h2>
 <p>I’m working on a plugin system for <a href="https://github.com/purebred-mua/purebred">Purebred</a>, a mail user agent program. The goal of every plugin system is to enable smooth integration (composition) of components from various packages into the main program, providing additional or alternative behaviour.</p>
 <p>My secondary goal for <em>this</em> plugin system is to express as much information as possible about plugin behaviour <em>through types</em>. A plugin that purports to perform a pure computation (e.g. adding a <code>User-Agent</code> header to outgoing mail) should not be allowed to launch the missiles! Its type should express this constraint. Doing so communicates important information to the compiler (which enforces the constraints), and to humans (who will ask questions like, <em>“How safe is this plugin?”</em>)</p>
 <p>Haskell provides for substantial and satisfying progress toward this objective, without compromising the primary goal of composition. After experimenting with several different approaches I arrived at the design that I am presenting here in this post. I will begin with a description of the <a href="#test-bed-program">test-bed program</a>, then outline my <a href="#plugin-system-requirements">requirements</a> for a plugin system. Then I describe the <a href="#solution">solution</a>, and conclude with a <a href="#discussion">discussion</a> of design tradeoffs and considerations for implementing this design in Purebred.</p>
-<h2 id="test-bed-program">Test-bed program <a href="#test-bed-program">§</a></h2>
+<h2 id="test-bed-program">Test-bed program <a href="#test-bed-program" class="section">§</a></h2>
 <p>I wrote a small, simple program to serve as the test-bed for plugin system experimentation. This program reads a <code>Bool</code> and an <code>Int</code> from user input, negates the number if the <code>Bool</code> is <code>True</code>, and prints the result.</p>
 <p><code>Main.hs</code>:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.IO</span> (hFlush, stdout)</span>
@@ -1153,7 +1153,7 @@ negate number? [True|False]: True
 number (Int): 10
 result: -10</code></pre>
 <p>I put a <code>TODO</code> where I want to execute plugin behaviour, in a <code>StateT Bool IO Int</code> computation. Plugins should be able to manipulate the <code>Int</code> <em>result</em> value, and/or read or modify the <code>Bool</code> <em>state</em> value, and/or perform I/O.</p>
-<h2 id="plugin-system-requirements">Plugin system requirements <a href="#plugin-system-requirements">§</a></h2>
+<h2 id="plugin-system-requirements">Plugin system requirements <a href="#plugin-system-requirements" class="section">§</a></h2>
 <p>The requirements for my plugin system are:</p>
 <ul>
 <li><p><strong>Composition</strong>: Plugins from different modules or packages must be able to be used together in the main program.</p></li>
@@ -1162,16 +1162,16 @@ result: -10</code></pre>
 <li><p><strong>Configuration</strong>: Some plugins will need user-specified configuration. Static configuration (i.e. no change after program initialisation) is acceptable.</p></li>
 <li><p><strong>Abstract</strong>: Plugin behaviour types must not mention the type of the main program’s monad transformer stack. This allows the main program’s implementation to evolve without breaking the plugin API.</p></li>
 </ul>
-<h3 id="not-in-scope">Not in scope <a href="#not-in-scope">§</a></h3>
+<h3 id="not-in-scope">Not in scope <a href="#not-in-scope" class="section">§</a></h3>
 <p>There are some other points in the plugin system design space that I am not trying to solve:</p>
 <ul>
 <li><p><strong>Plugin loading</strong>: How does the program find and load plugins? In my experimental design, the plugins will be statically compiled into the program. This approach will also work for Purebred, because we use <a href="https://hackage.haskell.org/package/dyre"><em>Dyre</em></a> for configuration by recompilation (in the style of <a href="https://xmonad.org/"><em>xmonad</em></a>). Dynamic loading/unloading/reloading of plugins is an interesting topic, but I’m not trying to solve it here. The <a href="https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.6930&amp;rep=rep1&amp;type=pdf"><em>Plugging Haskell In</em></a> paper (Chakravarty <em>et al</em>) and <a href="https://hackage.haskell.org/package/plugins"><em>plugins</em> library</a> present one solution to the problem.</p></li>
 <li><p><strong>Plugin state</strong>: What if a plugin needs to store/retrieve data <em>related to itself</em> in the program state? Plugins have no control over the state data type of the main program. I don’t see a need for this in Purebred (yet), so I’m not going to tackle this problem. But if I were, I would look at <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Data-Dynamic.html"><code>Data.Dynamic</code></a> and <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Data-IORef.html"><code>Data.IORef</code></a> as possible starting points.</p></li>
 <li><p><strong>Plugin “idempotency”</strong>: If you enable the PGP plugin twice, will it sign/encrypt the outgoing message twice? In the Purebred approach to configuration this sort of mistake is unlikely, so I’m going to ignore this problem.</p></li>
 </ul>
-<h2 id="solution">Solution <a href="#solution">§</a></h2>
+<h2 id="solution">Solution <a href="#solution" class="section">§</a></h2>
 <p>In this section I describe the implementation of the prototype plugin system. The code is also available in a <a href="https://github.com/frasertweedale/hs-plugin-system-prototype">Git repository</a>, under the <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0</a> license. You can clone, review, compile, test and experiment with the code yourself.</p>
-<h3 id="language-extensions">Language extensions <a href="#language-extensions">§</a></h3>
+<h3 id="language-extensions">Language extensions <a href="#language-extensions" class="section">§</a></h3>
 <p>I define the plugin types and helpers in <code>Plugin.hs</code>. Some language extensions are required:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">{-# LANGUAGE RankNTypes #-}</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="ot">{-# LANGUAGE ConstraintKinds #-}</span></span>
@@ -1183,7 +1183,7 @@ result: -10</code></pre>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin</span> <span class="kw">where</span></span></code></pre></div>
 <p>These extensions are uncontroversial. Only <code>UndecidableInstances</code> is a bit iffy, but it’s safe to use here. I shall indicate the declarations that require these extensions as we encounter them.</p>
 <p><code>Main.hs</code> and the modules defining the plugins themselves do not require any language extensions.</p>
-<h3 id="the-plugin-type">The <code>Plugin</code> type <a href="#the-plugin-type">§</a></h3>
+<h3 id="the-plugin-type">The <code>Plugin</code> type <a href="#the-plugin-type" class="section">§</a></h3>
 <p>The test-bed program will execute plugins in the <code>StateT Bool IO</code> monad transformer stack. Each plugin takes an <code>Int</code> input and returns a (possibly modified) <code>Int</code>. The concrete type is of such a function is:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Plugin</span> <span class="ot">=</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">StateT</span> <span class="dt">Bool</span> <span class="dt">IO</span> <span class="dt">Int</span></span></code></pre></div>
 <p>One of the requirements is that the plugin function type must be abstract, so that the main program’s monad transformer stack can evolve if needed. We also know that different plugins will have different constraints, and that we want to express the constraints in the type. So let’s parameterise the function type over the constraint:</p>
@@ -1204,7 +1204,7 @@ result: -10</code></pre>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  ,<span class="ot"> pluginHook ::</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  }</span></code></pre></div>
 <p>For applications with many hooks, it would be nice to wrap the hook fields in <code>Maybe</code> (so the plugin doesn’t have to implement them all). Alternatively, I could provide a helper function that initialises the hooks to “no-op” functions. Plugins would override the hooks they use. For this experiment there is only one hook, so I’ve skipped this for now.</p>
-<h3 id="capabilities">Capabilities <a href="#capabilities">§</a></h3>
+<h3 id="capabilities">Capabilities <a href="#capabilities" class="section">§</a></h3>
 <p>The plugin system could be used by non-programmers; the types have to make sense to them. What is a <code>Plugin Applicative</code>? What is a <code>Plugin (MonadState Bool)</code>?! I defined type synonyms for the various constraints, to (hopefully) make the plugin system more comprehensible to humans—programmer and non-programmer alike:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Pure</span> <span class="ot">=</span> <span class="dt">Applicative</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">CanIO</span> <span class="ot">=</span> <span class="dt">MonadIO</span></span>
@@ -1228,9 +1228,9 @@ result: -10</code></pre>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">CanRWState</span> m, <span class="dt">CanIO</span> m) <span class="ot">=&gt;</span> <span class="dt">Unconstrained</span> m <span class="kw">where</span></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>  <span class="co">-- empty</span></span></code></pre></div>
 <p>These definitions give an instance for <code>Unconstrained</code> to any type that already has instances for all the constituent capabilities. It was not necessary to mention <code>Pure</code>/<code>Applicative</code> because it is a superclass of the other constraints.</p>
-<h3 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins">§</a></h3>
+<h3 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h3>
 <p>Now that I have defined the plugin type and capabilities, let’s implement some plugins.</p>
-<h4 id="plugin.double"><code>Plugin.Double</code> <a href="#plugin.double">§</a></h4>
+<h4 id="plugin.double"><code>Plugin.Double</code> <a href="#plugin.double" class="section">§</a></h4>
 <p><code>Plugin/Double.hs</code> defines a “pure” plugin that doubles the <code>Int</code> value:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.Double</span> <span class="kw">where</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a></span>
@@ -1238,7 +1238,7 @@ result: -10</code></pre>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Double&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">*</span><span class="dv">2</span>)</span></code></pre></div>
-<h4 id="plugin.offset"><code>Plugin.Offset</code> <a href="#plugin.offset">§</a></h4>
+<h4 id="plugin.offset"><code>Plugin.Offset</code> <a href="#plugin.offset" class="section">§</a></h4>
 <p><code>Plugin/Offset.hs</code> defines a “pure” plugin that adds a fixed offset to the <code>Int</code> value. The offset is configurable: applying <code>mkPlugin</code> to the configuration yields the plugin value. This satisfies our <strong>configuration</strong> requirement.</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.Offset</span> <span class="kw">where</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a></span>
@@ -1246,7 +1246,7 @@ result: -10</code></pre>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a></span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a><span class="ot">mkPlugin ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a>mkPlugin offset <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Offset&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">+</span> offset)</span></code></pre></div>
-<h4 id="plugin.flipnegate"><code>Plugin.FlipNegate</code> <a href="#plugin.flipnegate">§</a></h4>
+<h4 id="plugin.flipnegate"><code>Plugin.FlipNegate</code> <a href="#plugin.flipnegate" class="section">§</a></h4>
 <p><code>Plugin/FlipNegate.hs</code> defines a plugin that inverts the value of <code>doNegate</code> in the program state. Therefore it is a <code>Plugin CanRWState</code>.</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.FlipNegate</span> <span class="kw">where</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a></span>
@@ -1255,7 +1255,7 @@ result: -10</code></pre>
 <span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a></span>
 <span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanRWState</span></span>
 <span id="cb17-7"><a href="#cb17-7" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;FlipNegate&quot;</span> <span class="op">$</span> \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> modify <span class="fu">not</span></span></code></pre></div>
-<h4 id="plugin.shootlasers"><code>Plugin.ShootLasers</code> <a href="#plugin.shootlasers">§</a></h4>
+<h4 id="plugin.shootlasers"><code>Plugin.ShootLasers</code> <a href="#plugin.shootlasers" class="section">§</a></h4>
 <p><code>Plugin/ShootLasers.hs</code> uses <code>CanIO</code> to shoot the lasers. Watch out!</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.ShootLasers</span> <span class="kw">where</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a></span>
@@ -1265,7 +1265,7 @@ result: -10</code></pre>
 <span id="cb18-6"><a href="#cb18-6" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanIO</span></span>
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;ShootLasers&quot;</span> <span class="op">$</span></span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a>  \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> liftIO (<span class="fu">putStrLn</span> <span class="st">&quot;pew! pew!&quot;</span>)</span></code></pre></div>
-<h3 id="composition">Composition <a href="#composition">§</a></h3>
+<h3 id="composition">Composition <a href="#composition" class="section">§</a></h3>
 <p>The main program will have a list (or some other container) of zero or more plugins. And it will execute the plugin hooks at the relevant part of the program. OK, let’s build a list of plugins in <code>Main.hs</code>:</p>
 <div class="sourceCode" id="cb19"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a>plugins <span class="ot">=</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>  [ Plugin.Double.plugin</span>
@@ -1318,7 +1318,7 @@ result: -10</code></pre>
 <span id="cb23-9"><a href="#cb23-9" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
 <span id="cb23-10"><a href="#cb23-10" aria-hidden="true"></a>main <span class="ot">=</span> …</span></code></pre></div>
 <p>The prototype now satisfies the <strong>composition</strong> requirement.</p>
-<h3 id="executing-plugins">Executing plugins <a href="#executing-plugins">§</a></h3>
+<h3 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h3>
 <p>The final step is to update the main program to execute the plugins. Where previously we had <code>pure i</code> (and a <code>TODO</code> comment), we now have the Kleisli composition (monadic chaining via <code>(&gt;=&gt;)</code>) of the plugin hook functions, applied to <code>i</code>:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
@@ -1349,8 +1349,8 @@ result: 120</code></pre>
 <li><code>ShootLasers</code> shot the lasers (hopefully they were not pointed at your foot)</li>
 </ul>
 <p>As a result, the final output of the program was <code>120</code>. Note that the order of plugins is significant. Plugins appearing earlier in the list are executed earlier.</p>
-<h2 id="discussion">Discussion <a href="#discussion">§</a></h2>
-<h3 id="paranoia">Paranoia <a href="#paranoia">§</a></h3>
+<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
+<h3 id="paranoia">Paranoia <a href="#paranoia" class="section">§</a></h3>
 <p>It’s all good and well that plugins express their types. But what’s to stop a <code>Plugin Pure</code> sneakily evolving into a <code>Plugin CanIO</code> upon a new release, and compromising your system?</p>
 <p>The paranoid user can mitigate this risk by providing explicit type signatures for each plugin installed in the main program:</p>
 <div class="sourceCode" id="cb26"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="ot">plugins ::</span> [<span class="dt">Plugin</span> <span class="dt">Unconstrained</span>]</span>
@@ -1377,7 +1377,7 @@ result: 120</code></pre>
 14 |   , relax (Plugin.Double.plugin :: Plugin Pure)
    |            ^^^^^^^^^^^^^^^^^^^^</code></pre>
 <p>Thanks to the constraint type synonyms, the type error is (in my opinion) understandable. Perhaps even non-programmers could make sense of it. Unfortunately, it doesn’t hint at what a user should do to solve it. A better error message would suggest to use <code>relax</code> or to review the plugin’s type. GHC has some support for <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/GHC-TypeLits.html#g:4">user-defined type errors</a>, but at this time it is not possible to augment ordinary type mismatch errors.</p>
-<h3 id="multiple-hook-functions">Multiple hook functions <a href="#multiple-hook-functions">§</a></h3>
+<h3 id="multiple-hook-functions">Multiple hook functions <a href="#multiple-hook-functions" class="section">§</a></h3>
 <p>In real world applications, there can be multiple kinds of plugin functions relating to different behaviours in the main program. For example, Purebred will have a hook for processing a message prior to displaying it, and another hook for manipulating outgoing emails. Some plugins will only use a single hook, but others will use multiple hooks. For example, an OpenPGP plugin would perform decryption and signature verification when preparing a message for display, and perform signing and/or encryption when sending mail.</p>
 <p>It is possible that a plugin might require different capabilities for different hooks. This poses a complex design question, with several possible solutions:</p>
 <ul>
@@ -1386,7 +1386,7 @@ result: 120</code></pre>
 <li><p>Should plugins be a single data type, with a single constraint? The downside to this approach is the type does not express which hooks are used, or what the per-hook required capabilities are. The plugin’s single capability constraint is the union of all capabilities required by all hook functions.</p></li>
 </ul>
 <p>I chose the last approach, for a few reasons. First, when it comes to I/O in particular, if you are trusting <em>any</em> part of the plugin with <code>CanIO</code>, from a risk perspective it doesn’t matter much that <em>other</em> parts cannot perform I/O. Second, I suspect that plugins that use multiple hooks <em>and</em> use different capabilities for those hooks will be uncommon. For me, prioritising API stability and ease of use made the choice easy. But it is still worthwhile to discuss the tradeoffs and alternatives.</p>
-<h3 id="implementation-considerations">Implementation considerations <a href="#implementation-considerations">§</a></h3>
+<h3 id="implementation-considerations">Implementation considerations <a href="#implementation-considerations" class="section">§</a></h3>
 <p>Some implementation considerations that arise when applying this plugin system design in Purebred (real-world programs in general) include:</p>
 <ul>
 <li><p>Plugins have to be be stored in the internal configuration object. Should the hook functions be decomposed early (storing multiple lists of hook functions in the config) or just-in-time (storing a single list of plugins, and extracting the relevant hook functions when they are needed)? I will initially store a single list of plugins.</p></li>
@@ -1396,7 +1396,7 @@ result: 120</code></pre>
 <li><p>Some plugins will not use all hooks. Purebred might end up having many hooks, but most plugins will use only one or a few of them. To make it convenient to define plugins, I can define a helper function to construct a new plugin whose hooks are all no-ops. Plugin implementers can override the hooks they need.</p></li>
 <li><p>Some plugins might need to modify the UI and/or propagate data around. For example, an OpenPGP plugin should let users choose whether to encrypt, sign, or do nothing with an outbound email. I haven’t solved this problem yet, but I’ll need to, somehow.</p></li>
 </ul>
-<h2 id="conclusion">Conclusion <a href="#conclusion">§</a></h2>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>My goal was to design a plugin system for Purebred offering <strong>composition</strong>; <strong>capabilities</strong> expressed through <strong>human-friendly</strong> types, enforced by the type system; and <strong>abstract</strong> plugin implementations so that the main program can evolve. Additionally, there had to be a way to provide <strong>configuration</strong> to plugins that require it. The prototype plugin system described in this post satisfies these requirements.</p>
 <p>I left several regions of the plugin system design space unexplored, including dynamic (re)loading of plugins and plugin-specific data and state. These are interesting and challenging problems, but they are not problems that the Purebred project needs to solve right now.</p>
 <p>The next step is to take what I’ve learned from this prototype and implement it in Purebred. There will be some new challenges there, and I expect the experience to provide ample material for a follow-up blog post—or several.</p>]]></summary>
@@ -1409,7 +1409,7 @@ result: 120</code></pre>
     <updated>2021-01-11T00:00:00Z</updated>
     <summary type="html"><![CDATA[<h1 id="hakyll-how-to-fancy-title-formatting">Hakyll how-to: <em>Fancy</em> <code>title</code> <span class="smallcaps">formatting</span></h1>
 <p>Sometimes you need special formatting in an article title. I often use monospace (e.g. for a function name), but subscript, superscript or italics might be useful too. The standard <a href="https://jaspervdj.be/hakyll/">Hakyll</a> metadata block doesn’t offer a good way of doing this. But Hakyll is very flexible. In this post I’ll walk through my solution.</p>
-<h2 id="the-standard-approach">The standard approach <a href="#the-standard-approach">§</a></h2>
+<h2 id="the-standard-approach">The standard approach <a href="#the-standard-approach" class="section">§</a></h2>
 <p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an input file. You specify the <code>title</code> there:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co">---</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="an">title:</span><span class="co"> Fancy Hakyll title formatting</span></span>
@@ -1429,7 +1429,7 @@ result: 120</code></pre>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>  <span class="kw">&lt;/head&gt;</span></span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>  …</span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="kw">&lt;/html&gt;</span></span></code></pre></div>
-<h3 id="limitations">Limitations <a href="#limitations">§</a></h3>
+<h3 id="limitations">Limitations <a href="#limitations" class="section">§</a></h3>
 <p>Say you want to use monospace for the “Hakyll” in the title. Trying with backticks…</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="co">---</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="an">title:</span><span class="co"> Fancy `Hakyll` title formatting</span></span>
@@ -1478,7 +1478,7 @@ did not find expected alphabetic or numeric character
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>…</span></code></pre></div>
 <p>The <code>&lt;h1&gt;</code> header is formatted exactly how we want. But now there are literal HTML tags in the <code>&lt;title&gt;</code> (browsers do not recognise formatting here). So we need a “plain” variant of the title to put in the <code>&lt;title&gt;</code> element. We may also need to use the plain variant in Atom/RSS feeds, or other parts of the site.</p>
 <p>Also, writing HTML is not nice. A big reason to use Hakyll and Pandoc is to write in a more fluent and human-friendly markup format. It is undesirable to have to revert to HTML.</p>
-<h2 id="two-titles">Two titles? <a href="#two-titles">§</a></h2>
+<h2 id="two-titles">Two titles? <a href="#two-titles" class="section">§</a></h2>
 <p>As demonstrated, two variants of the title are needed—one with (optional) formatting, and one without. Therefore we could write:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">---</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="an">title:</span><span class="co"> Fancy Hakyll title formatting</span></span>
@@ -1493,7 +1493,7 @@ did not find expected alphabetic or numeric character
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>$body$</span></code></pre></div>
 <p>This approach works. But it is unsatisfying because not only are we writing HTML; we are also writing the same title twice! This fails the DRY (<em>don’t repeat yourself</em>) principle. Even when <code>fancyTitle</code> has formatting, the content is substantially similar. In fact, you could derive the plain variant from the other.</p>
 <p>So that’s what I do.</p>
-<h2 id="solution">Solution <a href="#solution">§</a></h2>
+<h2 id="solution">Solution <a href="#solution" class="section">§</a></h2>
 <p>First, promote the title out of the metadata block and into the document itself, as a heading:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="co">---</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
@@ -1563,7 +1563,7 @@ did not find expected alphabetic or numeric character
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>    <span class="kw">&lt;/li&gt;</span></span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a>  $endfor$</span>
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true"></a><span class="kw">&lt;/ul&gt;</span></span></code></pre></div>
-<h3 id="results">Results <a href="#results">§</a></h3>
+<h3 id="results">Results <a href="#results" class="section">§</a></h3>
 <p>The resulting HTML has the plain <code>$title$</code> value in the <code>&lt;title&gt;</code> element. The formatted title appears as an <code>&lt;h1&gt;</code> element in the article <code>$body$</code>.</p>
 <div class="sourceCode" id="cb19"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a>…</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>  <span class="kw">&lt;head&gt;</span></span>
@@ -1581,7 +1581,7 @@ did not find expected alphabetic or numeric character
 <span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a>    <span class="kw">&lt;code&gt;</span>Hakyll<span class="kw">&lt;/code&gt;</span> title formatting<span class="kw">&lt;/a&gt;</span></span>
 <span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a>  <span class="kw">&lt;/li&gt;</span></span>
 <span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a>  …</span></code></pre></div>
-<h2 id="performance-what-not-to-do">Performance (what not to do) <a href="#performance-what-not-to-do">§</a></h2>
+<h2 id="performance-what-not-to-do">Performance (what not to do) <a href="#performance-what-not-to-do" class="section">§</a></h2>
 <p>It is critical for performance to extract and process the header <em>during compilation</em>, saving snapshots of the computed values. I found this out the hard way. In a previous iteration of my solution, during compilation I only saved a snapshot of the input <em>source</em>:</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a>compile <span class="op">$</span> <span class="kw">do</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>  getResourceBody <span class="op">&gt;&gt;=</span> saveSnapshot <span class="st">&quot;source&quot;</span></span>
@@ -1613,7 +1613,7 @@ did not find expected alphabetic or numeric character
 <span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a><span class="dt">Sum</span> {getSum <span class="ot">=</span> <span class="dv">685</span>}</span></code></pre></div>
 <p>The estimate (685) was very close to the actual value (683). Although this is the worst case scenario, even the best case scenario—when nothing has changed at all—still caused 192 parses and took significant time (about 9 seconds). This seems to be caused by tags pages always being recompiled. I’m not sure why that happens, but when the titles are cached it’s fast enough to not be an issue (&lt;0.5 seconds).</p>
 <p>The big takeaway from all this is: do as little processing as possible in <code>Context</code> field definitions. In my case, doing the title processing in <code>compile</code> and caching the results in dedicated snapshots (<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Core-Compiler.html#v:saveSnapshot"><code>saveSnapshot</code></a>) reduced site build time from 34 seconds to 9 seconds!</p>
-<h2 id="final-words">Final words <a href="#final-words">§</a></h2>
+<h2 id="final-words">Final words <a href="#final-words" class="section">§</a></h2>
 <p>Pandoc and Hakyll continue to be awesome and powerful tools. Any time I’ve wished to do something a little differently, or enhance my site, I’ve always found a way (up to HTML and CSS, anyway).</p>
 <p>I did confirm that my solution results in 1 additional parse of each article source (2 parses in total). Using <a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a> I might be able to do the title processing in a callback, so that each article source gets parsed exactly once. This would further reduce the build time. I left this as a future improvement (and an exercise for the reader).</p>
 <p>Earlier I did omit one important detail for the sake of clarity. The “recent posts” list accompanying each article requires an additional <code>Rules</code> set, creating a <code>"recent"</code> version of each article <code>Item</code> that can be referenced in the “main” article.</p>
