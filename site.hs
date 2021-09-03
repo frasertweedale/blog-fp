@@ -9,9 +9,6 @@ import Text.Pandoc.Definition
 import Text.Pandoc.Walk (query, walk)
 import Hakyll
 
-import Hakyll.Contrib.JSONLD
-import Hakyll.Contrib.OpenGraph
-import Hakyll.Contrib.TwitterCard
 
 blogTitle, blogDescription, blogAuthorName, blogAuthorEmail, blogRoot :: String
 blogTitle = "pureblog"
