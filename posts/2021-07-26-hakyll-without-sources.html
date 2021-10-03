@@ -61,56 +61,56 @@
 <h2 id="building-a-web-key-directory-with-hakyll">Building a Web Key Directory with Hakyll <a href="#building-a-web-key-directory-with-hakyll" class="section">§</a></h2>
 <h3 id="reading-keys-from-gnupg">Reading keys from GnuPG <a href="#reading-keys-from-gnupg" class="section">§</a></h3>
 <p><a href="https://gnupg.org/">GnuPG</a> is my OpenPGP client. My Hakyll program invokes <code>gpg</code> to list and extract keys. Here are the types of the functions involved (I will not detail their implementations):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">KeyId</span> <span class="ot">=</span> <span class="dt">String</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Uid</span> <span class="ot">=</span> (<span class="dt">String</span>, <span class="dt">String</span>) <span class="co">-- ^ local-part, domain</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="ot">listKeys ::</span> <span class="dt">IO</span> (<span class="dt">L8.ByteString</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="ot">exportKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L8.ByteString</span>)</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="ot">hashLocalPart ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">String</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="ot">extractUserIds ::</span> <span class="dt">L8.ByteString</span> <span class="ot">-&gt;</span> [<span class="dt">Uid</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">KeyId</span> <span class="ot">=</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Uid</span> <span class="ot">=</span> (<span class="dt">String</span>, <span class="dt">String</span>) <span class="co">-- ^ local-part, domain</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ot">listKeys ::</span> <span class="dt">IO</span> (<span class="dt">L8.ByteString</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">exportKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L8.ByteString</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ot">hashLocalPart ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">String</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ot">extractUserIds ::</span> <span class="dt">L8.ByteString</span> <span class="ot">-&gt;</span> [<span class="dt">Uid</span>]</span></code></pre></div>
 <div class="note">
 <p>I used the <a href="https://hackage.haskell.org/package/typed-process"><em>typed-process</em></a> package to execute GnuPG. The <code>--with-colons</code> option is helpful for inspecting keys and their user IDs. You can use an <code>--export-filter</code> to select the user ID(s) to export. The man pages and <a href="https://github.com/gpg/gnupg/blob/master/doc/DETAILS"><code>DETAILS</code></a> file contain all the information you need for programmatic interaction with GnuPG.</p>
 </div>
 <h3 id="creating-resources">Creating resources <a href="#creating-resources" class="section">§</a></h3>
 <p>Hakyll sites use <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:match"><code>match</code></a> to generate compilation rules for local resources. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a>match <span class="st">&quot;posts/*.md&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  compile pandocCompiler</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>match <span class="st">&quot;posts/*.md&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  compile pandocCompiler</span></code></pre></div>
 <p>But there are no local files to <code>match</code>. Instead, we use <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:create"><code>create</code></a> to declare new resources. These resources can be routed to like any other, but we must synthesise the content. The following function, given a key ID and an email address, exports the key from GnuPG and establishes the route.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="ot">wkdUid ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>wkdUid keyId uid<span class="op">@</span>(localPart, domain) <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  <span class="kw">let</span> path <span class="ot">=</span> <span class="st">&quot;.well-known/openpgpkey/&quot;</span> <span class="op">&lt;&gt;</span> domain <span class="op">&lt;&gt;</span> <span class="st">&quot;/hu/&quot;</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>             <span class="op">&lt;&gt;</span> hashLocalPart localPart</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  create [fromFilePath path] <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    route <span class="op">$</span> idRoute</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>    compile <span class="op">$</span> exportKey keyId uid</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">wkdUid ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>wkdUid keyId uid<span class="op">@</span>(localPart, domain) <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> path <span class="ot">=</span> <span class="st">&quot;.well-known/openpgpkey/&quot;</span> <span class="op">&lt;&gt;</span> domain <span class="op">&lt;&gt;</span> <span class="st">&quot;/hu/&quot;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>             <span class="op">&lt;&gt;</span> hashLocalPart localPart</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  create [fromFilePath path] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    route <span class="op">$</span> idRoute</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    compile <span class="op">$</span> exportKey keyId uid</span></code></pre></div>
 <p><code>create</code> is applied to a list of resource identifiers, and a <code>Rules ()</code> for compiling and routing the resource. I am not showing the implementation of <code>exportKey</code>; it’s enough to know that it uses <code>IO</code>. Hakyll provides <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Compiler.html#v:unsafeCompiler"><code class="sourceCode haskell"><span class="ot">unsafeCompiler ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Compiler</span> a</code></a> for executing I/O actions in compiler context.</p>
 <p><code>wkdUid</code> creates the key resource for a single user ID. A key can have multiple user IDs. <code>wkUIDs on a specified KeydKey</code> creates the Hakyll <code>Rules ()</code> for all user IDs on a given key:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="ot">wkdKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>wkdKey keyId <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  out <span class="ot">&lt;-</span> preprocess listKeys</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>  <span class="kw">let</span> uids <span class="ot">=</span> extractUserIds out</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>  traverse_ (wkdUid keyId) uids</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">wkdKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>wkdKey keyId <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  out <span class="ot">&lt;-</span> preprocess listKeys</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> uids <span class="ot">=</span> extractUserIds out</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  traverse_ (wkdUid keyId) uids</span></code></pre></div>
 <p><code class="sourceCode haskell"><span class="ot">preprocess ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Rules</span> a</code> embeds an I/O action in the <code>Rules</code> context. Hakyll executes the action eagerly, unlike <code>unsafeCompiler</code> which is run on demand. This makes sense—we need to <code>listKeys</code> first to work out what resources to create.</p>
 <p>Having extracted the user IDs, we <code>traverse_</code> them to create the WKD resources. We also use <code>traverse_</code> at the outmost layer of the program to invoke <code>wkdKey</code> for each key ID given on standard input:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>  keys <span class="ot">&lt;-</span> <span class="fu">words</span> <span class="op">&lt;$&gt;</span> <span class="fu">getContents</span> <span class="co">-- read stdin</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>  hakyll <span class="op">$</span> traverse_ wkdKey keys</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  keys <span class="ot">&lt;-</span> <span class="fu">words</span> <span class="op">&lt;$&gt;</span> <span class="fu">getContents</span> <span class="co">-- read stdin</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  hakyll <span class="op">$</span> traverse_ wkdKey keys</span></code></pre></div>
 <h2 id="how-hakyll-compiling-works">How Hakyll compiling works <a href="#how-hakyll-compiling-works" class="section">§</a></h2>
 <p>Let’s dive a bit deeper into how compiling works. The <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:compile"><code>compile</code></a> function adds a content compiler to the <code>Rules</code> for resources. It’s type is:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>compile</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="ot">    ::</span> (<span class="dt">Binary</span> a, <span class="dt">Typeable</span> a, <span class="dt">Writable</span> a)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>    <span class="ot">=&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> a)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>compile</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Binary</span> a, <span class="dt">Typeable</span> a, <span class="dt">Writable</span> a)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> a)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span></code></pre></div>
 <p>The compiler argument has to return an <code>Item a</code>, where <code>a</code> has several type class constraints. <code>Binary</code> and <code>Typeable</code> are used by Hakyll’s caching mechanism. <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Writable.html#t:Writable"><code>Writable</code></a> is what Hakyll uses to write the compiled resource to the site output. There are several instances, including for <code>String</code>, <code>ByteString</code> (lazy and strict), and <code>Html</code>. Hakyll provides <code>makeItem :: a -&gt; Compiler (Item a)</code> for returning an <code>Item a</code>.</p>
 <p>As an example, here is a compiler that executes a subprocess and returns the standard output:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>processCompiler</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>] <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L.ByteString</span>)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>processCompiler exe args <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  (_status, out, _err) <span class="ot">&lt;-</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>    unsafeCompiler <span class="op">.</span> readProcess <span class="op">$</span> proc exe args</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  makeItem out</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>processCompiler</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>] <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L.ByteString</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>processCompiler exe args <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  (_status, out, _err) <span class="ot">&lt;-</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    unsafeCompiler <span class="op">.</span> readProcess <span class="op">$</span> proc exe args</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  makeItem out</span></code></pre></div>
 <h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>I have demonstrated how to use Hakyll to create content derived not from local files, but other sources (GnuPG in my case). Is this actually a good idea? For one-shot applications and data that don’t change frequently, I think it is fine. Hakyll takes care of all the filesystem I/O, relieving me of some tedium and avoiding a possible source of bugs.</p>
 <p>For my WKD use case, I can rebuild the site when my keys have been updated, then <code>rsync</code> it to my web server. The program is well under 100 lines of code—including imports! Source code is <a href="https://github.com/frasertweedale/hakyll-wkd">available on GitHub</a> under AGPLv3. At time of writing I have not published it on Hackage.</p>
@@ -118,16 +118,20 @@
 <p>Because there are no local file dependencies for the resources, Hakyll does not know to recompile it. You have to <strong><code>rebuild</code></strong> every time. This may be a practical issue for some use cases, though not for mine.</p>
 </div>
 <p>In general, it would be useful to be able to specify arbitrary freshness checks for resources. Unfortunately Hakyll’s implementation does not readily admit such a feature. But it was straightforward to add <em>unconditional</em> rebuilding on a per-resource basis. I submitted a <a href="https://github.com/jaspervdj/hakyll/pull/857">pull request</a> to add the <code>forceCompile</code> helper function. Example usage:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">-- compile this resource every time</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>forceCompile <span class="op">$</span> create [<span class="st">&quot;foo&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>  route <span class="op">$</span> idRoute</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>  compile <span class="op">$</span> unsafeCompiler <span class="op">$</span> doStuff</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- compile this resource every time</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>forceCompile <span class="op">$</span> create [<span class="st">&quot;foo&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  route <span class="op">$</span> idRoute</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  compile <span class="op">$</span> unsafeCompiler <span class="op">$</span> doStuff</span></code></pre></div>
 <p>This feature was accepted and will appear in a future release of Hakyll.</p>
 </div>
 <div id="postFooter">
     <div id="recent">
 Recent posts:
 <ul>
+    
+        <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
     
         <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
@@ -143,10 +147,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>

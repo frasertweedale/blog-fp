@@ -44,36 +44,36 @@
 <p>Major changes since 0.8.12 include:</p>
 <ul>
 <li><p><code>realMain</code> can now <strong>return arbitrary types</strong>. To support this change, <code>Params</code> got a new type variable.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co">-- before</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="co">-- after</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType a</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType a <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span></code></pre></div></li>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- before</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- after</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Params</span> cfgType a</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ot">wrapMain ::</span> <span class="dt">Params</span> cfgType a <span class="ot">-&gt;</span> cfgType <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span></code></pre></div></li>
 <li><p><code>defaultParams</code>, which contains <code>undefined</code> fields, has been <strong>deprecated</strong> in favour of the new function <code>newParams</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co">-- here be bottoms</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="ot">defaultParams ::</span> <span class="dt">Params</span> cfg a</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="co">-- celestial music playing</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>newParams</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a><span class="ot">  ::</span> <span class="dt">String</span>                 <span class="co">-- ^ 'projectName'</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">IO</span> a)          <span class="co">-- ^ 'realMain' function</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> cfg) <span class="co">-- ^ 'showError' function</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a>  <span class="ot">-&gt;</span> <span class="dt">Params</span> cfg a</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- here be bottoms</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultParams ::</span> <span class="dt">Params</span> cfg a</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">-- celestial music playing</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>newParams</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">String</span>                 <span class="co">-- ^ 'projectName'</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">IO</span> a)          <span class="co">-- ^ 'realMain' function</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (cfg <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> cfg) <span class="co">-- ^ 'showError' function</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Params</span> cfg a</span></code></pre></div>
 <p><code>newParams</code> takes values for the three required fields, so program authors can clearly see what they have to do and are less likely to make a mistake.</p></li>
 <li><p><strong>Cabal store support</strong>: Users can add extra include dirs via the <code>includeDirs</code> field of <code>Params</code>. The program author just has to put the package’s library directory in the new <code>includeDirs</code> field:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Config.Dyre</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>realMain  <span class="ot">=</span> …</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>showError <span class="ot">=</span> …</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a>myapp cfg <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a>  <span class="kw">let</span> params <span class="ot">=</span> (newParams <span class="st">&quot;myapp&quot;</span> realMain showError)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a>        { includeDirs <span class="ot">=</span> [libdir] }</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>  wrapMain params cfg</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Config.Dyre</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>realMain  <span class="ot">=</span> …</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>showError <span class="ot">=</span> …</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>myapp cfg <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> params <span class="ot">=</span> (newParams <span class="st">&quot;myapp&quot;</span> realMain showError)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        { includeDirs <span class="ot">=</span> [libdir] }</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  wrapMain params cfg</span></code></pre></div>
 <p>If an include dir appears to be in a Cabal store and matches the <code>projectName</code>, Dyre adds the corresponding <code>-package-id</code> option. As a result, recompilation works for programs installed via <code>cabal install</code>.</p></li>
 <li><p><strong>Stack support</strong>: if Dyre detects a <code>stack.yaml</code> alongside the custom configuration, it will use Stack to compile the program. Credit to <em>Jaro Reinders</em> for this feature.</p></li>
 <li><p>Dyre compiles the custom executable with <strong><code>-threaded</code></strong> when the main executable uses the threaded RTS. This means one less thing for program authors to remember (or forget) to do.</p></li>
@@ -102,6 +102,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
         </li>
     
@@ -115,10 +119,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>

@@ -36,11 +36,11 @@
 <h3 id="the-linux-implementation">The Linux implementation <a href="#the-linux-implementation" class="section">§</a></h3>
 <p>Linux systems almost always mount <a href="https://en.wikipedia.org/wiki/Procfs#Linux"><code>procfs(5)</code></a>, a filesystem of information about running processes. Information about a particular process is published in files under <code>/proc/{pid}/</code>. A process can also find information about itself under <code>/proc/self/</code>.</p>
 <p>A process can find out its own executable by reading <code>/proc/self/exe</code>, which is a symbolic link. And this is exactly what the implementation of <code>getExecutablePath</code> for Linux does:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span> readSymbolicLink <span class="op">$</span> <span class="st">&quot;/proc/self/exe&quot;</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ot">readSymbolicLink ::</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>readSymbolicLink file <span class="ot">=</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>    <span class="co">-- uses readlink(3) via FFI</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>getExecutablePath <span class="ot">=</span> readSymbolicLink <span class="op">$</span> <span class="st">&quot;/proc/self/exe&quot;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">readSymbolicLink ::</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>readSymbolicLink file <span class="ot">=</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- uses readlink(3) via FFI</span></span></code></pre></div>
 <h3 id="the-fallback-implementation-has-problems">The fallback implementation (has problems) <a href="#the-fallback-implementation-has-problems" class="section">§</a></h3>
 <p>When the <em>base</em> library does not have an operating system-specific implementation for <code>getExecutablePath</code> it falls back to <code>argv[0]</code>: the first value in the program’s argument array. However, this is not a reliable way to determine the actual executable that supplied the program text. Many programs and environments manipulate the contents of <code>argv[0]</code>. The <code>execv*(3)</code> family of calls, which replaces the current process with a new process image, allow the caller to specify an arbitrary <code>argv</code>.</p>
 <p>As an example of <code>argv[0]</code> manipulation, consider <a href="https://hackage.haskell.org/package/unix-2.7.2.2/docs/System-Posix-Process.html#v:executeFile"><code>System.Posix.Process.executeFile</code></a> from the <a href="https://hackage.haskell.org/package/unix"><em>unix</em></a> package. <code>executeFile</code> calls one of the <code>execv*(3)</code> subroutines (exactly which one depends on its own argument). But, as stated in the documentation:</p>
@@ -56,28 +56,28 @@
 <pre><code>% sysctl kern.maxproc 
 kern.maxproc: 3828</code></pre>
 <p>To assist programmers reading and writing programs that use <code>sysctl(3)</code>, important OID components are defined in <code>&lt;sys/sysctl.h&gt;</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="co">/*</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="co"> * Top-level identifiers</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="co"> */</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="pp">#define CTL_UNSPEC  0  </span><span class="co">/* unused */</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="pp">#define CTL_KERN    1  </span><span class="co">/* &quot;high kernel&quot;: proc, limits */</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>...</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="co">/*</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a><span class="co"> * CTL_KERN identifiers</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a><span class="co"> */</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>...</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true"></a><span class="pp">#define KERN_MAXPROC  6  </span><span class="co">/* int: max processes */</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true"></a>...</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Top-level identifiers</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_UNSPEC  0  </span><span class="co">/* unused */</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_KERN    1  </span><span class="co">/* &quot;high kernel&quot;: proc, limits */</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"> * CTL_KERN identifiers</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="pp">#define KERN_MAXPROC  6  </span><span class="co">/* int: max processes */</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span></code></pre></div>
 <p>The OID containing a process’ executable pathname is <code>[1, 14, 12, $PID]</code> where <code>PID</code> is the process ID, or <code>-1</code> to refer to the current process. The C <code>#define</code>s for the first three components are <code>CTL_KERN</code>, <code>KERN_PROC</code>, and <code>KERN_PROC_PATHNAME</code>.</p>
 <p>Now that we know the OID, consider the signature of <code>sysctl(3)</code>:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="dt">int</span> sysctl(</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>    <span class="dt">const</span> <span class="dt">int</span> *name,</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    u_int namelen,</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    <span class="dt">void</span> *oldp,</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    <span class="dt">size_t</span> *oldlenp,</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    <span class="dt">const</span> <span class="dt">void</span> *newp,</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>    <span class="dt">size_t</span> newlen);</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> sysctl<span class="op">(</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">int</span> <span class="op">*</span>name<span class="op">,</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    u_int namelen<span class="op">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">void</span> <span class="op">*</span>oldp<span class="op">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> <span class="op">*</span>oldlenp<span class="op">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">void</span> <span class="op">*</span>newp<span class="op">,</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> newlen<span class="op">);</span></span></code></pre></div>
 <ul>
 <li><p><code>name</code> is the OID; an array of <code>int</code>.</p></li>
 <li><p><code>namelen</code> is the number of components in <code>name</code></p></li>
@@ -99,80 +99,80 @@ kern.maxproc: 3828</code></pre>
 <p>I will now walk through the different parts of the FreeBSD-specific implementation of <code>getExecutablePath</code>.</p>
 <h3 id="c-preprocessor-guards">C Preprocessor guards <a href="#c-preprocessor-guards" class="section">§</a></h3>
 <p>System-specific implementations are guarded by CPP conditionals:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="pp">#if defined(darwin_HOST_OS)</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>... MacOS implementation</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a><span class="pp">#elif defined(linux_HOST_OS)</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>... Linux implementation</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a><span class="pp">#elif defined(mingw32_HOST_OS)</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true"></a>... Windows implementation</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true"></a></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true"></a><span class="pp">#else</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true"></a></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true"></a>... fallback implementation</span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true"></a></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true"></a><span class="pp">#endif</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#if defined(darwin_HOST_OS)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="op">...</span> MacOS implementation</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#elif defined(linux_HOST_OS)</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="op">...</span> Linux implementation</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#elif defined(mingw32_HOST_OS)</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="op">...</span> Windows implementation</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="pp">#else</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="op">...</span> fallback implementation</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span></code></pre></div>
 <p>I added the appropriate guard to encapsulate the FreeBSD-specific implementation:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>... FreeBSD implementation</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="op">...</span> FreeBSD implementation</span></code></pre></div>
 <p>Similarly, in the <code>import</code> area CPP conditionals wrap the FreeBSD-specific Haskell imports and C header includes:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.C</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Alloc</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Array</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Ptr</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Foreign.Storable</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.Posix.Internals</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true"></a><span class="pp">#include &lt;sys/types.h&gt;</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true"></a><span class="pp">#include &lt;sys/sysctl.h&gt;</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#elif defined(freebsd_HOST_OS)</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Foreign.C</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Alloc</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Foreign.Marshal.Array</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Foreign.Ptr</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Foreign.Storable</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.Posix.Internals</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include &lt;sys/types.h&gt;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include &lt;sys/sysctl.h&gt;</span></span></code></pre></div>
 <h3 id="foreign-import">Foreign import <a href="#foreign-import" class="section">§</a></h3>
 <p>A <code>foreign import</code> declaration makes <code>sysctl(3)</code> available to Haskell code as <code>c_sysctl</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>foreign <span class="kw">import</span> ccall unsafe &quot;sysctl&quot;</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  c_sysctl</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a><span class="ot">    ::</span> <span class="dt">Ptr</span> <span class="dt">CInt</span>   <span class="co">-- MIB</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">CUInt</span>      <span class="co">-- MIB size</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- old / current value buffer</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CSize</span>  <span class="co">-- old / current value buffer size</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- new value</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">CSize</span>      <span class="co">-- new value size</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span>    <span class="co">-- result</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall unsafe &quot;sysctl&quot;</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  c_sysctl</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> <span class="dt">Ptr</span> <span class="dt">CInt</span>   <span class="co">-- MIB</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">CUInt</span>      <span class="co">-- MIB size</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- old / current value buffer</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CSize</span>  <span class="co">-- old / current value buffer size</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> <span class="dt">CChar</span>  <span class="co">-- new value</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">CSize</span>      <span class="co">-- new value size</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span>    <span class="co">-- result</span></span></code></pre></div>
 <p>Observe the correspondence to the C function signature. Because this function is not referentially transparent (different calls with the same arguments could have different results) the result type is <code>IO CInt</code>.</p>
 <h3 id="defining-the-mib">Defining the MIB <a href="#defining-the-mib" class="section">§</a></h3>
 <p>The <code>hsc2hs</code> <code>(#const ...)</code> directive assists in the definition of the “current process executable” MIB:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="ot">mib ::</span> [<span class="dt">CInt</span>]</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>mib <span class="ot">=</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  [ (<span class="op">#</span>const <span class="dt">CTL_KERN</span>)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC</span>)</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC_PATHNAME</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>  , <span class="op">-</span><span class="dv">1</span>   <span class="co">-- current process</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  ]</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">mib ::</span> [<span class="dt">CInt</span>]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>mib <span class="ot">=</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  [ (<span class="op">#</span>const <span class="dt">CTL_KERN</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  , (<span class="op">#</span>const <span class="dt">KERN_PROC_PATHNAME</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  , <span class="op">-</span><span class="dv">1</span>   <span class="co">-- current process</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
 <h3 id="defining-getexecutablepath">Defining <code>getExecutablePath</code> <a href="#defining-getexecutablepath" class="section">§</a></h3>
 <p>The <code>getExecutablePath</code> implementation closely follows the abstract procedure outlined above. So here it is, broken up with commentary (<a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276/diffs">full diff</a>):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>getExecutablePath <span class="ot">=</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>  withArrayLen mib <span class="op">$</span> \n mibPtr <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>getExecutablePath <span class="ot">=</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  withArrayLen mib <span class="op">$</span> \n mibPtr <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
 <p><a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Array.html#v:withArrayLen"><code>withArrayLen</code></a> converts a Haskell list to a heap-allocated C array, passing it (as a pointer) <em>and</em> its length to the given continuation function. It will free the array after the continuation returns.</p>
 <pre><code>    let mibLen = fromIntegral n
     alloca $ \bufSizePtr -&gt; do</code></pre>
 <p>Convert <code>mibLen</code> from <code>Int</code> to <code>CInt</code>. <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Alloc.html#v:alloca"><code>alloca</code></a> allocates memory to hold a <code>CSize</code> (<code>size_t</code>) and passes a pointer to that memory to the given continuation (and frees it when the continuation returns).</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>      status <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>                         nullPtr bufSizePtr nullPtr <span class="dv">0</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>      status <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>                         nullPtr bufSizePtr nullPtr <span class="dv">0</span></span></code></pre></div>
 <p>Call <code>sysctl(3)</code> with <code>oldp = NULL</code>.</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>      <span class="kw">case</span> status <span class="kw">of</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>        <span class="dv">0</span> <span class="ot">-&gt;</span> <span class="kw">do</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>          reqBufSize <span class="ot">&lt;-</span> <span class="fu">fromIntegral</span> <span class="op">&lt;$&gt;</span> peek bufSizePtr</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>          allocaBytes reqBufSize <span class="op">$</span> \buf <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>      <span class="kw">case</span> status <span class="kw">of</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>        <span class="dv">0</span> <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>          reqBufSize <span class="ot">&lt;-</span> <span class="fu">fromIntegral</span> <span class="op">&lt;$&gt;</span> peek bufSizePtr</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>          allocaBytes reqBufSize <span class="op">$</span> \buf <span class="ot">-&gt;</span> <span class="kw">do</span></span></code></pre></div>
 <p>If the initial call to <code>sysctl(3)</code> succeeded, <code>bufSizePtr</code> holds the required buffer size. <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Storable.html#v:peek"><code>peek</code></a> reads the value. Then <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-Marshal-Alloc.html#v:allocaBytes"><code>allocaBytes</code></a> allocates that much space on the heap and passes the pointer to the continuation (and frees it after).</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a>            newStatus <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>                                  buf bufSizePtr nullPtr <span class="dv">0</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>            <span class="kw">case</span> newStatus <span class="kw">of</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>              <span class="dv">0</span> <span class="ot">-&gt;</span> peekFilePath buf</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>              _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>        _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>            newStatus <span class="ot">&lt;-</span> c_sysctl mibPtr mibLen</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>                                  buf bufSizePtr nullPtr <span class="dv">0</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>            <span class="kw">case</span> newStatus <span class="kw">of</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>              <span class="dv">0</span> <span class="ot">-&gt;</span> peekFilePath buf</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>              _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>        _ <span class="ot">-&gt;</span> throwErrno <span class="st">&quot;getExecutablePath&quot;</span></span></code></pre></div>
 <p>Call <code>sysctl(3)</code> again, this time using the new buffer (<code>buf</code>) as <code>oldp</code>. If successful, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/System-Posix-Internals.html#v:peekFilePath"><code>peekFilePath</code></a> converts the C string to a Haskell <code>FilePath</code>. Although it is three continuations deep, this <code>FilePath</code> will be the return value. If either call to <code>sysctl(3)</code> failed, <a href="https://hackage.haskell.org/package/base-4.14.1.0/docs/Foreign-C-Error.html#v:throwErrno"><code>throwErrno</code></a> throws an <code>IOError</code>.</p>
 <h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>This was a small enhancement to GHC, but for me a critical one. I submitted a <a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1276">merge request</a>. It was quickly accepted and the fix was released in GHC 8.8.1.</p>
@@ -195,6 +195,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
         </li>
     
@@ -208,10 +212,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Reusing random generators in Hedgehog</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Reusing random generators in Hedgehog","datePublished":"2021-10-03T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-10-03-hedgehog-reuse-random.html" /><meta property="og:title" content="Reusing random generators in Hedgehog" /><meta property="og:description" content="In this post I show how to use existing generators with Hedgehog, and discuss the advantages and disadvantages." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'testing'." href="../tags/testing.html">testing</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="reusing-random-generators-in-hedgehog">Reusing random generators in Hedgehog</h1>
+<p><a href="https://hedgehog.qa/">Hedgehog</a> has a powerful API for generating arbitrary values of your types. But sometimes a library will already provide a random generator. <span class="abstract">In this post I show how to use existing generators with Hedgehog, and discuss the advantages and disadvantages.</span></p>
+<h2 id="random-generator-use-cases">Random generator use cases <a href="#random-generator-use-cases" class="section">§</a></h2>
+<p>Libraries may need to provide random generators of (some of) their types for a variety of reasons. Cryptographic keys, secrets and unique identifiers come to mind immediately.</p>
+<p>One use case we have in <a href="https://hackage.haskell.org/package/purebred-email"><em>purebred-email</em></a> is generation of MIME multipart boundary values (<a href="https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1">RFC 2046</a>). The boundary is a string with 1–70 characters from a restricted alphabet. Using a random boundary is useful because the boundary delimiter line (the boundary value preceded by two hyphens) must not appear anywhere within the message parts.</p>
+<p>The <code>Boundary</code> type is defined as follows:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- constructor NOT exported</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">newtype</span> <span class="dt">Boundary</span> <span class="ot">=</span> <span class="dt">Boundary</span> <span class="dt">ByteString</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">deriving</span> (<span class="dt">Eq</span>, <span class="dt">Show</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ot">unBoundary ::</span> <span class="dt">Boundary</span> <span class="ot">-&gt;</span> <span class="dt">ByteString</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>unBoundary (<span class="dt">Boundary</span> s) <span class="ot">=</span> s</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co">-- smart constructor; checks length and validity</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">makeBoundary ::</span> <span class="dt">ByteString</span> <span class="ot">-&gt;</span> <span class="dt">Either</span> <span class="dt">ByteString</span> <span class="dt">Boundary</span></span></code></pre></div>
+<p>We don’t export the constructor. Users must use the <code>makeBoundary</code> <em>smart constructor</em> which checks that the input is a valid boundary value.</p>
+<p>We also instance the <a href="https://hackage.haskell.org/package/random-1.2.0/docs/System-Random-Stateful.html#t:Uniform"><code>Uniform</code></a> type class from the <a href="https://hackage.haskell.org/package/random"><em>random</em></a> package (version 1.2.0 onwards). This instance provides a convenient way for users to generate conformant boundary values that have a negligible probability of matching any line in an arbitrary message.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Data.ByteString</span> <span class="kw">as</span> <span class="dt">B</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Data.ByteString.Internal</span> <span class="kw">as</span> <span class="dt">B</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Data.ByteString.Char8</span> <span class="kw">as</span> <span class="dt">C8</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Uniform</span> <span class="dt">Boundary</span> <span class="kw">where</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ot">  uniformM ::</span> <span class="dt">StatefulGen</span> g m <span class="ot">=&gt;</span> g <span class="ot">-&gt;</span> m a</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  uniformM g <span class="ot">=</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Boundary</span> <span class="op">.</span> B.unsafePackLenBytes <span class="dv">64</span> <span class="op">&lt;$&gt;</span> randString</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    randString  <span class="ot">=</span> replicateM <span class="dv">64</span> randChar</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    randChar    <span class="ot">=</span> B.index bchars <span class="op">&lt;$&gt;</span> randIndex</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    randIndex   <span class="ot">=</span> uniformRM (<span class="dv">0</span>, B.length bchars <span class="op">-</span> <span class="dv">1</span>) g</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    bchars      <span class="ot">=</span> C8.pack <span class="op">$</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>                       [<span class="ch">'a'</span><span class="op">..</span><span class="ch">'z'</span>] <span class="op">&lt;&gt;</span> [<span class="ch">'A'</span><span class="op">..</span><span class="ch">'Z'</span>]</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>                    <span class="op">&lt;&gt;</span> [<span class="ch">'0'</span><span class="op">..</span><span class="ch">'9'</span>] <span class="op">&lt;&gt;</span> <span class="st">&quot;'()+_,-./:=?&quot;</span></span></code></pre></div>
+<div class="note">
+<p>A <code>Uniform</code> instance is supposed to draw from all possible values of a type. In the <code>Boundary</code> instance we are only generating values of length 64. This is acceptable for our use case but may surprise some users.</p>
+</div>
+<p>The <em>random</em> library provides a very general interface to instantiate and use random number generators. I cannot cover it in any detail in this post. Assuming you already have a generator value, <a href="https://hackage.haskell.org/package/random-1.2.0/docs/System-Random-Stateful.html#t:Uniform"><code>System.Random.uniform</code></a> generates a value of any type with an instance of <code>Uniform</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">uniform ::</span> (<span class="dt">RandomGen</span> g, <span class="dt">Uniform</span> a) <span class="ot">=&gt;</span> g <span class="ot">-&gt;</span> (a, g)</span></code></pre></div>
+<p>You can use <code>uniform</code> with <a href="https://hackage.haskell.org/package/random-1.2.0/docs/System-Random.html#v:getStdRandom"><code>System.Random.getStdRandom</code></a> to generate values using a global pseudo-random number generated initialised from system entropy, as an <code>IO</code> action:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">getStdRandom ::</span> <span class="dt">MonadIO</span> m <span class="ot">=&gt;</span> (<span class="dt">StdGen</span> <span class="ot">-&gt;</span> (a, <span class="dt">StdGen</span>)) <span class="ot">-&gt;</span>  m a</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ot">getStdRandom ::</span>              (<span class="dt">StdGen</span> <span class="ot">-&gt;</span> (a, <span class="dt">StdGen</span>)) <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>getStdRandom<span class="ot"> uniform ::</span> (<span class="dt">MonadIO</span> m, <span class="dt">Uniform</span> a) <span class="ot">=&gt;</span>  m a</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>getStdRandom<span class="ot"> uniform ::</span>            (<span class="dt">Uniform</span> a) <span class="ot">=&gt;</span> <span class="dt">IO</span> a</span></code></pre></div>
+<h2 id="hedgehog-and-hidden-constructors">Hedgehog and hidden constructors <a href="#hedgehog-and-hidden-constructors" class="section">§</a></h2>
+<p>If a module does not expose the constructor of some type, how can the test suite generate random values of that type? There are several ways you could tackle this:</p>
+<ol type="1">
+<li><p>Export the constructor from some “internal” module, which is not really internal. In this way, library users may be discouraged—but not prevented—from constructing bad data. The test module can import the constructor from the library’s “internal” module and use it to define the generator.</p></li>
+<li><p>Export a Hedgehog <code>Gen</code> for the type from the library itself. This causes the library to depend on Hedgehog, which is usually not desirable.</p></li>
+<li><p>For a <code>newtype</code>, use <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Unsafe-Coerce.html"><code>Unsafe.Coerce.unsafeCoerce</code></a> in the <code>Gen</code> definition to coerce the underlying type to the wrapped type. You cannot use <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Coerce.html"><code>Data.Coerce.coerce</code></a> if the constructor is not in scope. This is nasty, but not unspeakable given we’re talking about generators for the test suite.</p></li>
+</ol>
+<ol start="4" type="1">
+<li>Export a “lightweight” random generator from the library, and reuse it to define the <code>Gen</code> in the test suite. If you were going to export a <code>Uniform</code> (or <code>UniformRange</code>) instance anyway, this will be low-effort. This approach is the main topic of this article.</li>
+</ol>
+<h2 id="implementing-gen-using-uniform">Implementing <code>Gen</code> using <code>Uniform</code> <a href="#implementing-gen-using-uniform" class="section">§</a></h2>
+<p>I was aware that Hedgehog depends on <em>random</em>, and was hopeful of finding a way to use the existing <code>Uniform</code> instance to implement a <code>Gen Boundary</code>. Looking through the docs, I stumbled across <a href="https://hackage.haskell.org/package/hedgehog-1.0.5/docs/Hedgehog-Internal-Gen.html#v:generate"><code>generate</code></a>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">generate ::</span> <span class="dt">MonadGen</span> m <span class="ot">=&gt;</span> (<span class="dt">Size</span> <span class="ot">-&gt;</span> <span class="dt">Seed</span> <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> m a</span></code></pre></div>
+<p>It was not immediately apparent whether I could use <code>generate</code> to define a <code>Gen Boundary</code>. First, does <code>Gen</code> have an instance of <code>MonadGen</code>?</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Gen</span> <span class="ot">=</span> <span class="dt">GenT</span> <span class="dt">Identity</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="dt">Monad</span> m <span class="ot">=&gt;</span> <span class="dt">MonadGen</span> (<span class="dt">GenT</span> m)</span></code></pre></div>
+<p>Yes, it does. Next, I had to work out how to turn a <code>Size</code> and a <code>Seed</code> into a <code>Boundary</code>. To my delight, I saw that <code>Seed</code> has an instance of <code>RandomGen</code>. Putting it together, all that is required is to apply <code>uniform</code> to the <code>Seed</code>, and discard the new generator value. I ignore the <code>Size</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Hedgehog</span> (<span class="dt">Gen</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Hedgehog.Internal.Gen</span> (generate)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ot">genBoundary ::</span> <span class="dt">Gen</span> <span class="dt">Boundary</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>genBoundary <span class="ot">=</span> generate (\_size seed <span class="ot">-&gt;</span> <span class="fu">fst</span> (uniform seed))</span></code></pre></div>
+<h2 id="disadvantages">Disadvantages <a href="#disadvantages" class="section">§</a></h2>
+<p>There are a few disadvantages to reusing a library’s random generator to define your Hedgehog <code>Gen</code>.</p>
+<p>First, the generated values are restricted to whatever the library’s generator gives you. In my case, the <code>Boundary</code> generator only generates values of length 64. It follows that Hedgehog could miss all kinds of bugs. For example, if <em>purebred-email</em> fails to decode boundaries of length 70 due to an off-by-one error, I have no hope of catching that bug.</p>
+<p>Second, <code>generate</code> gives you a <code>Gen</code> with no shrinks. If Hedgehog finds a counterexample, it can’t do anything to try and simplify it. Automatic shrinking is one of Hedgehog’ss killer features, but you give it up by using <code>generate</code>.</p>
+<p>You can use the <code>shrink</code> function to supply additional shrinking behaviour to a <code>Gen</code>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">shrink ::</span> <span class="dt">MonadGen</span> m <span class="ot">=&gt;</span> (a <span class="ot">-&gt;</span> [a]) <span class="ot">-&gt;</span> m a <span class="ot">-&gt;</span> m a </span></code></pre></div>
+<p>But when you don’t have access to the constructor for the data type you’re generating, defining your own shrinks is at best awkward, and maybe impossible. I <em>could</em> implement <code>Boundary</code> shrinking by extracting the underlying <code>ByteString</code> (<code>unBoundary</code>), shrinking it, applying the smart constructor (<code>makeBoundary</code>) and filtering invalid values. That’s a lot of work. I didn’t bother.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>Defining Hedgehog <code>Gen</code> values can be awkward or very difficult for types whose constructors are hidden. But if you have a function that uses a <code>RandomGen</code> to generate values, you can use it with Hedgehog’s <code>generate</code> function to define a <code>Gen</code>. The downsides are that you don’t get automatic shrinking, and you are restricted to whatever values the generator produces.</p>
+<p>Alternative approaches include exposing the constructor via an “internal” (but actually public) module, or using <code>unsafeCoerce</code>.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-05-23-tax-combinators.html">A combinator library for taxes</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>

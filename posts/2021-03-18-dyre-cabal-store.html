@@ -159,55 +159,55 @@ CallStack (from HasCallStack):
 <li><p>The <code>-package-id &lt;UNIT-ID&gt;</code> option <em>exposes</em> the package identified by <code>UNIT-ID</code>, making its public modules available for import. Dyre uses this option to expose the main application library.</p></li>
 </ul>
 <p>In Dyre’s implementation, the <code>getCabalStoreGhcArgs</code> function computes these options. It is applied to a Dyre project name and a library path. If the library path is in the Cabal store <em>and</em> matches the project name, Dyre derives the appropriate <code>-package-db</code> and <code>-package-id</code> options.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.FilePath</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>  (joinPath, splitPath, dropTrailingPathSeparator)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a><span class="ot">getCabalStoreGhcArgs ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>]</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>getCabalStoreGhcArgs proj <span class="ot">=</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>    mkArgs <span class="op">.</span> go <span class="op">.</span> <span class="fu">fmap</span> dropTrailingPathSeparator <span class="op">.</span> splitPath</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>  <span class="kw">where</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>  go (<span class="st">&quot;.cabal&quot;</span> <span class="op">:</span> <span class="st">&quot;store&quot;</span> <span class="op">:</span> hc <span class="op">:</span> pid <span class="op">:</span> _) <span class="ot">=</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true"></a>    <span class="kw">case</span> splitOn <span class="ch">'-'</span> pid <span class="kw">of</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true"></a>      [name, _version, _hash] <span class="op">|</span> name <span class="op">==</span> proj</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true"></a>        <span class="ot">-&gt;</span> <span class="dt">Just</span> (pid, [<span class="st">&quot;.cabal&quot;</span>, <span class="st">&quot;store&quot;</span>, hc, <span class="st">&quot;package.db&quot;</span>])</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true"></a>      _ <span class="ot">-&gt;</span> <span class="dt">Nothing</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true"></a>  go (h <span class="op">:</span> t<span class="op">@</span>(_ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _)) <span class="ot">=</span> <span class="fu">fmap</span> (h<span class="op">:</span>) <span class="op">&lt;$&gt;</span> go t</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true"></a>  go _ <span class="ot">=</span> <span class="dt">Nothing</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true"></a></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true"></a>  mkArgs <span class="dt">Nothing</span> <span class="ot">=</span> []</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true"></a>  mkArgs (<span class="dt">Just</span> (unitId, pkgDb)) <span class="ot">=</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true"></a>    [<span class="st">&quot;-package-db&quot;</span>, joinPath pkgDb, <span class="st">&quot;-package-id&quot;</span>, unitId]</span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true"></a></span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true"></a>  splitOn a l <span class="ot">=</span> <span class="kw">case</span> <span class="fu">span</span> (<span class="op">/=</span> a) l <span class="kw">of</span></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true"></a>    (h, []) <span class="ot">-&gt;</span> [h]</span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true"></a>    (h, _ <span class="op">:</span> t) <span class="ot">-&gt;</span> h <span class="op">:</span> splitOn a t</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.FilePath</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  (joinPath, splitPath, dropTrailingPathSeparator)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ot">getCabalStoreGhcArgs ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>]</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>getCabalStoreGhcArgs proj <span class="ot">=</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    mkArgs <span class="op">.</span> go <span class="op">.</span> <span class="fu">fmap</span> dropTrailingPathSeparator <span class="op">.</span> splitPath</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  go (<span class="st">&quot;.cabal&quot;</span> <span class="op">:</span> <span class="st">&quot;store&quot;</span> <span class="op">:</span> hc <span class="op">:</span> pid <span class="op">:</span> _) <span class="ot">=</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> splitOn <span class="ch">'-'</span> pid <span class="kw">of</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      [name, _version, _hash] <span class="op">|</span> name <span class="op">==</span> proj</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="ot">-&gt;</span> <span class="dt">Just</span> (pid, [<span class="st">&quot;.cabal&quot;</span>, <span class="st">&quot;store&quot;</span>, hc, <span class="st">&quot;package.db&quot;</span>])</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>      _ <span class="ot">-&gt;</span> <span class="dt">Nothing</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  go (h <span class="op">:</span> t<span class="op">@</span>(_ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _)) <span class="ot">=</span> <span class="fu">fmap</span> (h<span class="op">:</span>) <span class="op">&lt;$&gt;</span> go t</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  go _ <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  mkArgs <span class="dt">Nothing</span> <span class="ot">=</span> []</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  mkArgs (<span class="dt">Just</span> (unitId, pkgDb)) <span class="ot">=</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    [<span class="st">&quot;-package-db&quot;</span>, joinPath pkgDb, <span class="st">&quot;-package-id&quot;</span>, unitId]</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  splitOn a l <span class="ot">=</span> <span class="kw">case</span> <span class="fu">span</span> (<span class="op">/=</span> a) l <span class="kw">of</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    (h, []) <span class="ot">-&gt;</span> [h]</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    (h, _ <span class="op">:</span> t) <span class="ot">-&gt;</span> h <span class="op">:</span> splitOn a t</span></code></pre></div>
 <div class="note">
 <p><em>cabal-install</em> lets you <a href="https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=store-dir#cmdoption-store-dir">override the Cabal store directory</a>. Dyre assumes the default <code>~/.cabal/store/</code>. If the Cabal store is not in the expected place, the detection logic fails.</p>
 </div>
 <p>The final piece of the puzzle is how Dyre learns the application’s library directory that will be the <code>FilePath</code> argument to <code>getCabalStoreGhcArgs</code>. Dyre itself is just a library. We rely on the main program to tell Dyre where its library is located. The only alternative I know of is brittle, operating system-specific hacks.</p>
 <p>Cabal packages can make use of an auto-generated <a href="https://cabal.readthedocs.io/en/3.4/cabal-package.html#accessing-data-files-from-package-code"><code>Paths_&lt;pkgname&gt;</code> module</a>. It provides <code>IO</code> actions that return the installation paths of the package (object files, binaries, data and so on), including:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="ot">getLibDir ::</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">getLibDir ::</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span></code></pre></div>
 <p>Dyre applications can read this value and pass it to Dyre via the <a href="https://hackage.haskell.org/package/dyre-0.9.1/docs/Config-Dyre.html#v:includeDirs"><code>includeDirs</code></a> field in the <code>Params</code> object. Here is a simplified example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">MyApp</span> <span class="kw">where</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Config.Dyre</span> <span class="kw">as</span> <span class="dt">Dyre</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Configuration</span> <span class="ot">=</span> …</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a><span class="ot">defaultConfig ::</span> <span class="dt">Configuration</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>defaultConfig <span class="ot">=</span> …</span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true"></a><span class="ot">realMain ::</span> <span class="dt">Configuration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true"></a>realMain <span class="ot">=</span> …</span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true"></a></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true"></a>  <span class="kw">let</span> params <span class="ot">=</span></span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true"></a>        ( Dyre.newParams <span class="st">&quot;myapp&quot;</span> realMain (<span class="fu">const</span> <span class="fu">error</span>) )</span>
-<span id="cb11-19"><a href="#cb11-19" aria-hidden="true"></a>        { Dyre.includeDirs <span class="ot">=</span> [libdir] }</span>
-<span id="cb11-20"><a href="#cb11-20" aria-hidden="true"></a>  Dyre.wrapMain params defaultConfig</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">MyApp</span> <span class="kw">where</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Config.Dyre</span> <span class="kw">as</span> <span class="dt">Dyre</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Configuration</span> <span class="ot">=</span> …</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultConfig ::</span> <span class="dt">Configuration</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>defaultConfig <span class="ot">=</span> …</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="ot">realMain ::</span> <span class="dt">Configuration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>realMain <span class="ot">=</span> …</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> params <span class="ot">=</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>        ( Dyre.newParams <span class="st">&quot;myapp&quot;</span> realMain (<span class="fu">const</span> <span class="fu">error</span>) )</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>        { Dyre.includeDirs <span class="ot">=</span> [libdir] }</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>  Dyre.wrapMain params defaultConfig</span></code></pre></div>
 <div class="note">
 <p>For Cabal store detection to work, the Dyre project name (<code>myapp</code> in the example above), <strong>must</strong> be the same as the library package name. Otherwise <code>getCabalStoreGhcArgs</code> will fail to detect the package ID to expose.</p>
 </div>
@@ -229,6 +229,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
         </li>
     
@@ -242,10 +246,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>

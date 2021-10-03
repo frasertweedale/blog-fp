@@ -50,8 +50,8 @@
 <p>For reasons unrelated to this investigation, I already had a local instance of <em>hackage-server</em>, running on <code>localhost:8080</code>. In this exercise, it plays the role of the private Hackage repository.</p>
 <h3 id="subject-dependency">Subject dependency <a href="#subject-dependency" class="section">§</a></h3>
 <p>I created a new “internal package” to be the subject of the attack. I chose a silly name suggested by GitHub: <em>redesigned-carnival</em>. Hopefully it will not conflict with anyone’s legitimate needs. While the <a href="https://github.com/frasertweedale/redesigned-carnival">source code</a> is available on GitHub, there’s no need to look at it. The package is trivial, containing a single module whose content is:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
 <p>I uploaded <code>redesigned-carnival-0.1.0.0</code> to the private Hackage repository.</p>
 <h3 id="cabal-install-configuration"><em>cabal-install</em> configuration <a href="#cabal-install-configuration" class="section">§</a></h3>
 <p>The <em>cabal-install</em> configuration lives at <code>~/.cabal/config</code>. By default it contains a single <code>repository</code> clause, pointing at Hackage:</p>
@@ -82,12 +82,12 @@ To revert to previous state run:
     License:  PublicDomain</code></pre>
 <h3 id="vulnerable-dependent-package">Vulnerable dependent package <a href="#vulnerable-dependent-package" class="section">§</a></h3>
 <p>I wrote a tiny package called <em>super-fiesta</em> (cheerful suggestion thanks to GitHub, again). It depends on <em>redesigned-carnival</em>, and prints the value of <code>hello</code>. The <a href="https://github.com/frasertweedale/super-fiesta">source code</a> is on GitHub. Here is the whole program (<code>Main.hs</code>):</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">ACME.RedesignedCarnival</span> (hello)</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a>main <span class="ot">=</span> <span class="fu">putStrLn</span> hello</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">ACME.RedesignedCarnival</span> (hello)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="fu">putStrLn</span> hello</span></code></pre></div>
 <p>With <em>cabal-install</em> now aware of <em>redesigned-carnival</em>, I can build and run this program:</p>
 <pre class="shell"><code>% cd ~/dev/hs/super-fiesta
 % cabal run
@@ -251,6 +251,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
         </li>
     
@@ -264,10 +268,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>

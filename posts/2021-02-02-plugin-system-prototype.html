@@ -37,24 +37,24 @@
 <h2 id="test-bed-program">Test-bed program <a href="#test-bed-program" class="section">§</a></h2>
 <p>I wrote a small, simple program to serve as the test-bed for plugin system experimentation. This program reads a <code>Bool</code> and an <code>Int</code> from user input, negates the number if the <code>Bool</code> is <code>True</code>, and prints the result.</p>
 <p><code>Main.hs</code>:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">System.IO</span> (hFlush, stdout)</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>  <span class="co">-- read start values</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a>  doNegate <span class="ot">&lt;-</span> prompt <span class="st">&quot;negate number? [True|False]&quot;</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>  i <span class="ot">&lt;-</span> prompt <span class="st">&quot;number (Int)&quot;</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true"></a>  (j, doNegate') <span class="ot">&lt;-</span> <span class="fu">flip</span> runStateT doNegate <span class="op">$</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true"></a>    <span class="fu">pure</span> i  <span class="co">-- TODO run plugins</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true"></a></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true"></a>  <span class="co">-- print result</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true"></a>  <span class="kw">let</span> r <span class="ot">=</span> <span class="kw">if</span> doNegate' <span class="kw">then</span> <span class="fu">negate</span> j <span class="kw">else</span> j</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true"></a>  <span class="fu">putStr</span> <span class="st">&quot;result: &quot;</span> <span class="op">*&gt;</span> <span class="fu">print</span> r</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true"></a></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true"></a>  <span class="kw">where</span></span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true"></a>  prompt s <span class="ot">=</span> <span class="fu">putStr</span> (s <span class="op">&lt;&gt;</span> <span class="st">&quot;: &quot;</span>) <span class="op">*&gt;</span> hFlush stdout <span class="op">*&gt;</span> <span class="fu">readLn</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.IO</span> (hFlush, stdout)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- read start values</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  doNegate <span class="ot">&lt;-</span> prompt <span class="st">&quot;negate number? [True|False]&quot;</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  i <span class="ot">&lt;-</span> prompt <span class="st">&quot;number (Int)&quot;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  (j, doNegate') <span class="ot">&lt;-</span> <span class="fu">flip</span> runStateT doNegate <span class="op">$</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pure</span> i  <span class="co">-- </span><span class="al">TODO</span><span class="co"> run plugins</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- print result</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r <span class="ot">=</span> <span class="kw">if</span> doNegate' <span class="kw">then</span> <span class="fu">negate</span> j <span class="kw">else</span> j</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">putStr</span> <span class="st">&quot;result: &quot;</span> <span class="op">*&gt;</span> <span class="fu">print</span> r</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  prompt s <span class="ot">=</span> <span class="fu">putStr</span> (s <span class="op">&lt;&gt;</span> <span class="st">&quot;: &quot;</span>) <span class="op">*&gt;</span> hFlush stdout <span class="op">*&gt;</span> <span class="fu">readLn</span></span></code></pre></div>
 <p>Running the program, telling it to negate the input and giving it the value <code>10</code>, gives the following transcript:</p>
 <pre><code>ftweedal% ./Main
 negate number? [True|False]: True
@@ -81,48 +81,48 @@ result: -10</code></pre>
 <p>In this section I describe the implementation of the prototype plugin system. The code is also available in a <a href="https://github.com/frasertweedale/hs-plugin-system-prototype">Git repository</a>, under the <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0</a> license. You can clone, review, compile, test and experiment with the code yourself.</p>
 <h3 id="language-extensions">Language extensions <a href="#language-extensions" class="section">§</a></h3>
 <p>I define the plugin types and helpers in <code>Plugin.hs</code>. Some language extensions are required:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ot">{-# LANGUAGE RankNTypes #-}</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="ot">{-# LANGUAGE ConstraintKinds #-}</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="ot">{-# LANGUAGE FlexibleContexts #-}</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="ot">{-# LANGUAGE FlexibleInstances #-}</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="ot">{-# LANGUAGE UndecidableInstances #-}</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="ot">{-# LANGUAGE QuantifiedConstraints #-}</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin</span> <span class="kw">where</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE RankNTypes #-}</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE ConstraintKinds #-}</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE FlexibleContexts #-}</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE FlexibleInstances #-}</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE UndecidableInstances #-}</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE QuantifiedConstraints #-}</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Plugin</span> <span class="kw">where</span></span></code></pre></div>
 <p>These extensions are uncontroversial. Only <code>UndecidableInstances</code> is a bit iffy, but it’s safe to use here. I shall indicate the declarations that require these extensions as we encounter them.</p>
 <p><code>Main.hs</code> and the modules defining the plugins themselves do not require any language extensions.</p>
 <h3 id="the-plugin-type">The <code>Plugin</code> type <a href="#the-plugin-type" class="section">§</a></h3>
 <p>The test-bed program will execute plugins in the <code>StateT Bool IO</code> monad transformer stack. Each plugin takes an <code>Int</code> input and returns a (possibly modified) <code>Int</code>. The concrete type is of such a function is:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Plugin</span> <span class="ot">=</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">StateT</span> <span class="dt">Bool</span> <span class="dt">IO</span> <span class="dt">Int</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Plugin</span> <span class="ot">=</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">StateT</span> <span class="dt">Bool</span> <span class="dt">IO</span> <span class="dt">Int</span></span></code></pre></div>
 <p>One of the requirements is that the plugin function type must be abstract, so that the main program’s monad transformer stack can evolve if needed. We also know that different plugins will have different constraints, and that we want to express the constraints in the type. So let’s parameterise the function type over the constraint:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span></code></pre></div>
 <p>That declaration requires the <code>RankNTypes</code> and <code>ConstraintKinds</code> language extensions. To understand <code>ConstraintKinds</code>, let’s look at the <em>kind</em> of <code>Plugin</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>λ<span class="op">&gt;</span> <span class="op">:</span>k <span class="dt">Plugin</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a><span class="dt">Plugin</span><span class="ot"> ::</span> ((<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span>) <span class="ot">-&gt;</span> <span class="dt">Type</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="op">:</span>k <span class="dt">Plugin</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Plugin</span><span class="ot"> ::</span> ((<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span>) <span class="ot">-&gt;</span> <span class="dt">Type</span></span></code></pre></div>
 <p><code>Constraint</code> is the kind of constraints (things that go before <code>=&gt;</code> in a type declaration). The <code>Plugin</code> type constructor has a single argument of kind <code>(Type -&gt; Type) -&gt; Constraint</code>. Here are some things that have that kind:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="dt">Applicative</span><span class="ot">     ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="dt">MonadIO</span><span class="ot">         ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="dt">MonadState</span> <span class="dt">Bool</span><span class="ot"> ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">Applicative</span><span class="ot">     ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">MonadIO</span><span class="ot">         ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="dt">MonadState</span> <span class="dt">Bool</span><span class="ot"> ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span></code></pre></div>
 <p>So we can, for example, apply <code>Plugin</code> to <code>MonadState Bool</code>, to construct the <code>Type</code> of a plugin that can read and write the program state:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="dt">Plugin</span> (<span class="dt">MonadState</span> <span class="dt">Bool</span>)<span class="ot"> ::</span> <span class="dt">Type</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">Plugin</span> (<span class="dt">MonadState</span> <span class="dt">Bool</span>)<span class="ot"> ::</span> <span class="dt">Type</span></span></code></pre></div>
 <p>Defining plugins this way has satisfied the <strong>capabilities</strong> and <strong>abstract</strong> requirements. The capabilities (✓) are visible in the type as abstract type class (✓) constraints.</p>
 <p>In a real world scenario, there might be multiple parts of the main program to hook into. It is also useful to give a plugin a name, so that the program can express which plugins are in use, report errors, and so on. So I turned <code>Plugin</code> into a data type with a name field:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">data</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="dt">Plugin</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>  {<span class="ot"> pluginName ::</span> <span class="dt">String</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  ,<span class="ot"> pluginHook ::</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  }</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="dt">Plugin</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> pluginName ::</span> <span class="dt">String</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> pluginHook ::</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
 <p>For applications with many hooks, it would be nice to wrap the hook fields in <code>Maybe</code> (so the plugin doesn’t have to implement them all). Alternatively, I could provide a helper function that initialises the hooks to “no-op” functions. Plugins would override the hooks they use. For this experiment there is only one hook, so I’ve skipped this for now.</p>
 <h3 id="capabilities">Capabilities <a href="#capabilities" class="section">§</a></h3>
 <p>The plugin system could be used by non-programmers; the types have to make sense to them. What is a <code>Plugin Applicative</code>? What is a <code>Plugin (MonadState Bool)</code>?! I defined type synonyms for the various constraints, to (hopefully) make the plugin system more comprehensible to humans—programmer and non-programmer alike:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Pure</span> <span class="ot">=</span> <span class="dt">Applicative</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">CanIO</span> <span class="ot">=</span> <span class="dt">MonadIO</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">CanRWState</span> <span class="ot">=</span> <span class="dt">MonadState</span> <span class="dt">Bool</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Pure</span> <span class="ot">=</span> <span class="dt">Applicative</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">CanIO</span> <span class="ot">=</span> <span class="dt">MonadIO</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">CanRWState</span> <span class="ot">=</span> <span class="dt">MonadState</span> <span class="dt">Bool</span></span></code></pre></div>
 <p>Now we can say <code>Plugin Pure</code>, or <code>Plugin CanRWState</code>. This addresses the <strong>human-friendly</strong> requirement (in part, at least).</p>
 <p>What if a plugin needs to use multiple capabilities? I first approached this by defining a type synonym:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">type</span> <span class="dt">Unconstrained</span> m <span class="ot">=</span> (<span class="dt">CanIO</span> m, <span class="dt">CanRWState</span> m)</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Unconstrained</span> m <span class="ot">=</span> (<span class="dt">CanIO</span> m, <span class="dt">CanRWState</span> m)</span></code></pre></div>
 <p>Observe that <code>Unconstrained</code> has the required kind:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>λ<span class="op">&gt;</span> <span class="op">:</span>k <span class="dt">Unconstrained</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="dt">Unconstrained</span><span class="ot"> ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="op">:</span>k <span class="dt">Unconstrained</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Unconstrained</span><span class="ot"> ::</span> (<span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Constraint</span></span></code></pre></div>
 <p>Unfortunately, we cannot use <code>Unconstrained</code> as an argument to <code>Plugin</code>, because type synonyms cannot be partially applied:</p>
 <pre><code>λ&gt; :k Plugin Unconstrained
 
@@ -130,67 +130,67 @@ result: -10</code></pre>
     The type synonym ‘Unconstrained’ should have 1 argument,
     but has been given none</code></pre>
 <p>The <a href="https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0242-unsaturated-type-families.rst"><em>Unsaturated Type Families</em></a> proposal, when it lands, will hopefully lift this restriction. Until then, the same effect can be achieved with a type class and corresponding instance. The <code>FlexibleContexts</code>, <code>FlexibleInstances</code> and <code>UndecidableInstances</code> extensions are required for these declarations:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="kw">class</span> (<span class="dt">CanRWState</span> m, <span class="dt">CanIO</span> m) <span class="ot">=&gt;</span> <span class="dt">Unconstrained</span> m <span class="kw">where</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>  <span class="co">-- empty</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a><span class="kw">instance</span> (<span class="dt">CanRWState</span> m, <span class="dt">CanIO</span> m) <span class="ot">=&gt;</span> <span class="dt">Unconstrained</span> m <span class="kw">where</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>  <span class="co">-- empty</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> (<span class="dt">CanRWState</span> m, <span class="dt">CanIO</span> m) <span class="ot">=&gt;</span> <span class="dt">Unconstrained</span> m <span class="kw">where</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- empty</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">CanRWState</span> m, <span class="dt">CanIO</span> m) <span class="ot">=&gt;</span> <span class="dt">Unconstrained</span> m <span class="kw">where</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- empty</span></span></code></pre></div>
 <p>These definitions give an instance for <code>Unconstrained</code> to any type that already has instances for all the constituent capabilities. It was not necessary to mention <code>Pure</code>/<code>Applicative</code> because it is a superclass of the other constraints.</p>
 <h3 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h3>
 <p>Now that I have defined the plugin type and capabilities, let’s implement some plugins.</p>
 <h4 id="plugin.double"><code>Plugin.Double</code> <a href="#plugin.double" class="section">§</a></h4>
 <p><code>Plugin/Double.hs</code> defines a “pure” plugin that doubles the <code>Int</code> value:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.Double</span> <span class="kw">where</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Double&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">*</span><span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Plugin.Double</span> <span class="kw">where</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Double&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">*</span><span class="dv">2</span>)</span></code></pre></div>
 <h4 id="plugin.offset"><code>Plugin.Offset</code> <a href="#plugin.offset" class="section">§</a></h4>
 <p><code>Plugin/Offset.hs</code> defines a “pure” plugin that adds a fixed offset to the <code>Int</code> value. The offset is configurable: applying <code>mkPlugin</code> to the configuration yields the plugin value. This satisfies our <strong>configuration</strong> requirement.</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.Offset</span> <span class="kw">where</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a><span class="ot">mkPlugin ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a>mkPlugin offset <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Offset&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">+</span> offset)</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Plugin.Offset</span> <span class="kw">where</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ot">mkPlugin ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Plugin</span> <span class="dt">Pure</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>mkPlugin offset <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;Offset&quot;</span> <span class="op">$</span> <span class="fu">pure</span> <span class="op">.</span> (<span class="op">+</span> offset)</span></code></pre></div>
 <h4 id="plugin.flipnegate"><code>Plugin.FlipNegate</code> <a href="#plugin.flipnegate" class="section">§</a></h4>
 <p><code>Plugin/FlipNegate.hs</code> defines a plugin that inverts the value of <code>doNegate</code> in the program state. Therefore it is a <code>Plugin CanRWState</code>.</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.FlipNegate</span> <span class="kw">where</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span> (modify)</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanRWState</span></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;FlipNegate&quot;</span> <span class="op">$</span> \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> modify <span class="fu">not</span></span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Plugin.FlipNegate</span> <span class="kw">where</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span> (modify)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanRWState</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;FlipNegate&quot;</span> <span class="op">$</span> \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> modify <span class="fu">not</span></span></code></pre></div>
 <h4 id="plugin.shootlasers"><code>Plugin.ShootLasers</code> <a href="#plugin.shootlasers" class="section">§</a></h4>
 <p><code>Plugin/ShootLasers.hs</code> uses <code>CanIO</code> to shoot the lasers. Watch out!</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="kw">module</span> <span class="dt">Plugin.ShootLasers</span> <span class="kw">where</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Control.Monad.IO.Class</span> (liftIO)</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanIO</span></span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;ShootLasers&quot;</span> <span class="op">$</span></span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a>  \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> liftIO (<span class="fu">putStrLn</span> <span class="st">&quot;pew! pew!&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Plugin.ShootLasers</span> <span class="kw">where</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad.IO.Class</span> (liftIO)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Plugin</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> <span class="dt">CanIO</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;ShootLasers&quot;</span> <span class="op">$</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  \i <span class="ot">-&gt;</span> i <span class="op">&lt;$</span> liftIO (<span class="fu">putStrLn</span> <span class="st">&quot;pew! pew!&quot;</span>)</span></code></pre></div>
 <h3 id="composition">Composition <a href="#composition" class="section">§</a></h3>
 <p>The main program will have a list (or some other container) of zero or more plugins. And it will execute the plugin hooks at the relevant part of the program. OK, let’s build a list of plugins in <code>Main.hs</code>:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a>plugins <span class="ot">=</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>  [ Plugin.Double.plugin</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>  , Plugin.Offset.mkPlugin <span class="dv">100</span></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a>  ]</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a></span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a>main <span class="ot">=</span> …</span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>plugins <span class="ot">=</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  [ Plugin.Double.plugin</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  , Plugin.Offset.mkPlugin <span class="dv">100</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> …</span></code></pre></div>
 <p>So far so good! Now let’s add <code>ShootLasers</code> to the mix:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a>plugins <span class="ot">=</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a>  [ Plugin.Double.plugin</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a>  , Plugin.Offset.mkPlugin <span class="dv">100</span></span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a>  , Plugin.ShootLasers.plugin</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a>  ]</span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a></span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a>main <span class="ot">=</span> …</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>plugins <span class="ot">=</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  [ Plugin.Double.plugin</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  , Plugin.Offset.mkPlugin <span class="dv">100</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  , Plugin.ShootLasers.plugin</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> …</span></code></pre></div>
 <p>Uh oh:</p>
 <pre><code>Main.hs:16:5: error:
     • Couldn't match type ‘MonadIO’ with ‘Applicative’
@@ -209,40 +209,40 @@ result: -10</code></pre>
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^</code></pre>
 <p><code>Applicative</code> is a superclass of <code>MonadIO</code>. Abstract types with these constraints can unify, but the concrete types <code>Plugin MonadIO</code> and <code>Plugin Applicative</code> do not unify. We cannot put them together in a list.</p>
 <p>So when composing plugins, we need a way to <em>relax</em> the constraints of individual plugins to the “lowest common denominator”. That is, we have to construct a list of <code>Plugin Unconstrained</code>. Therefore we need a function to turn a <code>Plugin ctx</code> into a <code>Plugin Unconstrained</code>, provided that <code>Unconstrained</code> “encompasses” <code>ctx</code>. The <code>relax</code> function accomplishes this:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a>relax</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a><span class="ot">  ::</span> (<span class="kw">forall</span> m<span class="op">.</span> ctx' m <span class="ot">=&gt;</span> ctx m)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a>  <span class="ot">=&gt;</span> <span class="dt">Plugin</span> ctx <span class="ot">-&gt;</span> <span class="dt">Plugin</span> ctx'</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a>relax (<span class="dt">Plugin</span> n fs) <span class="ot">=</span> <span class="dt">Plugin</span> n fs</span></code></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>relax</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="kw">forall</span> m<span class="op">.</span> ctx' m <span class="ot">=&gt;</span> ctx m)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">Plugin</span> ctx <span class="ot">-&gt;</span> <span class="dt">Plugin</span> ctx'</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>relax (<span class="dt">Plugin</span> n fs) <span class="ot">=</span> <span class="dt">Plugin</span> n fs</span></code></pre></div>
 <p>Note the constraint: <code>(forall m. ctx' m =&gt; ctx m)</code>. This requires the <code>QuantifiedConstraints</code> language extension. It means that the function is defined only if <code>ctx</code> (the <em>input</em> plugin capability) is implied by <code>ctx'</code> (the <em>output</em> capability).</p>
 <p>Now we can use <code>relax</code> to construct a <code>[Plugin Unconstrained]</code>, because <code>Unconstrained</code> implies all of the individual capabilities available to plugins:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a><span class="ot">plugins ::</span> [<span class="dt">Plugin</span> <span class="dt">Unconstrained</span>]</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a>plugins <span class="ot">=</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a>  [ relax Plugin.Double.plugin</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>  , relax (Plugin.Offset.mkPlugin <span class="dv">100</span>)</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>  , relax Plugin.FlipNegate.plugin</span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>  , relax Plugin.ShootLasers.plugin</span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true"></a>  ]</span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb23-10"><a href="#cb23-10" aria-hidden="true"></a>main <span class="ot">=</span> …</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ot">plugins ::</span> [<span class="dt">Plugin</span> <span class="dt">Unconstrained</span>]</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>plugins <span class="ot">=</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  [ relax Plugin.Double.plugin</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  , relax (Plugin.Offset.mkPlugin <span class="dv">100</span>)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  , relax Plugin.FlipNegate.plugin</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  , relax Plugin.ShootLasers.plugin</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> …</span></code></pre></div>
 <p>The prototype now satisfies the <strong>composition</strong> requirement.</p>
 <h3 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h3>
 <p>The final step is to update the main program to execute the plugins. Where previously we had <code>pure i</code> (and a <code>TODO</code> comment), we now have the Kleisli composition (monadic chaining via <code>(&gt;=&gt;)</code>) of the plugin hook functions, applied to <code>i</code>:</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a>  <span class="co">-- read start values</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a>  doNegate <span class="ot">&lt;-</span> prompt <span class="st">&quot;negate number? [True|False]&quot;</span></span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a>  i <span class="ot">&lt;-</span> prompt <span class="st">&quot;number (Int)&quot;</span></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a></span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a>  (j, doNegate') <span class="ot">&lt;-</span> <span class="fu">flip</span> runStateT doNegate <span class="op">$</span></span>
-<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a>    <span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> (<span class="fu">fmap</span> pluginHook plugins) i</span>
-<span id="cb24-9"><a href="#cb24-9" aria-hidden="true"></a></span>
-<span id="cb24-10"><a href="#cb24-10" aria-hidden="true"></a>  <span class="co">-- print result</span></span>
-<span id="cb24-11"><a href="#cb24-11" aria-hidden="true"></a>  <span class="kw">let</span> r <span class="ot">=</span> <span class="kw">if</span> doNegate' <span class="kw">then</span> <span class="fu">negate</span> j <span class="kw">else</span> j</span>
-<span id="cb24-12"><a href="#cb24-12" aria-hidden="true"></a>  <span class="fu">putStr</span> <span class="st">&quot;result: &quot;</span> <span class="op">*&gt;</span> <span class="fu">print</span> r</span>
-<span id="cb24-13"><a href="#cb24-13" aria-hidden="true"></a></span>
-<span id="cb24-14"><a href="#cb24-14" aria-hidden="true"></a>  <span class="kw">where</span></span>
-<span id="cb24-15"><a href="#cb24-15" aria-hidden="true"></a>  prompt s <span class="ot">=</span> <span class="fu">putStr</span> (s <span class="op">&lt;&gt;</span> <span class="st">&quot;: &quot;</span>) <span class="op">*&gt;</span> hFlush stdout <span class="op">*&gt;</span> <span class="fu">readLn</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- read start values</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  doNegate <span class="ot">&lt;-</span> prompt <span class="st">&quot;negate number? [True|False]&quot;</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  i <span class="ot">&lt;-</span> prompt <span class="st">&quot;number (Int)&quot;</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  (j, doNegate') <span class="ot">&lt;-</span> <span class="fu">flip</span> runStateT doNegate <span class="op">$</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> (<span class="fu">fmap</span> pluginHook plugins) i</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- print result</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r <span class="ot">=</span> <span class="kw">if</span> doNegate' <span class="kw">then</span> <span class="fu">negate</span> j <span class="kw">else</span> j</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">putStr</span> <span class="st">&quot;result: &quot;</span> <span class="op">*&gt;</span> <span class="fu">print</span> r</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>  prompt s <span class="ot">=</span> <span class="fu">putStr</span> (s <span class="op">&lt;&gt;</span> <span class="st">&quot;: &quot;</span>) <span class="op">*&gt;</span> hFlush stdout <span class="op">*&gt;</span> <span class="fu">readLn</span></span></code></pre></div>
 <p>This time running the program, telling it to negate the input and giving it the value <code>10</code>, gives the following transcript:</p>
 <pre><code>ftweedal% ./Main
 negate number? [True|False]: True
@@ -261,13 +261,13 @@ result: 120</code></pre>
 <h3 id="paranoia">Paranoia <a href="#paranoia" class="section">§</a></h3>
 <p>It’s all good and well that plugins express their types. But what’s to stop a <code>Plugin Pure</code> sneakily evolving into a <code>Plugin CanIO</code> upon a new release, and compromising your system?</p>
 <p>The paranoid user can mitigate this risk by providing explicit type signatures for each plugin installed in the main program:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="ot">plugins ::</span> [<span class="dt">Plugin</span> <span class="dt">Unconstrained</span>]</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a>plugins <span class="ot">=</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a>  [ relax (Plugin.Double.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span>)</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a>  , relax (Plugin.Offset.mkPlugin <span class="dv">100</span><span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span>)</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true"></a>  , relax (Plugin.FlipNegate.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">CanRWState</span>)</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true"></a>  , relax (Plugin.ShootLasers.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">CanIO</span>)</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true"></a>  ]</span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ot">plugins ::</span> [<span class="dt">Plugin</span> <span class="dt">Unconstrained</span>]</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>plugins <span class="ot">=</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  [ relax (Plugin.Double.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span>)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  , relax (Plugin.Offset.mkPlugin <span class="dv">100</span><span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">Pure</span>)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  , relax (Plugin.FlipNegate.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">CanRWState</span>)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  , relax (Plugin.ShootLasers.plugin<span class="ot"> ::</span> <span class="dt">Plugin</span> <span class="dt">CanIO</span>)</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
 <p>If any plugin releases a new version that require additional (or fewer) capabilities its type will change, resulting in a type error. For example, if <code>Double</code> becomes a <code>Plugin CanIO</code>, GHC gives the following type error:</p>
 <pre><code>Main.hs:14:12: error:
     • Couldn't match type ‘MonadIO’ with ‘Applicative’
@@ -315,6 +315,10 @@ Recent posts:
 <ul>
     
         <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
         </li>
     
@@ -328,10 +332,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-05-12-types-garden-path.html">Type-guided development and garden paths</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-03-30-purebred-plugins-implementation.html">Purebred plugin system: implementation</a>
         </li>
     
 </ul>
