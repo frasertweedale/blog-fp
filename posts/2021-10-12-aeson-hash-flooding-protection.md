@@ -69,11 +69,14 @@ The `Map` version also behaves differently from `HashMap`.  In
 particular, objects may be serialised with a different key order,
 and object keys are iterated in different orders.  And who knows
 what systems out there depend on the key order in some way, even
-though they should not.  Also, these data structures have different
-performance characteristics, with `Map` having *O(log n)* insertion
-and lookup time.  `HashMap` insertion and lookup are amortised
-*O(1)*, degrating to *O(n)* for pathological inputs—which is the
-cause of the vulnerability!
+though they should not.  That is a big reason why the maintainers
+felt it was necessary to keep the option of using `HashMap`.
+
+Also, these data structures have different performance
+characteristics, with `Map` having *O(log n)* insertion and lookup
+time.  `HashMap` insertion and lookup are amortised *O(1)*,
+degrading to *O(n)* for pathological inputs—which is the cause of
+the vulnerability!
 
 
 ## Compiling a safe version of aeson
