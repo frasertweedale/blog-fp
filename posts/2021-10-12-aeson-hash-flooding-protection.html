@@ -69,8 +69,8 @@ constraints:
 <h2 id="what-about-other-things-that-use-hashmap">What about other things that use <code>HashMap</code>? <a href="#what-about-other-things-that-use-hashmap" class="section">§</a></h2>
 <p>The <code>HashMap</code> data structure from <em>unordered-containers</em> remains vulnerable to hash flooding attacks. Users and maintainers are discussion potential solutions and mitigations in <a href="https://github.com/haskell-unordered-containers/unordered-containers/issues/319">issue #319</a>. There are several interesting ideas, including:</p>
 <ul>
-<li><p>Initialise the library with a random salt, via <code>unsafePerformIO</code>. Many libraries in other language ecosystems take this approach. But it breaks referential integrity. Values and orders will not be stable across different executions.</p></li>
-<li><p>Use a more collision-resistant hash algorithms, or multiple hashes, to make it harder to compute collisions.</p></li>
+<li><p>Initialise the library with a random salt, via <code>unsafePerformIO</code>. Many libraries in other language ecosystems use this approach. But it breaks referential integrity. Values and orders will not be stable across different executions.</p></li>
+<li><p>Use a more collision-resistant hash algorithm, or multiple hashes, to make it harder to compute collisions.</p></li>
 <li><p>Don’t do anything, because the other ideas come with performance or usability penalties. If your program needs to be safe against hash flooding, employ other mitigations (size check, rate limiting, etc) or use an ordered map.</p></li>
 </ul>
 <p>This discussion is ongoing. The only change so far is to add a security advisory to the package description.</p>
