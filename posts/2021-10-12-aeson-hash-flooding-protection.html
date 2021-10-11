@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - How to protect aeson code from hash flooding</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"How to protect aeson code from hash flooding","datePublished":"2021-10-12T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-10-12-aeson-hash-flooding-protection.html" /><meta property="og:title" content="How to protect aeson code from hash flooding" /><meta property="og:description" content="A new aeson release addresses the hash flooding issue, but you need more than a version bump to ensure your programs are protected." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'security'." href="../tags/security.html">security</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="how-to-protect-aeson-code-from-hash-flooding">How to protect <em>aeson</em> code from hash flooding</h1>
+<p>A few weeks ago Tom Sydney Kerckhove (<a href="https://twitter.com/kerckhove_ts/">@kerckhove_ts</a>) published <a href="https://cs-syd.eu/posts/2021-09-11-json-vulnerability">an excellent writeup</a> of a serious DoS vulnerability in <a href="https://hackage.haskell.org/package/aeson"><em>aeson</em></a>, a widely used Haskell JSON library. <span class="abstract">A new <em>aeson</em> release addresses the hash flooding issue, but you <strong>need more than a version bump</strong> to ensure your programs are protected.</span> This post outlines how <em>aeson</em> addressed the vulnerability and what action <em>you</em> need to take.</p>
+<h2 id="overview-of-the-issue">Overview of the issue <a href="#overview-of-the-issue" class="section">§</a></h2>
+<p><a href="https://cs-syd.eu/posts/2021-09-11-json-vulnerability">Tom’s article</a> is great and if you want the gory details, go read it. There’s no need for me to repeat it here. It’s enough to say that the attack, called <em>hash flooding</em> or <em>hash DoS</em>, exploits the behaviour of the <a href="https://hackage.haskell.org/package/unordered-containers-0.2.14.0/docs/Data-HashMap-Lazy.html"><code>HashMap</code></a> implementation from <em>unordered-containers</em>, which <em>aeson</em> used. It results in a denial of service through CPU consumption. This technique has been used in real-world attacks against a variety of languages, libraries and frameworks over the years.</p>
+<h2 id="am-i-vulnerable">Am I vulnerable? <a href="#am-i-vulnerable" class="section">§</a></h2>
+<p>If you are using <code>aeson &lt; 2.0.0.0</code> and processing JSON from untrusted sources, you are probably vulnerable. You could mitigate the attack by refusing to decode large inputs, if your use case allows it. Rate limiting may be a possible mitigation for some applications.</p>
+<h2 id="how-did-aeson-address-the-vulnerability">How did <em>aeson</em> address the vulnerability? <a href="#how-did-aeson-address-the-vulnerability" class="section">§</a></h2>
+<p>Whereas prior versions used <code>HashMap</code> directly, starting at version <code>2.0.0.0</code> <em>aeson</em> abstracts the map implementation behind a new data type: <a href="https://hackage.haskell.org/package/aeson-2.0.1.0/docs/src/Data.Aeson.KeyMap.html"><code>Data.Aeson.KeyMap</code></a>. The <code>ordered-keymap</code> Cabal flag selects the underlying implementation. When set, <em>aeson</em> uses the <code>Ord</code>-based <a href="https://hackage.haskell.org/package/containers-0.6.0.1/docs/Data-Map-Lazy.html#t:Map"><code>Map</code></a> from <em>containers</em>. If unset, <em>aeson</em> uses <a href="https://hackage.haskell.org/package/unordered-containers-0.2.14.0/docs/Data-HashMap-Lazy.html"><code>HashMap</code></a>.</p>
+<p>Version <code>2.0.0.0</code> defaults the flag to <code>False</code>. As of <code>2.0.1.0</code> it defaults to <code>True</code>. Importantly, the maintainers offer <a href="https://github.com/haskell/aeson/issues/864#issuecomment-939363297"><strong>no guarantee that the default won’t change again</strong></a>. So if you use <em>aeson</em> and want to protect yourself from hash flooding attacks, take the extra precautions outlined in the following sections.</p>
+<p>This is an API-breaking change, hence the major version bump. Most users will not have to change much code, but there will be exceptions (I had to change quite a lot for <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a>).</p>
+<p>The <code>Map</code> version also behaves differently from <code>HashMap</code>. In particular, objects may be serialised with a different key order, and object keys are iterated in different orders. And who knows what systems out there depend on the key order in some way, even though they should not. Also, these data structures have different performance characteristics, with <code>Map</code> having <em>O(log n)</em> insertion and lookup time. <code>HashMap</code> insertion and lookup are amortised <em>O(1)</em>, degrating to <em>O(n)</em> for pathological inputs—which is the cause of the vulnerability!</p>
+<h2 id="compiling-a-safe-version-of-aeson">Compiling a safe version of aeson <a href="#compiling-a-safe-version-of-aeson" class="section">§</a></h2>
+<p>If you have a program or library that uses <em>aeson</em>, you need to ensure that the <em>aeson</em> you link against was compiled with the <code>ordered-keymap</code> flag. There is no way to express this condition in a <code>.cabal</code> file, but you can <em>can</em> express these constraints in the <code>cabal.project</code> file:</p>
+<pre><code>packages: .
+constraints:
+  aeson +ordered-keymap</code></pre>
+<p>For Stack users, configure the flag in your <code>stack.yaml</code>:</p>
+<pre><code>flags:
+  aeson:
+    ordered-keymap: true</code></pre>
+<p>If you’re building and installing <em>aeson</em> directly, via <em>cabal-install</em> (the <code>cabal</code> program), you can use the <code>--flags=ordered-keymap</code> command line option.</p>
+<h2 id="runtime-checks">Runtime checks <a href="#runtime-checks" class="section">§</a></h2>
+<p>In your program or library you can also detect the <code>KeyMap</code> implementation at runtime. If you detect <code>HashMap</code> you could abort, emit a warning, or employ other mitigations like limiting the input size.</p>
+<p><code>Data.Aeson.KeyMap</code> exports the following types:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>coercionToHashMap</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">Maybe</span> (<span class="dt">Coercion</span> (<span class="dt">HashMap</span> <span class="dt">Key</span> v) (<span class="dt">KeyMap</span> v))</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>coercionToMap</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">Maybe</span> (<span class="dt">Coercion</span>     (<span class="dt">Map</span> <span class="dt">Key</span> v) (<span class="dt">KeyMap</span> v))</span></code></pre></div>
+<p>The values are coercions—proofs of representational equality enabling zero-cost conversions; see <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Type-Coercion.html#t:Coercion"><code>Data.Type.Coercion</code></a>. Only one of <code>HashMap</code> or <code>Map</code> is actually used, which is why they’re wrapped in <code>Maybe</code>. The map implementation that <em>aeson</em> is using has a non-<code>Nothing</code> coercion.</p>
+<p>In <a href="https://hackage.haskell.org/package/jose"><em>jose</em></a> I will export the following value to make it easy for library users to check that the implementation is safe from hash flooding:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">vulnerableToHashFlood ::</span> <span class="dt">Bool</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>vulnerableToHashFlood <span class="ot">=</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">case</span> KeyMap.coercionToMap <span class="kw">of</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> _  <span class="ot">-&gt;</span> <span class="dt">False</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span> <span class="ot">-&gt;</span> <span class="dt">True</span></span></code></pre></div>
+<p>Users can (and hopefully will) check that value and respond in whatever way is suitable for their use case. I might go even further and cause all JWS processing to immediately fail when the vulnerable implementation is detected, unless the caller overrides this behaviour.</p>
+<h2 id="what-about-other-things-that-use-hashmap">What about other things that use <code>HashMap</code>? <a href="#what-about-other-things-that-use-hashmap" class="section">§</a></h2>
+<p>The <code>HashMap</code> data structure from <em>unordered-containers</em> remains vulnerable to hash flooding attacks. Users and maintainers are discussion potential solutions and mitigations in <a href="https://github.com/haskell-unordered-containers/unordered-containers/issues/319">issue #319</a>. There are several interesting ideas, including:</p>
+<ul>
+<li><p>Initialise the library with a random salt, via <code>unsafePerformIO</code>. Many libraries in other language ecosystems take this approach. But it breaks referential integrity. Values and orders will not be stable across different executions.</p></li>
+<li><p>Use a more collision-resistant hash algorithms, or multiple hashes, to make it harder to compute collisions.</p></li>
+<li><p>Don’t do anything, because the other ideas come with performance or usability penalties. If your program needs to be safe against hash flooding, employ other mitigations (size check, rate limiting, etc) or use an ordered map.</p></li>
+</ul>
+<p>This discussion is ongoing. The only change so far is to add a security advisory to the package description.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p><code>aeson &gt;= 2.0.0.0</code> has mitigated the hash flooding vulnerability. Users of the library must take specific action not only to upgrade <em>aeson</em> to the latest version, but also ensure it is compiled with the correct flags. Programs can also perform runtime checks and take appropriate action if <em>aeson</em> is using <code>HashMap</code>.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2021-10-12-aeson-hash-flooding-protection.html">How to protect <em>aeson</em> code from hash flooding</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-05-23-tax-combinators.html">A combinator library for taxes</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
