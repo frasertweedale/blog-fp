@@ -159,12 +159,12 @@ discussion potential solutions and mitigations in [issue #319][issue-u-c].
 There are several interesting ideas, including:
 
 - Initialise the library with a random salt, via `unsafePerformIO`.
-  Many libraries in other language ecosystems take this approach.
+  Many libraries in other language ecosystems use this approach.
   But it breaks referential integrity.  Values and orders will not
   be stable across different executions.
 
-- Use a more collision-resistant hash algorithms, or multiple
-  hashes, to make it harder to compute collisions.
+- Use a more collision-resistant hash algorithm, or multiple hashes,
+  to make it harder to compute collisions.
 
 - Don't do anything, because the other ideas come with performance
   or usability penalties.  If your program needs to be safe against
