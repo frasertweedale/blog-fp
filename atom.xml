@@ -8,8 +8,122 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2021-10-12T00:00:00Z</updated>
+    <updated>2021-11-12T00:00:00Z</updated>
     <entry>
+    <title>Haddock: disambiguating types and values</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-11-12-haddock-disambiguation.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2021-11-12-haddock-disambiguation.html</id>
+    <published>2021-11-12T00:00:00Z</published>
+    <updated>2021-11-12T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="haddock-disambiguating-types-and-values">Haddock: disambiguating types and values</h1>
+<p>Haskell has separate namespaces for types and values. When types and data constructors share a name, <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">Haddock</a>, Haskell’s documentation generator, can get confused. <span class="abstract">In this post I show how to disambiguate types and values in Haddock documentation.</span></p>
+<h2 id="demonstrating-the-problem">Demonstrating the problem <a href="#demonstrating-the-problem" class="section">§</a></h2>
+<p>For demonstration purposes I created a simple module, <code>ACME.Disamb</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb</span> (<span class="dt">Foo</span>(<span class="op">..</span>), <span class="dt">Bar</span>(<span class="op">..</span>), <span class="dt">Quux</span>, <span class="dt">Xyxxy</span>) <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Foo</span> <span class="ot">=</span> <span class="dt">Foo</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- | A bar contains a &#39;Foo&#39;.  Example:</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- @let bar = &#39;Bar&#39; &#39;Foo&#39;@</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Bar</span> <span class="ot">=</span> <span class="dt">Bar</span> <span class="dt">Foo</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Quux</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Xyxxy</span> a</span></code></pre></div>
+<p>Note that <code>Foo</code> is the name of both a type and a data constructor. Same for <code>Bar</code>. <code>Quux</code> is a type with no constructor and <code>Xyxxy</code> is a class. The Haddock for type <code>Bar</code> contains ambiguous references to both <code>Bar</code> and <code>Foo</code>.</p>
+<p>Let’s look at the HTML Haddock generated for each top-level declaration:</p>
+<h3 id="data-foo"><code>data Foo</code> <a href="#data-foo" class="section">§</a></h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;span</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;keyword&quot;</span><span class="kw">&gt;</span>data<span class="kw">&lt;/span&gt;</span> <span class="kw">&lt;a</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;t:Foo&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;def&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#t:Foo&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;selflink&quot;</span><span class="kw">&gt;</span>#<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;subs constructors&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;caption&quot;</span><span class="kw">&gt;</span>Constructors<span class="kw">&lt;/p&gt;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;table&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">&lt;tbody&gt;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">&lt;tr&gt;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>          <span class="kw">&lt;td</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;&lt;a</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;v:Foo&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;def&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;&lt;/td&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>          <span class="kw">&lt;td</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;doc empty&quot;</span><span class="kw">&gt;</span><span class="dv">&amp;nbsp;</span><span class="kw">&lt;/td&gt;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">&lt;/tr&gt;</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>      <span class="kw">&lt;/tbody&gt;</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;/table&gt;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p>The element representing type <code>Foo</code> has <code>id="t:Foo"</code>, whereas the constructor has <code>id="v:Foo"</code>. These identifiers can be used as fragment identifiers in hyperlinks. Types and values are disambiguated through the <code>t:…</code> and <code>v:…</code> identifier prefixes.</p>
+<h3 id="data-bar"><code>data Bar</code> <a href="#data-bar" class="section">§</a></h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;span</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;keyword&quot;</span><span class="kw">&gt;</span>data<span class="kw">&lt;/span&gt;</span> <span class="kw">&lt;a</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;t:Bar&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;def&quot;</span><span class="kw">&gt;</span>Bar<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#t:Bar&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;selflink&quot;</span><span class="kw">&gt;</span>#<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;doc&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;p&gt;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>      A bar contains a</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#t:Foo&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;&lt;/code&gt;</span>. Example:</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;pre&gt;</span>let bar = <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#t:Bar&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Bar<span class="kw">&lt;/a&gt;&lt;/code&gt;</span> <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#t:Foo&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;&lt;/code&gt;&lt;/pre&gt;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- constructors elided --&gt;</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p>Here we can see that all references to <code>Foo</code> and <code>Bar</code> in the documentation I wrote <strong>all link to <code>t:Foo</code> or <code>t:Bar</code></strong>. This is not what I intended. The usage example should refer to the data constructors.</p>
+<p>In my example this is a minor nuisance, but recall that <code>Foo</code> could be the constructor of some other type. The <em>type</em> <code>Foo</code> could be unrelated!</p>
+<h3 id="data-quux"><code>data Quux</code> <a href="#data-quux" class="section">§</a></h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;span</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;keyword&quot;</span><span class="kw">&gt;</span>data<span class="kw">&lt;/span&gt;</span> <span class="kw">&lt;a</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;t:Quux&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;def&quot;</span><span class="kw">&gt;</span>Quux<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#t:Quux&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;selflink&quot;</span><span class="kw">&gt;</span>#<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p><code>Quux</code> has no constructor. As a result, there is no element with <code>id="v:…"</code>.</p>
+<h3 id="class-xyxxy-a"><code>class Xyxxy a</code> <a href="#class-xyxxy-a" class="section">§</a></h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;span</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;keyword&quot;</span><span class="kw">&gt;</span>class<span class="kw">&lt;/span&gt;</span> <span class="kw">&lt;a</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;t:Xyzzy&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;def&quot;</span><span class="kw">&gt;</span>Xyzzy<span class="kw">&lt;/a&gt;</span> a</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#t:Xyzzy&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;selflink&quot;</span><span class="kw">&gt;</span>#<span class="kw">&lt;/a&gt;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p>Type class names inhabit the type namespace. Therefore the corresponding element identifiers also use the <code>t:…</code> prefix.</p>
+<h2 id="the-solution">The solution <a href="#the-solution" class="section">§</a></h2>
+<p>To refer explicitly to a type or value, prefix the reference with <code>t</code> or <code>v</code>. For example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | A bar contains a &#39;Foo&#39;.  Example:</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- @let bar = v&#39;Bar&#39; v&#39;Foo&#39;@</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Bar</span> <span class="ot">=</span> <span class="dt">Bar</span> <span class="dt">Foo</span></span></code></pre></div>
+<p>The resulting HTML</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>…</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;doc&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;p&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>      A bar contains a</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>      <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#t:Foo&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;&lt;/code&gt;</span>. Example:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;pre&gt;</span>let bar = <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#v:Bar&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Bar<span class="kw">&lt;/a&gt;&lt;/code&gt;</span> <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#v:Foo&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Foo<span class="kw">&lt;/a&gt;&lt;/code&gt;&lt;/pre&gt;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
+<div class="note">
+<p>This feature is available since <a href="https://hackage.haskell.org/package/haddock-2.23.0/changelog">haddock-2.23.0</a> (<a href="https://github.com/haskell/haddock/commit/dd47029cb29c80b1ab4db520c9c2ce4dca37f833">commit</a>). The published <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">user guide</a> is out of date but you can read <a href="https://github.com/haskell/haddock/blob/haddock-2.25.0-release/doc/markup.rst#hyperlinked-identifiers">up-to-date documentation on GitHub</a>.</p>
+</div>
+<h2 id="inter-module-references">Inter-module references <a href="#inter-module-references" class="section">§</a></h2>
+<p>Consider the following module:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | See also &#39;ACME.Disamb.Quux&#39;.</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb2</span> <span class="kw">where</span></span></code></pre></div>
+<p>Unlike references <em>within</em> a module, inter-module references default to the <em>value</em> namespace:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;caption&quot;</span><span class="kw">&gt;</span>Description<span class="kw">&lt;/p&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;doc&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    See also</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#v:Quux&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Quux<span class="kw">&lt;/a&gt;&lt;/code&gt;</span>.</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p>Recall that <code>Quux</code> has no constructor. So the link doesn’t even target the wrong identifier; it targets a <em>non-existent</em> identifier.</p>
+<p>The solution is the same: prefix the whole reference with <code>t</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | See also t&#39;ACME.Disamb.Quux&#39;.</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb2</span> <span class="kw">where</span></span></code></pre></div>]]></summary>
+</entry>
+<entry>
     <title>How to protect aeson code from hash flooding</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2021-10-12-aeson-hash-flooding-protection.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2021-10-12-aeson-hash-flooding-protection.html</id>
@@ -1028,229 +1142,6 @@ Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
 <p>One area I have identified for future development is recording file hashes to detect changes. This is important to support the <strong>Nix</strong> packaging system, which sets all files’ creation and modification times to the epoch. It will also help with <strong>downgrades</strong>, where the main executable’s modification time decreases.</p>
 <p>This known gap is the reason I didn’t release a new version in the almost two years since I became the maintainer. I kept thinking, <em>“I should really fix that first”</em>. But I still haven’t implemented file hashing, and don’t have immediate plans to. So I decided not to delay any longer the release of the improvements I <em>have</em> made.</p>
 <p>If Nix support or other features are particularly important to you, please consider contributing to Dyre. You can create issues and pull requests <a href="https://github.com/willdonnelly/dyre">on GitHub</a>, or reach out to me directly.</p>]]></summary>
-</entry>
-<entry>
-    <title>Haskell is vulnerable to dependency confusion</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-02-12-haskell-dependency-confusion.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-02-12-haskell-dependency-confusion.html</id>
-    <published>2021-02-12T00:00:00Z</published>
-    <updated>2021-02-12T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="haskell-is-vulnerable-to-dependency-confusion">Haskell is vulnerable to dependency confusion</h1>
-<p>In this post, I demonstrate that critical parts of the Haskell package management system are vulnerable to the <em>dependency confusion</em> supply chain attack. I also discuss some potential approaches for Haskell tooling to mitigate this type of attack.</p>
-<h2 id="introduction">Introduction <a href="#introduction" class="section">§</a></h2>
-<p>A recent post, <a href="https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610"><em>Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies</em></a> by Alex Birsan, caused quite a stir. It describes an attack where the attacker uploads malicious packages with the same name as target organisations’ <em>internal</em> packages. If the version on the public repository is higher, most tools will prefer it. The malicious package compromises the developer’s machine, or the machines that run the program the developer builds, or the users who interact with that program over the network. Maybe all three.</p>
-<p>The author successfully executed the dependency confusion attacks using <code>npm</code> (NodeJS), PyPI/<code>pip</code> (Python) and RubyGems/<code>gem</code> (Ruby). In the conclusion, he raises the spectre of other languages and package repositories being likewise vulnerable:</p>
-<blockquote>
-<p>Specifically, I believe that finding new and clever ways to leak internal package names will expose even more vulnerable systems, and looking into alternate programming languages and repositories to target will reveal some additional attack surface for dependency confusion bugs.</p>
-</blockquote>
-<p>So, is the Haskell ecosystem vulnerable to this attack? I assume you read the post title or abstract and therefore know that the answer to that question is <em>yes!</em> In the following sections I demonstrate the attack and discuss possible mitigations.</p>
-<h2 id="terminology">Terminology <a href="#terminology" class="section">§</a></h2>
-<ul>
-<li><p><strong><em>hackage-server</em></strong>: the server program for running a Haskell package repository.</p></li>
-<li><p><strong><em>Hackage</em></strong>: in isolation, refers to the Haskell community’s central package repository. It runs <em>hackage-server</em> and is located at <a href="https://hackage.haskell.org/"><strong><code>hackage.haskell.org</code></strong></a>.</p></li>
-<li><p><strong><em>Cabal</em></strong>: the name of the Haskell package description format, and a library for working with such packages.</p></li>
-<li><p><strong><em>cabal-install</em></strong>: the command line program for building and installing <em>Cabal</em> packages. The executable name is <strong><code>cabal</code></strong>. <em>cabal-install</em> uses the <em>Cabal</em> library and interacts with <em>hackage-server</em> servers (most commonly <code>hackage.haskell.org</code>).</p></li>
-<li><p><strong><em>Private Hackage</em></strong>: a <em>hackage-server</em> instance operated for the purpose of hosting private or internal packages.</p></li>
-</ul>
-<h2 id="preparation">Preparation <a href="#preparation" class="section">§</a></h2>
-<h3 id="private-hackage-repository">Private Hackage repository <a href="#private-hackage-repository" class="section">§</a></h3>
-<p>For reasons unrelated to this investigation, I already had a local instance of <em>hackage-server</em>, running on <code>localhost:8080</code>. In this exercise, it plays the role of the private Hackage repository.</p>
-<h3 id="subject-dependency">Subject dependency <a href="#subject-dependency" class="section">§</a></h3>
-<p>I created a new “internal package” to be the subject of the attack. I chose a silly name suggested by GitHub: <em>redesigned-carnival</em>. Hopefully it will not conflict with anyone’s legitimate needs. While the <a href="https://github.com/frasertweedale/redesigned-carnival">source code</a> is available on GitHub, there’s no need to look at it. The package is trivial, containing a single module whose content is:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.RedesignedCarnival</span> <span class="kw">where</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>hello <span class="ot">=</span> <span class="st">&quot;Hello, world!&quot;</span></span></code></pre></div>
-<p>I uploaded <code>redesigned-carnival-0.1.0.0</code> to the private Hackage repository.</p>
-<h3 id="cabal-install-configuration"><em>cabal-install</em> configuration <a href="#cabal-install-configuration" class="section">§</a></h3>
-<p>The <em>cabal-install</em> configuration lives at <code>~/.cabal/config</code>. By default it contains a single <code>repository</code> clause, pointing at Hackage:</p>
-<pre><code>repository hackage.haskell.org
-  url: http://hackage.haskell.org/</code></pre>
-<p>I added a second <code>repository</code> clause, pointing at my local Hackage server:</p>
-<pre><code>repository localhost
-  url: http://localhost:8080/</code></pre>
-<p>With the <code>repository</code> configured, I proceeded to update the local package index via <code>cabal update</code>.</p>
-<div class="note">
-<p>Due to a bug in the <a href="https://hackage.haskell.org/package/HTTP"><em>HTTP</em></a> package, updating the index fails when the repository URL specifies a port. The workaround is to tell <em>cabal-install</em> to use a different HTTP transport. Set the <code>http-transport</code> option in <code>~/.cabal/config</code>:</p>
-<pre><code>-- valid values: curl, wget, powershell
-http-transport: curl</code></pre>
-<p>I submitted a <a href="https://github.com/haskell/HTTP/pull/133">pull request</a> to fix this issue.</p>
-</div>
-<pre class="shell"><code>% cabal update
-Downloading the latest package lists from:
-- localhost
-- hackage.haskell.org
-To revert to previous state run:
-    cabal v2-update &#39;hackage.haskell.org,2021-02-08T02:13:51Z&#39;</code></pre>
-<p>We can see that the <code>localhost</code> index was retrieved. <em>cabal-install</em> is now aware of packages in my private Hackage server:</p>
-<pre class="shell"><code>% cabal list redesigned-carnival
-* redesigned-carnival
-    Synopsis: Package for dependency confusion
-    Default available version: 0.1.0.0
-    Installed versions: [ Not installed ]
-    License:  PublicDomain</code></pre>
-<h3 id="vulnerable-dependent-package">Vulnerable dependent package <a href="#vulnerable-dependent-package" class="section">§</a></h3>
-<p>I wrote a tiny package called <em>super-fiesta</em> (cheerful suggestion thanks to GitHub, again). It depends on <em>redesigned-carnival</em>, and prints the value of <code>hello</code>. The <a href="https://github.com/frasertweedale/super-fiesta">source code</a> is on GitHub. Here is the whole program (<code>Main.hs</code>):</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">ACME.RedesignedCarnival</span> (hello)</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="fu">putStrLn</span> hello</span></code></pre></div>
-<p>With <em>cabal-install</em> now aware of <em>redesigned-carnival</em>, I can build and run this program:</p>
-<pre class="shell"><code>% cd ~/dev/hs/super-fiesta
-% cabal run
-Resolving dependencies...
-Downloading  redesigned-carnival-0.1.0.0
-Downloaded   redesigned-carnival-0.1.0.0
-Build profile: -w ghc-8.8.4 -O1
-In order, the following will be built (use -v for more details):
- - redesigned-carnival-0.1.0.0 (lib) (requires build)
- - super-fiesta-0.1.0.0 (exe:super-fiesta) (first run)
-Starting     redesigned-carnival-0.1.0.0 (lib)
-Building     redesigned-carnival-0.1.0.0 (lib)
-Installing   redesigned-carnival-0.1.0.0 (lib)
-Completed    redesigned-carnival-0.1.0.0 (lib)
-Configuring executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Preprocessing executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Building executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-[1 of 1] Compiling Main             ( Main.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta-tmp/Main.o )
-Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
-Hello, world!</code></pre>
-<h3 id="determining-internal-package-names">Determining internal package names <a href="#determining-internal-package-names" class="section">§</a></h3>
-<p>The attack requires knowing, or guessing, internal package names. Approaches that apply to Haskell code include:</p>
-<ul>
-<li><p>Search for mentions of internal libraries in public code, blog posts, presentations, and so on.</p></li>
-<li><p>Scan non-stripped binaries delivered by the target organisation.</p></li>
-<li><p>If there is an organisation-specific package naming convention, make some educated guesses.</p></li>
-<li><p>Use any other kind of exploit (including social engineering) to discover internal package names.</p></li>
-</ul>
-<p>I will assume that the hypothetical attacker has learned, somehow, that I have an internal package named <em>redesigned-carnival</em>, and will attempt to use dependency confusion to attack me. This is an appropriate assumption.</p>
-<h2 id="attack">Attack <a href="#attack" class="section">§</a></h2>
-<p>I bumped the version of <em>redesigned-carnival</em> to <code>1.0.0.0</code>, and <a href="https://hackage.haskell.org/package/redesigned-carnival">uploaded it to Hackage</a>. A real-world attacker might upload <em>many</em> different versions, in the hope of matching a range of possible constraints.</p>
-<p>The version uploaded to Hackage does not contain any malicious behaviour. But I changed the <code>hello</code> string to <code>"Mwahaha"</code>. If we see this sinister-looking string, we’ll know the attack succeeded.</p>
-<p>After another <code>cabal update</code>, <em>cabal-install</em> is aware of the new version of <em>redesigned-carnival</em>:</p>
-<pre class="shell"><code>% cabal list redesigned-carnival
-* redesigned-carnival
-    Synopsis: Package for dependency confusion
-    Default available version: 1.0.0.0
-    Installed versions: [ Not installed ]
-    License:  PublicDomain</code></pre>
-<p>The <em>Default available version</em> line shows that, by default, <em>cabal-install</em> will prefer the highest version of package. To confirm that it was not merely the <em>most recently uploaded</em> version of a package, I created version <code>0.2.0.0</code>, uploaded it to my <em>private</em> Hackage server, and ran <code>cabal update</code>. <code>cabal list</code> still showed version <code>1.0.0.0</code> as the default version.</p>
-<p>This is what <em>cabal-install</em> did the next time I built (and ran) <em>super-fiesta</em>:</p>
-<pre class="shell"><code>% cabal run
-Resolving dependencies...
-Build profile: -w ghc-8.8.4 -O1
-In order, the following will be built (use -v for more details):
- - redesigned-carnival-1.0.0.0 (lib) (requires build)
- - super-fiesta-0.1.0.0 (exe:super-fiesta) (configuration changed)
-Starting     redesigned-carnival-1.0.0.0 (lib)
-Building     redesigned-carnival-1.0.0.0 (lib)
-Installing   redesigned-carnival-1.0.0.0 (lib)
-Completed    redesigned-carnival-1.0.0.0 (lib)
-Configuring executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Preprocessing executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Building executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-[1 of 1] Compiling Main             ( Main.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta-tmp/Main.o ) [ACME.RedesignedCarnival changed]
-Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
-Mwahaha</code></pre>
-<p>Owned. <em>cabal-install</em> saw that there was a new version of <em>redesigned-carnival</em> compatible with the constraints (because there are no constraints). So it downloaded, built, installed and linked to the “malicious” version from Hackage.</p>
-<p>The order the repositories appear in <code>~/.cabal/config</code> does not affect the result. My testing shows that <em>cabal-install</em> prefers the highest version, regardless of which repository it comes from. I have seen comments that repositories listed later are preferred over earlier ones, but maybe that only applies when the same version is hosted on both repositories.</p>
-<h2 id="mitigations">Mitigations <a href="#mitigations" class="section">§</a></h2>
-<p>Alternative workflows and tools can mitigate the risk of dependency confusion attacks. I discuss some current approaches below, and also some ideas for future tooling enhancements.</p>
-<h3 id="local-packages-effective">Local packages (effective) <a href="#local-packages-effective" class="section">§</a></h3>
-<p>Instead of using a private Hackage server, you can specify local packages in <code>cabal.project</code> or <code>cabal.project.local</code>:</p>
-<pre class="shell"><code>% echo &quot;packages: ., ../redesigned-carnival&quot; &gt; cabal.project.local
-% cabal run exe:super-fiesta
-Resolving dependencies...
-Build profile: -w ghc-8.8.4 -O1
-In order, the following will be built (use -v for more details):
- - redesigned-carnival-0.1.0.0 (lib) (first run)
- - super-fiesta-0.1.0.0 (exe:super-fiesta) (configuration changed)
-Configuring library for redesigned-carnival-0.1.0.0..
-Preprocessing library for redesigned-carnival-0.1.0.0..
-Building library for redesigned-carnival-0.1.0.0..
-[1 of 1] Compiling ACME.RedesignedCarnival ( src/ACME/RedesignedCarnival.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/redesigned-carnival-0.1.0.0/build/ACME/RedesignedCarnival.o )
-Configuring executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Preprocessing executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-Building executable &#39;super-fiesta&#39; for super-fiesta-0.1.0.0..
-[1 of 1] Compiling Main             ( Main.hs, /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta-tmp/Main.o ) [ACME.RedesignedCarnival changed]
-Linking /home/ftweedal/dev/hs/super-fiesta/dist-newstyle/build/x86_64-linux/ghc-8.8.4/super-fiesta-0.1.0.0/x/super-fiesta/build/super-fiesta/super-fiesta ...
-Hello, world!</code></pre>
-<p>Local packages are always preferred over versions in repositories, even when a repository offers a higher version. You can use manual cloning, Git submodules or a monorepo to get the internal package sources in the right place.</p>
-<p>A minor downside to this approach is that you have to be more explicit about which package you want to build, run or install. In the transcript above, I executed <code>cabal run exe:super-fiesta</code>. If I omit the final argument, <em>cabal-install</em> complains:</p>
-<pre class="shell"><code>% cabal run
-Resolving dependencies...
-TODO: add support for multiple packages in a directory
-CallStack (from HasCallStack):
-  error, called at ./Distribution/Client/ProjectOrchestration.hs:542:9 in main:Distribution.Client.ProjectOrchestration
-</code></pre>
-<h3 id="cabal-freeze-effective-with-caveats"><code>cabal freeze</code> (effective, with caveats) <a href="#cabal-freeze-effective-with-caveats" class="section">§</a></h3>
-<p>Dependency version pinning via <code>cabal freeze</code> is not an effective mitigation <em>in general</em>. To demonstrate, I uploaded <code>redesigned-carnival-0.3.0.0</code> to my private Hackage, and the same version (with “malicious” modification) to <code>hackage.haskell.org</code>. I executed <code>cabal freeze</code> and modified the <code>cabal.project.freeze</code> file to require <code>redesigned-carnival-0.3.0.0</code>:</p>
-<pre class="shell"><code>% cat cabal.project.freeze
-constraints: any.base ==4.13.0.0,
-             any.ghc-prim ==0.5.3,
-             any.integer-gmp ==1.0.2.0,
-             any.redesigned-carnival ==0.3.0.0,
-             any.rts ==1.0</code></pre>
-<p>Then I executed <code>cabal run</code>. With both repositories offering the “same” version, <em>cabal-install</em> retrieves the package from the <em>last defined</em> repository. If that is <code>hackage.haskell.org</code>, then you will download and build the malicious variant.</p>
-<p>So in the presence of public and private Hackage repositories, the security of dependency freezing depends on the repository order. Unfortunately the official <em>cabal-install</em> <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#repository-specification">documentation</a> fails to mention the significance of repository order:</p>
-<blockquote>
-<p>If you want, you can configure multiple repositories, and cabal will combine them and be able to download packages from any of them.</p>
-</blockquote>
-<p>The vagueness of the documentation means insecure configurations are likely. If you work in a Haskell team inside a company, <em>everyone</em> needs to get this configuration right.</p>
-<h3 id="use-nix-effective">Use Nix (effective) <a href="#use-nix-effective" class="section">§</a></h3>
-<p><a href="https://nixos.org/">Nix</a> is a content-address package management system where all packages pin all dependencies by their cryptographic hashes. Many Haskell developers and teams use it, and enjoy certainty about their dependencies and reproducible builds.</p>
-<p>Nix has a steep learning curve, and it is not a complete solution for library and program authors who want to publish to Hackage. <em>“Use Nix”</em> is a valid way to mitigate dependency confusion risk for Haskell teams and some individuals.</p>
-<h3 id="use-stack-effective">Use Stack (effective?) <a href="#use-stack-effective" class="section">§</a></h3>
-<p>According to the results of annual Haskell developer surveys (<a href="https://taylor.fausak.me/2020/11/22/haskell-survey-results/#s3q0">2020</a>, <a href="https://taylor.fausak.me/2019/11/16/haskell-survey-results/#s3q0">2019</a>, <a href="https://taylor.fausak.me/2018/11/18/2018-state-of-haskell-survey-results/#question-041">2018</a>, <a href="https://taylor.fausak.me/2017/11/15/2017-state-of-haskell-survey-results/#question-22">2017</a>), around 75% of Haskell developers use the <a href="https://haskellstack.org/">Stack</a> build tool. Stack, by default, uses curated package sets from <a href="https://www.stackage.org/">Stackage</a>. For internal packages it allows pinning to exact Git commit hashes, and local packages.</p>
-<p>On the face of it, it would seem that Stack, in a standard configuration, protects against dependency confusion attacks. I don’t use Stack and I haven’t tested it as part of this investigation. I’ll give it the benefit of the doubt and hope that others might put it to the test and publish their findings.</p>
-<p>Even if Stack mitigates dependency confusion perfectly, according to the same surveys above, around 50% of Haskell developers use <em>cabal-install</em> (either exclusively or alongside other build tools). As was the case with Nix, Stack may be a solution for particular teams or individuals, but it is not a solution for the whole community.</p>
-<h3 id="exclusive-repositories-idea-effective-with-caveats">“Exclusive” repositories (<del>idea</del> effective, with caveats) <a href="#exclusive-repositories-idea-effective-with-caveats" class="section">§</a></h3>
-<p>If you could mark a repository as “exclusive”, then for any package provided by that repository, <em>cabal-install</em> <strong>must</strong> only use a version provided by that repository. The idea is that private repositories would be marked as exclusive:</p>
-<pre><code>repository localhost
-  url: http://localhost:8080/
-  exclusive: True
-
-repository hackage.haskell.org
-  url: http://hackage.haskell.org/</code></pre>
-<p>Now, a dependency confusion attack against <em>redesigned-carnival</em> would not work. <em>cabal-install</em> will ignore versions of the package from <code>hackage.haskell.org</code>, because that package name is also provided by an exclusive repository.</p>
-<p>This approach is easy for users to configure. But, as with the <code>cabal freeze</code> approach, security for organisations requires every developer to set the configuration properly.</p>
-<p>and requires no changes to the <em>hackage-server</em> program or the <em>Cabal</em> package description format. The changes are limited to <em>cabal-install</em>.</p>
-<p>One drawback is that if a person or organisation wants to publicly release a previously internal package, they will have to remove it from their private repository. As far as I can tell, <em>hackage-server</em> does not support package deletion. So this approach might entail changes to <em>hackage-server</em> after all.</p>
-<h4 id="update-coming-in-cabal-install-3.4"><em>Update</em>: coming in <em>cabal-install</em> 3.4 <a href="#update-coming-in-cabal-install-3.4" class="section">§</a></h4>
-<p>Oleg Grenrus <a href="https://www.reddit.com/r/haskell/comments/lhmbw3/haskell_is_vulnerable_to_dependency_confusion/gmz6qi0/">pointed out</a> a new feature arriving in <code>cabal-install-3.4</code>. The <code>active-repositories</code> field and <code>override</code> merge strategy can accomplish the goal of restricting packages to a particular repository:</p>
-<pre><code>-- Order is significant.  For packages in localhost,
--- only versions in localhost are considered
-active-repositories:
-  , hackage.haskell.org
-  , localhost:override</code></pre>
-<p>See also the <a href="https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=active-repositories#cfg-field-active-repositories">official documentation</a>. I have tested the feature, and it works. At time of writing the pre-release version is <code>3.4.0.0-rc7</code> so the final release should not be far away.</p>
-<h3 id="repository-scoped-dependencies-idea">Repository-scoped dependencies (idea) <a href="#repository-scoped-dependencies-idea" class="section">§</a></h3>
-<p>Dependencies in <code>.cabal</code> files have no scoping or namespacing. What if you could scope a dependency to a particular repository? For example:</p>
-<pre class="cabal"><code>executable super-fiesta
-  main-is: Main.hs
-  build-depends:
-    base &gt;=4 &amp;&amp; &lt;5
-    , &lt;repository&gt;:redesigned-carnival
-  default-language:    Haskell2010</code></pre>
-<p>You could optionally constrain particular dependencies to come from a specified repository. This would be a more invasive change, involving a change to the package description format. <em>Cabal</em> (the library) and <em>cabal-install</em> would be impacted.</p>
-<p>To thwart attacks where people get confused or tricked into using the wrong repository, everyone would need to agree on the names of repositories (which are currently configured in <code>~/.cabal/config</code>). In other words, every agent would need to agree on what <code>&lt;repository&gt;</code> means. This could be accomplished by identifying repositories by URI, but there could be other valid approaches.</p>
-<h3 id="validated-namespaces-for-packages-idea">Validated namespaces for packages (idea) <a href="#validated-namespaces-for-packages-idea" class="section">§</a></h3>
-<p>Another possible approach is that taken by the Java <a href="https://en.wikipedia.org/wiki/Apache_Maven"><em>Maven</em></a> system. Packages are addressed by <code>&lt;Group ID&gt;:&lt;Artifact ID&gt;:&lt;Version&gt;</code>, where <code>group-id</code> is based on a DNS name. In order to publish a new artifact to the <a href="https://search.maven.org/"><em>Maven Central</em></a> public repository, the prospective publisher has to prove “control” of the Group ID. Most often this is done by publishing a particular DNS TXT record in the domain from which the Group ID is derived. But some Group IDs follow other validation rules (e.g. commit access for <code>org.github.*</code>. Brian Fox’s blog post <a href="https://blog.sonatype.com/why-namespacing-matters-in-public-open-source-repositories"><em>Why Namespacing Matters in Public Open Source Repositories</em></a> explains it well, and in more detail.</p>
-<p>Summary: if packages in public repositories are namespaced by <em>something</em>, and if that <em>something</em> can be validated by the repository before publishing, then the system is resistant to dependency confusion attacks (up to spoofing the validation mechanism). DNS-based namespaces strike a fair balance between verifiability and usability (for both publishers and users).</p>
-<p>So, what would this look like in the Haskell world? Retrofitting our package ecosystem with namespaces would be a <em>very</em> disruptive change. All tooling would be affected. In particular, <em>hackage-server</em> would need to learn how to validate package namespaces.</p>
-<p>No doubt many people will be annoyed that they must now write <code>haskell.org:base</code> (instead of just <code>base</code>), <code>frase.id.au:redesigned-carnival</code>, and so on. (By the way, those namespace values are just a suggestion of a possible scheme).</p>
-<p>Migrating existing packages poses several challenges. Sure, put core libraries in the <code>haskell.org</code> (or whatever) namespace. But where should <em>lens</em> live? Who decides? What if there is disagreement? And what happens to packages that don’t have responsive maintainers?</p>
-<p>I think that with careful planning a smooth transition is possible. To give people time to adjust, packages could for some period remain accessible via namespaced and non-namespaced names. Duplicate names in different namespaces would be forbidden during the transition period. We can build tools to update <code>.cabal</code> files with the namespaces, removing most of the pain for maintainers.</p>
-<p>After the transition period ends, all the Haskell tooling will use namespaced packages. Importantly, users and developers do not need to configure anything to be safe from dependency confusion attacks. Only publishers will face some additional validation steps.</p>
-<p>Apart from security I see another possible benefit to this approach. Organisation-namespaced packages could give more visibility into which organisations are using Haskell. This could promote the perception of Haskell as a language of industry. <em>“Look, we are like Java”</em> is a legitimate selling point for many people.</p>
-<h2 id="other-attacks">Other attacks <a href="#other-attacks" class="section">§</a></h2>
-<p>Dependency confusion is just one kind of software supply chain attack. The approaches I discussed mitigate this specific attack. But they do not protect against other attacks, such as an attacker acquiring Ed Kmett’s Hackage credentials and uploading a malicous new release of <em>lens</em>. Or the maintainer themselves turning evil. Different protections are needed for other kinds of attacks.</p>
-<p>Also, dependency confusion on its own is just a vector for malware. Does the malware target the developer’s machine, or the machines that run the program the developer is building, or network clients? All of the above? The range of possible attacks depends on the language, development environment and deployment environment. The different ways in which a Haskell dependency confusion victim could actually be exploited is a topic for a whole other blog post.</p>
-<p>These are all important topics to consider in the design of languages, build tooling and package management systems. In additional to known supply chain attacks, human factors (social engineering) should not be ignored either.</p>
-<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
-<p>In this post I demonstrated that the standard Haskell development tooling—Hackage and Cabal/<em>cabal-install</em>—is vulnerable to dependency confusion attacks. I discussed some mitigations that are feasible today, and some ideas for tool improvements that vary in complexity and usability. Finally I emphasised that dependency confusion is one of several types of supply chain attack, and just one small panel in the tapestry of software security.</p>
-<p>I think that Haskell has long, <em>long</em> way to go in terms of security. Sure, the language itself is mostly pretty good. But the compiler, build tools, and package repositories all fall far short when it comes to security. I will have more to say about this in future blog posts.</p>
-<p>In the meantime, I hope this post kick-starts a discussion about how we should address the particular threat of dependency confusion.</p>]]></summary>
 </entry>
 
 </feed>
