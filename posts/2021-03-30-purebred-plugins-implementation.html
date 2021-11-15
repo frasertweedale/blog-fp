@@ -60,136 +60,148 @@
 <p>Each hook function is no longer a bare function but is wrapped in a <code>newtype</code>. This (I feel) improves readability. It allows lenses to be defined, without resorting the GHC’s currently-flaky support for impredicative types. Use of optics is also why the field accessors, which are not exported, are prefixed with <code>_</code>.</p>
 <p>As an example of a hook type, here is the definition of <code>PreSendHook</code>:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">newtype</span> <span class="dt">PreSendHook</span> cap <span class="ot">=</span> <span class="dt">PreSendHook</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  { getPreSendHook</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ot">      ::</span> <span class="kw">forall</span> m<span class="op">.</span> (cap m) <span class="ot">=&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  ( <span class="kw">forall</span> m<span class="op">.</span> (cap m) <span class="ot">=&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span> )</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>getPreSendHook</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (cap m)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">PreSendHook</span> cap <span class="ot">-&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>getPreSendHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> f</span></code></pre></div>
+<div id="note-field-accessors" class="note">
+<p><code>getSendPreHook</code> must be a standalone function, not a field accessor. This is because <strong>GHC 9.0.1</strong> and later preserve the written order of quantified type variables in field selectors (<a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/9.0.1-notes.html#language">release note</a>):</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="kw">data</span> <span class="dt">T</span> c <span class="ot">=</span> <span class="dt">T</span> {<span class="ot"> unT ::</span> <span class="kw">forall</span> m<span class="op">.</span> (c m) <span class="ot">=&gt;</span> () <span class="ot">-&gt;</span> m () }</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="op">:</span>t unT</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- GHC 8.10.5</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ot">unT ::</span> c m <span class="ot">=&gt;</span> <span class="dt">T</span> c <span class="ot">-&gt;</span> () <span class="ot">-&gt;</span> m ()</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- GHC 9.0.1</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ot">unT ::</span> <span class="dt">T</span> c <span class="ot">-&gt;</span> <span class="kw">forall</span> (<span class="ot">m ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>)<span class="op">.</span> c m <span class="ot">=&gt;</span> () <span class="ot">-&gt;</span> m ()</span></code></pre></div>
+</div>
 <p>Finally, I added a field to store the plugin version, and a boolean to distinguish between built-in and external plugins. We (the Purebred authors) intend to use the plugin system to provide some baseline functionality. But we do not want to treat these behaviours as plugins from the user’s point of view. The <code>_pluginBuiltIn</code> field lets us discriminate.</p>
 <h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements" class="section">§</a></h2>
 <p>Plugin modules no longer export a plugin record value (what we now call <code>PluginDict</code>). The <code>Plugin</code> type lives on, in a different form:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Plugin</span> hooks <span class="ot">=</span> <span class="dt">Plugin</span> <span class="dt">String</span> <span class="dt">Version</span> hooks</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Plugin</span> hooks <span class="ot">=</span> <span class="dt">Plugin</span> <span class="dt">String</span> <span class="dt">Version</span> hooks</span></code></pre></div>
 <p>A <code>Plugin</code> value has a name, version, and <code>hooks</code>. What is <code>hooks</code>? It is best understood in the context of the <code>usePlugin</code> function. Like the <code>relax</code> function from the prototype, <code>usePlugin</code> monomorphises plugins and prepares them for use in the main program.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">usePlugin ::</span> (<span class="dt">Hook</span> hooks) <span class="ot">=&gt;</span> <span class="dt">Plugin</span> hooks <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>usePlugin (<span class="dt">Plugin</span> name ver hook) <span class="ot">=</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  setHook hook <span class="op">$</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">PluginDict</span> name ver <span class="dt">False</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">ConfigHook</span> <span class="fu">pure</span>)</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">PreSendHook</span> <span class="fu">pure</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">usePlugin ::</span> (<span class="dt">Hook</span> hooks) <span class="ot">=&gt;</span> <span class="dt">Plugin</span> hooks <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>usePlugin (<span class="dt">Plugin</span> name ver hook) <span class="ot">=</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  setHook hook <span class="op">$</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">PluginDict</span> name ver <span class="dt">False</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">ConfigHook</span> <span class="fu">pure</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">PreSendHook</span> <span class="fu">pure</span>)</span></code></pre></div>
 <p><code>usePlugin</code> constructs a <code>PluginDict</code> full of <em>no-op</em> hooks, then sets the plugin’s hooks via the <code>setHook</code> function. <code>hooks</code> must have an instance of the <code>Hook</code> type class:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Hook</span> t <span class="kw">where</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  setHook ::</span> t <span class="ot">-&gt;</span> <span class="dt">PluginDict</span> <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Hook</span> t <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  setHook ::</span> t <span class="ot">-&gt;</span> <span class="dt">PluginDict</span> <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span></code></pre></div>
 <p>Each hook function type has an instance of <code>Hook</code>. These instances set the hook function in the <code>PluginDict</code>. A quantified constraint ensures the capabilities demanded by the hook function do not exceed the capabilities offered. Here, as an example, is the instance for <code>PreSendHook</code>:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>   (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">Unconstrained</span> m <span class="ot">=&gt;</span> cap m)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> <span class="dt">Hook</span> (<span class="dt">PreSendHook</span> cap) <span class="kw">where</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  setHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> set preSendHook (<span class="dt">PreSendHook</span> f)</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">Unconstrained</span> m <span class="ot">=&gt;</span> cap m)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> <span class="dt">Hook</span> (<span class="dt">PreSendHook</span> cap) <span class="kw">where</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  setHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> set preSendHook (<span class="dt">PreSendHook</span> f)</span></code></pre></div>
 <p>This is another reason why it was necessary to <code>newtype</code> all the hook functions.</p>
 <p>To support plugins that use multiple hooks, we declare an instance of <code>Hook</code> for pairs (2-tuples). This allows plugins to define as many hooks as they need, using nested tuples:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
 <h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h2>
 <p>Plugins construct and export a <code>Plugin hook</code> value, where <code>hook</code> is a hook function type or a nested tuple of the same.</p>
 <div class="note">
 <p>If a plugin defines the same hook multiple times, <code>usePlugin</code> discards all but the “leftmost” occurrence.</p>
 </div>
 <p>Here is the implementation of our <code>User-Agent</code> plugin:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.UserAgent</span> (plugin) <span class="kw">where</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Lens</span> (set, view)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.MIME</span> (headerText)</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version, userAgent)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (confCharset)</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> (<span class="dt">PreSendHook</span> <span class="dt">CanReadConfig</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;UserAgent&quot;</span> version (<span class="dt">PreSendHook</span> hook) <span class="kw">where</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  hook msg <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    charsets <span class="ot">&lt;-</span> view confCharsets</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> l <span class="ot">=</span> headerText charsets <span class="st">&quot;User-Agent&quot;</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pure</span> <span class="op">$</span> set l (<span class="dt">Just</span> userAgent) msg</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.UserAgent</span> (plugin) <span class="kw">where</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Lens</span> (set, view)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.MIME</span> (headerText)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version, userAgent)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (confCharset)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> (<span class="dt">PreSendHook</span> <span class="dt">CanReadConfig</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;UserAgent&quot;</span> version (<span class="dt">PreSendHook</span> hook) <span class="kw">where</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  hook msg <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    charsets <span class="ot">&lt;-</span> view confCharsets</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> l <span class="ot">=</span> headerText charsets <span class="st">&quot;User-Agent&quot;</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pure</span> <span class="op">$</span> set l (<span class="dt">Just</span> userAgent) msg</span></code></pre></div>
 <p>The concrete type of a plugin shows the hook(s) used by the plugin, and the capabilities required by each hook. If a plugin needs to use multiple hooks, use nested pairs. In the example above, <code>plugin</code> uses the <code>PreSendHook</code> with the <code>CanReadConfig</code> capability. The type proves that the the <code>User-Agent</code> plugin only uses the <code>PreSendHook</code>, cannot perform I/O, and so on.</p>
 <div class="note">
 <p>We could define <code>Hook</code> instances for 3-tuples, 4-tuples, and so on. But I decided not to, because where does it end? Besides, I don’t think there will be many plugins that use more than two hooks.</p>
 </div>
 <p>The name of the plugin value (<code>plugin</code> in the preceding example) is not important. Plugin authors can use whatever name makes sense. Plugins that require configuration should export a function instead of a plain <code>Plugin</code> value, as in the following examples:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.TweakConfig</span> <span class="kw">where</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version)</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (<span class="dt">UserConfiguration</span>)</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>tweakConfig</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">UserConfiguration</span>)</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">Pure</span>)</span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>tweakConfig hook <span class="ot">=</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig&quot;</span> version</span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> (<span class="fu">pure</span> <span class="op">.</span> hook))</span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO</span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> ( <span class="kw">forall</span> m<span class="op">.</span> (<span class="dt">CanIO</span> m) <span class="ot">=&gt;</span></span>
-<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>       <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> m <span class="dt">UserConfiguration</span> )</span>
-<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">CanIO</span>)</span>
-<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO hook <span class="ot">=</span></span>
-<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig (IO)&quot;</span> version</span>
-<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> hook)</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.TweakConfig</span> <span class="kw">where</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (<span class="dt">UserConfiguration</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>tweakConfig</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">UserConfiguration</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">Pure</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>tweakConfig hook <span class="ot">=</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig&quot;</span> version</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> (<span class="fu">pure</span> <span class="op">.</span> hook))</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> ( <span class="kw">forall</span> m<span class="op">.</span> (<span class="dt">CanIO</span> m) <span class="ot">=&gt;</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>       <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> m <span class="dt">UserConfiguration</span> )</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">CanIO</span>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO hook <span class="ot">=</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig (IO)&quot;</span> version</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> hook)</span></code></pre></div>
 <p>The <code>TweakConfig</code> module provides two variants of a plugin to adjust Purebred’s configuration at startup. <code>tweakConfig</code> takes a pure transformation and yields a <code>Plugin (ConfigHook Pure)</code>, whereas <code>tweakConfigWithIO</code> allows the use of <code>IO</code>.</p>
 <h2 id="using-plugins">Using plugins <a href="#using-plugins" class="section">§</a></h2>
 <p>Users apply <code>usePlugin</code> to each plugin and produce a <code>[PluginDict]</code>. That list is then given as argument to the main Purebred entry point:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
 <p>The user configuration file, in a basic sense, is a program that constructs a list of plugins and applies <code>purebred</code> to it. Here is a cut-down version of my <code>~/.config/purebred/purebred.hs</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.TweakConfig</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.ICU</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>listKeybindings <span class="ot">=</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  [ <span class="co">{- my preferred keybindings -}</span> ]</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>tweak <span class="ot">=</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    over (confIndexView <span class="op">.</span> ivBrowseThreadsKeybindings)</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>         (listKeybindings <span class="op">&lt;&gt;</span>)</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>  <span class="op">.</span> set (confNotmuch <span class="op">.</span> nmNewTag) <span class="st">&quot;inbox&quot;</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> purebred</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>  [ usePlugin <span class="op">$</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.TweakConfig.tweakConfig tweak</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>  , usePlugin</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.ICU.plugin</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.TweakConfig</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.ICU</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>listKeybindings <span class="ot">=</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  [ <span class="co">{- my preferred keybindings -}</span> ]</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>tweak <span class="ot">=</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    over (confIndexView <span class="op">.</span> ivBrowseThreadsKeybindings)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>         (listKeybindings <span class="op">&lt;&gt;</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="op">.</span> set (confNotmuch <span class="op">.</span> nmNewTag) <span class="st">&quot;inbox&quot;</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> purebred</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  [ usePlugin <span class="op">$</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.TweakConfig.tweakConfig tweak</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>  , usePlugin</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.ICU.plugin</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
 <p>Some plugins have no configuration and just do their thing. But other plugins may require the user to construct a substantial configuration. A PGP/MIME plugin that uses GnuPG, though not written yet, seems likely to have a lot of knobs. Plugins that require configuration should offer ergonomic ways to construct sensible, safe configurations.</p>
 <h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins" class="section">§</a></h3>
 <p><code>defaultConfig</code> is the default <code>UserConfiguration</code> value. It is not exported, but it can be modified by <code>ConfigHook</code>s. Built-in plugins are already set in the <code>confPlugins</code> field of <code>defaultConfig</code>:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultConfig ::</span> <span class="dt">UserConfiguration</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>defaultConfig <span class="ot">=</span> <span class="dt">Configuration</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  { _confPlugins <span class="ot">=</span> set pluginBuiltIn <span class="dt">True</span> <span class="op">&lt;$&gt;</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>      [ usePlugin Purebred.Plugin.UserAgent.plugin</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>      …</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>      ]</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  …</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultConfig ::</span> <span class="dt">UserConfiguration</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>defaultConfig <span class="ot">=</span> <span class="dt">Configuration</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  { _confPlugins <span class="ot">=</span> set pluginBuiltIn <span class="dt">True</span> <span class="op">&lt;$&gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>      [ usePlugin Purebred.Plugin.UserAgent.plugin</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>      …</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>      ]</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  …</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
 <p><code>usePlugin</code> sets the <code>pluginBuiltIn</code> field to <code>False</code>. But we reset it to <code>True</code> for all built-in plugins. The <code>pluginBuiltIn</code> optic is not exported. Therefore users cannot change the treatment of a plugin from built-in to external, or vice versa.</p>
 <p>The <code>purebred</code> entry point merges user-supplied plugins with the built-in plugins:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>purebred plugins <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  …</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    cfg <span class="ot">=</span> over confPlugins (plugins <span class="op">&lt;&gt;</span>) defaultConfig</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    dyreParams <span class="ot">=</span> …</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  Dyre.wrapMain dyreParams cfg</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>purebred plugins <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  …</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    cfg <span class="ot">=</span> over confPlugins (plugins <span class="op">&lt;&gt;</span>) defaultConfig</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    dyreParams <span class="ot">=</span> …</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  Dyre.wrapMain dyreParams cfg</span></code></pre></div>
 <h2 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h2>
 <p>Purebred executes <code>ConfigHook</code>s immediately after Dyre (the configuration system) invokes the “real main” action (called <code>launch</code>):</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ot">launch ::</span> <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>launch inCfg <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    plugins <span class="ot">=</span> view confPlugins inCfg</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    hooks <span class="ot">=</span> getConfigHook <span class="op">.</span> view configHook <span class="op">&lt;$&gt;</span> plugins</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> <span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks inCfg</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  …</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ot">launch ::</span> <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>launch inCfg <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    plugins <span class="ot">=</span> view confPlugins inCfg</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    hooks <span class="ot">=</span> getConfigHook <span class="op">.</span> view configHook <span class="op">&lt;$&gt;</span> plugins</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> <span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks inCfg</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  …</span></code></pre></div>
 <p><code>PreSendHook</code>s are executed in the action that sends mail:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> msg <span class="ot">=</span> …</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  hooks <span class="ot">&lt;-</span> uses (asConfig <span class="op">.</span> confPlugins)</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>           (<span class="fu">fmap</span> (getPreSendHook <span class="op">.</span> view preSendHook))</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> use asConfig</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  msg' <span class="ot">&lt;-</span> runReaderT (<span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks msg) cfg</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  k (buildMessage msg')</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> msg <span class="ot">=</span> …</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  hooks <span class="ot">&lt;-</span> uses (asConfig <span class="op">.</span> confPlugins)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>           (<span class="fu">fmap</span> (getPreSendHook <span class="op">.</span> view preSendHook))</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> use asConfig</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  msg' <span class="ot">&lt;-</span> runReaderT (<span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks msg) cfg</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  k (buildMessage msg')</span></code></pre></div>
 <p>These two examples reveal a pattern for hook execution:</p>
 <ol type="1">
 <li><p>Extract the relevant hook functions from the <code>[PluginDict]</code></p></li>
