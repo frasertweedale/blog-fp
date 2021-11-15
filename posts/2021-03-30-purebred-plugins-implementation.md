@@ -88,10 +88,33 @@ As an example of a hook type, here is the definition of
 
 ```haskell
 newtype PreSendHook cap = PreSendHook
-  { getPreSendHook
-      :: forall m. (cap m) => MIMEMessage -> m MIMEMessage
-  }
+  ( forall m. (cap m) => MIMEMessage -> m MIMEMessage )
+
+getPreSendHook
+  :: (cap m)
+  => PreSendHook cap -> MIMEMessage -> m MIMEMessage
+getPreSendHook (PreSendHook f) = f
 ```
+
+::: {.note #note-field-accessors}
+
+`getSendPreHook` must be a standalone function, not a field
+accessor.  This is because **GHC 9.0.1** and later preserve the
+written order of quantified type variables in field selectors
+([release note][]):
+
+[release note]: https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/9.0.1-notes.html#language
+
+```haskell
+λ> data T c = T { unT :: forall m. (c m) => () -> m () }
+λ> :t unT
+-- GHC 8.10.5
+unT :: c m => T c -> () -> m ()
+-- GHC 9.0.1
+unT :: T c -> forall (m :: * -> *). c m => () -> m ()
+```
+
+:::
 
 Finally, I added a field to store the plugin version, and a boolean
 to distinguish between built-in and external plugins.  We (the
