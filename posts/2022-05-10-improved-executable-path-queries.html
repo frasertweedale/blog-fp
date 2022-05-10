@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Better executable path queries in GHC 9.4</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Better executable path queries in GHC 9.4","datePublished":"2022-05-10T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2022-05-10-improved-executable-path-queries.html" /><meta property="og:title" content="Better executable path queries in GHC 9.4" /><meta property="og:description" content="I previously wrote about
+System.Environment.getExecutablePath and how
+I fixed it on FreeBSD. Unfortunately, this function still has some
+problems. In this post I explain the problems and introduce
+executablePath, the solution arriving in
+base-4.17.0.0 (GHC 9.4.1)." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'ghc'." href="../tags/ghc.html">ghc</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="better-executable-path-queries-in-ghc-9.4">Better executable path queries in GHC 9.4</h1>
+<p>I <a href="2021-01-01-fixing-getExecutablePath-FreeBSD.html">previously wrote about</a>
+<a href="https://downloads.haskell.org/ghc/9.4.1-alpha1/docs/html/libraries/base/System-Environment.html#v:getExecutablePath"><code>System.Environment.getExecutablePath</code></a> and how
+I fixed it on FreeBSD. Unfortunately, this function still has some
+problems. In this post I explain the problems and introduce
+<a href="https://downloads.haskell.org/ghc/9.4.1-alpha1/docs/html/libraries/base/System-Environment.html#v:executablePath"><code>executablePath</code></a>, the solution arriving in
+<em>base-4.17.0.0</em> (GHC 9.4.1).</p>
+<h2 id="problems-with-getexecutablepath">Problems with <code>getExecutablePath</code> <a href="#problems-with-getexecutablepath" class="section">§</a></h2>
+<p><code>getExecutablePath :: IO FilePath</code> is a way for a Haskell program to
+query the path to its own executable. It has several significant
+problems:</p>
+<ul>
+<li><p><strong>Not all operating systems provide a reliable mechanism to query
+the executable path.</strong> Where an OS-specific implementation does
+not exist, <code>getExecutablePath</code> falls back to providing the value
+of <code>argv[0]</code> (<a href="https://gitlab.haskell.org/ghc/ghc/-/issues/12377">#12377</a>). The invoking process chooses the
+value; it does not necessarily represent the path to the
+executable. It might represent or resolve to a different
+executable. <code>argv</code> could even be an empty array, in which case
+<code>getExecutablePath</code> throws an exception!</p></li>
+<li><p><strong>Divergent behaviour when executable has been deleted.</strong> When we
+say “executable” we mean “<em>file which contains <strong>program</strong> text,
+which the OS can load and execute (becoming a <strong>process</strong>)</em>”.
+That file could be deleted while the process is running. In this
+case, the behaviour of <code>getExecutablePath</code> differs by platform.
+On FreeBSD it throws an exception. On Linux it returns the
+original <code>FilePath</code> suffixed with <code>" (deleted)"</code> (<a href="https://gitlab.haskell.org/ghc/ghc/-/issues/10957">#10957</a>).
+These differences impede cross-platform development.</p></li>
+<li><p><strong>The documentation is wrong.</strong> Until I fixed it, the
+documentation for <code>getExecutablePath</code> stated, <em>“Returns the
+absolute pathname of the current executable.”</em> It didn’t explain
+any of the discrepancies mentioned in the preceding points.
+Programmers can easily stumble into the unsafe behaviour (I did).</p></li>
+</ul>
+<h2 id="type-of-the-solution">Type of the solution <a href="#type-of-the-solution" class="section">§</a></h2>
+<p>Types are an essential tool for modelling a problem and guiding the
+development of a solution. The problems with <code>getExecutablePath</code>
+reveal that:</p>
+<ul>
+<li><p>Some OSes provide a mechanism to query the executable path, and
+some do not. This is a static property of the platform; it does
+not change over the lifetime of a process.</p></li>
+<li><p>The query mechanism (if it exists) might be unable to return a
+result. For example, when the executable file has been deleted.
+The result may vary during the lifetime of a process.</p></li>
+</ul>
+<p>The <code>Maybe a</code> type models the existence or absense of a value:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Maybe</span> a <span class="ot">=</span> <span class="dt">Nothing</span> <span class="op">|</span> <span class="dt">Just</span> a</span></code></pre></div>
+<p>Accordingly, a suitable type to model this problem is:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">executablePath ::</span> <span class="dt">Maybe</span> (<span class="dt">IO</span> (<span class="dt">Maybe</span> <span class="dt">FilePath</span>)</span></code></pre></div>
+<p>The outer <code>Maybe</code> models the presence or absense of a query
+mechanism. The query itself has the type <code>IO (Maybe FilePath)</code>.
+The inner <code>Maybe</code> models that the query might be unable to return
+a valid <code>FilePath</code>.</p>
+<p>The type is also a kind of (machine-checked) documentation. It
+reveals things that the written documentation for
+<code>getExecutablePath</code> <strong><em>should have said, but didn’t</em></strong>.</p>
+<div class="note">
+<p><code>FilePath</code> is defined as a type synonym for <code>String</code>, which is
+itself a type synonym for <code>[Char]</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">FilePath</span> <span class="ot">=</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">String</span>   <span class="ot">=</span> [<span class="dt">Char</span>]</span></code></pre></div>
+<p>It can be argued on multiple grounds that this is not an appropriate
+type for representing file paths:</p>
+<ul>
+<li><p>Performance: <code>[Char]</code> is a linked list of individual characters.
+Packed strings have better performance.</p></li>
+<li><p>Correctness: <code>FilePath</code> admits any string value, not just valid
+paths. See above for a real world example: paths suffixed with
+<code>"(deleted)"</code> on Linux.</p></li>
+</ul>
+<p>I did not go further down this rabbit hole for the change discussed
+in this post. <code>FilePath</code> pervades <em>base</em> and other “standard”
+libraries. Furthermore, GHC targets a variety of operating systems;
+accurately modeling valid file paths on diverse platforms drives up
+complexity. If you have specific needs not met by <code>FilePath</code>, check
+out the <a href="https://hackage.haskell.org/packages/search?terms=filepath">many path libraries</a> which offer different approaches to
+representing and working with paths.</p>
+</div>
+<h2 id="implementation-of-executablepath">Implementation of <code>executablePath</code> <a href="#implementation-of-executablepath" class="section">§</a></h2>
+<p>In this section I’ll briefly review the implementation. GHC
+<a href="https://gitlab.haskell.org/ghc/ghc/-/merge_requests/4779">merge request !4779</a> has the gory details, for those
+interested.</p>
+<p>I was able to implement <code>executablePath</code> without modifying any code
+that uses the <em>foreign function interface (FFI)</em>.
+<code>getExecutablePath</code> was unchanged. <code>executablePath</code> implementations
+wrap the former. See <a href="2021-01-01-fixing-getExecutablePath-FreeBSD.html">my earlier post</a> for an example
+of how <code>getExecutablePath</code> uses the FFI.</p>
+<h3 id="mac-os-x-freebsd-and-netbsd">Mac OS X, FreeBSD and NetBSD <a href="#mac-os-x-freebsd-and-netbsd" class="section">§</a></h3>
+<p>The FreeBSD and NetBSD implementations of <code>getExecutablePath</code> are
+nearly identical, but the implementation for Mac OS X is very
+different. Nevertheless, the observable behaviour is identical: the
+system calls error with <code>ENOENT</code> when the executable has been
+deleted, and succeed otherwise. No other expected failure scenarios
+are known (yet).</p>
+<p>Therefore, the <code>executablePath</code> implementation for these platforms
+boils down to catching the Haskell exception value corresponding to
+<code>ENOENT</code> and turning it into <code>Nothing</code>. Unexpected exceptions are
+re-thrown.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>executablePath <span class="ot">=</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Just</span> (<span class="fu">fmap</span> <span class="dt">Just</span> getExecutablePath <span class="ot">`catch`</span> f)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    f e <span class="op">|</span> isDoesNotExistError e <span class="ot">=</span> <span class="fu">pure</span> <span class="dt">Nothing</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="fu">otherwise</span>             <span class="ot">=</span> throw e</span></code></pre></div>
+<h3 id="linux">Linux <a href="#linux" class="section">§</a></h3>
+<p>The Linux implementation of <code>getExecutablePath</code> reads the value of
+<code>/proc/self/exe</code> (part of the <a href="https://manpages.debian.org/buster/manpages/procfs.5.en.html"><code>procfs(5)</code></a>). The
+man page states:</p>
+<blockquote>
+<p>If the pathname has been unlinked, the symbolic link will contain
+the string ‘(deleted)’ appended to the original pathname.</p>
+</blockquote>
+<p><code>executablePath</code> checks for this condition and, if detected, returns
+<code>Nothing</code>. Note that we could have stripped the suffix and returned
+<code>Just</code> the “original” path. Returning <code>Nothing</code> makes it consistent
+with the other platforms.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>executablePath <span class="ot">=</span> <span class="dt">Just</span> (<span class="fu">fmap</span> check getExecutablePath)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  check s <span class="op">|</span> <span class="st">&quot;(deleted)&quot;</span> <span class="ot">`isSuffixOf`</span> s <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>          <span class="op">|</span> <span class="fu">otherwise</span>                  <span class="ot">=</span> <span class="dt">Just</span> s</span></code></pre></div>
+<h3 id="windows">Windows <a href="#windows" class="section">§</a></h3>
+<p>Windows prevents the deletion of an executable file during the
+lifetime of any process created from it. So <code>executablePath</code> simply
+wraps the result of <code>getExecutablePath</code> with a <code>Just</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>executablePath <span class="ot">=</span> <span class="dt">Just</span> (<span class="fu">fmap</span> <span class="dt">Just</span> getExecutablePath)</span></code></pre></div>
+<h3 id="fallback-implementation">Fallback implementation <a href="#fallback-implementation" class="section">§</a></h3>
+<p>The “fallback implementation” is for platforms that don’t have a
+reliable mechanism for querying the executable path (or no one
+implemented it in GHC yet). In this case, <code>executablePath</code> does not
+even supply the query <code>IO</code> action.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>executablePath <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
+<p>Programs that want to query the executable path have to deal with
+the <code>Nothing</code> case. That is: the possibility that there <em>is no
+reliable way</em> to get it. That’s a good thing.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>This article explained the problems of <code>getExecutablePath</code> and
+reviewed the solution coming in GHC 9.4, called <code>executablePath</code>. I
+encourage programs that use <code>getExecutablePath</code> to migrate when
+feasible, especially if multi-platform support is important.</p>
+<p>One topic I did not discuss is how I implemented tests for this
+feature in the GHC test suite. I will cover this in an upcoming
+post.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-12-aeson-hash-flooding-protection.html">How to protect <em>aeson</em> code from hash flooding</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>

@@ -6,7 +6,10 @@
         <title>pureblog - Adding section links to Hakyll articles with Text.Pandoc.Walk</title>
         <link rel="stylesheet" type="text/css" href="../css/default.css" />
         <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Adding section links to Hakyll articles with Text.Pandoc.Walk","datePublished":"2020-12-10T00:00:00"}</script>
-        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html" /><meta property="og:title" content="Adding section links to Hakyll articles with Text.Pandoc.Walk" /><meta property="og:description" content="It is handy to be able to link to section headings in long articles. Pandoc and Hakyll don’t do that out of the box. But they give you all the power you need to implement it yourself. In this post I’ll show you how." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2020-12-10-hakyll-section-links.html" /><meta property="og:title" content="Adding section links to Hakyll articles with Text.Pandoc.Walk" /><meta property="og:description" content="It is handy to be able to link to section headings in long articles.
+Pandoc and Hakyll don’t do that out of the box. But they
+give you all the power you need to implement it yourself. In this
+post I’ll show you how." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
         <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
     </head>
     <body>
@@ -29,33 +32,62 @@
 
 <div id="postContent">
     <h1 id="adding-section-links-to-hakyll-articles-with-text.pandoc.walk">Adding section links to Hakyll articles with <code>Text.Pandoc.Walk</code></h1>
-<p>It is handy to be able to link to section headings in long articles. <a href="https://pandoc.org/">Pandoc</a> and <a href="https://jaspervdj.be/hakyll/">Hakyll</a> don’t do that out of the box. But they give you all the power you need to implement it yourself. In this post I’ll show you how.</p>
+<p>It is handy to be able to link to section headings in long articles.
+<a href="https://pandoc.org/">Pandoc</a> and <a href="https://jaspervdj.be/hakyll/">Hakyll</a> don’t do that out of the box. But they
+give you all the power you need to implement it yourself. In this
+post I’ll show you how.</p>
 <h2 id="objective">Objective <a href="#objective" class="section">§</a></h2>
-<p>The main objective is to provide links (HTML <code>&lt;a&gt;</code> element) to section headings. They should be located near or within the heading element. Having them in the document will make it easy for readers to grab a link to a specific section of the article. (I myself often want to do this!)</p>
-<p>You could make the whole heading a link, but I like the approach that reveals a link when the pointer hovers over the heading. Some sites use a pilcrow (¶), pound (#) or a link symbol (🔗) as the link text. I will use a section sign (§).</p>
+<p>The main objective is to provide links (HTML <code>&lt;a&gt;</code> element) to
+section headings. They should be located near or within the heading
+element. Having them in the document will make it easy for readers
+to grab a link to a specific section of the article. (I myself
+often want to do this!)</p>
+<p>You could make the whole heading a link, but I like the approach
+that reveals a link when the pointer hovers over the heading. Some
+sites use a pilcrow (¶), pound (#) or a link symbol (🔗) as the link
+text. I will use a section sign (§).</p>
 <h2 id="building-blocks">Building blocks <a href="#building-blocks" class="section">§</a></h2>
-<p>Pandoc does set the <code>id</code> attribute of HTML heading elements to a value derived from the heading text. For example, one of my previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The resulting HTML for the heading is:</p>
+<p>Pandoc does set the <code>id</code> attribute of HTML heading elements to a
+value derived from the heading text. For example, one of my
+previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The
+resulting HTML for the heading is:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h2</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span>Probabilities<span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
-<p>The value of the <code>id</code> attribute will be the <code>href</code> target of the <code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI fragment).</p>
-<p>Hakyll provides the <code>pandocCompilerWithTransform</code> function for compiling documents using Pandoc and applying an arbitrary transformation to them. It has the type:</p>
+<p>The value of the <code>id</code> attribute will be the <code>href</code> target of the
+<code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI
+fragment).</p>
+<p>Hakyll provides the <code>pandocCompilerWithTransform</code> function for
+compiling documents using Pandoc and applying an arbitrary
+transformation to them. It has the type:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>pandocCompilerWithTransform</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">ReaderOptions</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">WriterOptions</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span>)</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
-<p>Note the <code>(Pandoc -&gt; Pandoc)</code> argument. This is the tranformation function. It works with the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Definition.html#t:Pandoc"><code>Pandoc</code></a> native AST data type, rather than HTML or the input type (e.g. Markdown).</p>
-<p>For constructing such a transformation, Pandoc provides the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Walk.html#v:walk"><code>Text.Pandoc.Walk</code></a> module and the <code>walk</code> function:</p>
+<p>Note the <code>(Pandoc -&gt; Pandoc)</code> argument. This is the tranformation
+function. It works with the <a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Definition.html#t:Pandoc"><code>Pandoc</code></a> native AST data type,
+rather than HTML or the input type (e.g. Markdown).</p>
+<p>For constructing such a transformation, Pandoc provides the
+<a href="https://hackage.haskell.org/package/pandoc-types-1.21/docs/Text-Pandoc-Walk.html#v:walk"><code>Text.Pandoc.Walk</code></a> module and the <code>walk</code> function:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">walk ::</span> (<span class="dt">Walkable</span> a b) <span class="ot">=&gt;</span> (a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> b <span class="ot">-&gt;</span> b</span></code></pre></div>
-<p><code>walk f x</code> walks the structure <code>x :: b</code> (bottom up) and replaces every occurrence of a value of type <code>a</code> with the result of applying <code>f :: (a -&gt; a)</code> to it.</p>
-<p>There are many instances of <code>Walkable</code>. We are interested in the one that visits all the <code>Block</code> elements (that’s what headings are) in the <code>Pandoc</code>:</p>
+<p><code>walk f x</code> walks the structure <code>x :: b</code> (bottom up) and replaces
+every occurrence of a value of type <code>a</code> with the result of applying
+<code>f :: (a -&gt; a)</code> to it.</p>
+<p>There are many instances of <code>Walkable</code>. We are interested in the
+one that visits all the <code>Block</code> elements (that’s what headings are)
+in the <code>Pandoc</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Walkable</span> <span class="dt">Block</span> <span class="dt">Pandoc</span></span></code></pre></div>
 <h2 id="putting-it-together">Putting it together <a href="#putting-it-together" class="section">§</a></h2>
-<p>I needed a handful of Pandoc constructors to implement the transformation. The <code>Header</code> constructor (of the <code>Block</code> data type) represents a document (sub)heading with <code>Int</code> depth, attributes, and the list of <code>Inline</code> elements that constitute the header content.</p>
+<p>I needed a handful of Pandoc constructors to implement the
+transformation. The <code>Header</code> constructor (of the <code>Block</code> data type)
+represents a document (sub)heading with <code>Int</code> depth, attributes, and
+the list of <code>Inline</code> elements that constitute the header content.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Block</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="op">...</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">|</span> <span class="dt">Header</span> <span class="dt">Int</span> <span class="dt">Attr</span> [<span class="dt">Inline</span>]</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">...</span></span></code></pre></div>
-<p>I also had to construct a <code>Link</code> (one of the cases of the <code>Inline</code> data type). A <code>Link</code> has attributes, content (<code>[Inline]</code>) and a target. I also used the <code>Str</code> and <code>Space</code> constructors.</p>
+<p>I also had to construct a <code>Link</code> (one of the cases of the <code>Inline</code>
+data type). A <code>Link</code> has attributes, content (<code>[Inline]</code>) and a
+target. I also used the <code>Str</code> and <code>Space</code> constructors.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Inline</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=</span> <span class="dt">Str</span> <span class="dt">Text</span>              <span class="co">-- ^ Literal text</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">...</span></span>
@@ -68,15 +100,21 @@
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">-- URI, title</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Target</span> <span class="ot">=</span> (<span class="dt">Text</span>, <span class="dt">Text</span>)</span></code></pre></div>
-<p>With these constructors in hand, here is the whole transformation function:</p>
+<p>With these constructors in hand, here is the whole transformation
+function:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">addSectionLinks ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Pandoc</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>addSectionLinks <span class="ot">=</span> walk f <span class="kw">where</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  f (<span class="dt">Header</span> n attr<span class="op">@</span>(idAttr, _, _) inlines) <span class="op">|</span> n <span class="op">&gt;</span> <span class="dv">1</span> <span class="ot">=</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> link <span class="ot">=</span> <span class="dt">Link</span> nullAttr [<span class="dt">Str</span> <span class="st">&quot;§&quot;</span>] (<span class="st">&quot;#&quot;</span> <span class="op">&lt;&gt;</span> idAttr, <span class="st">&quot;&quot;</span>)</span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">in</span> <span class="dt">Header</span> n attr (inlines <span class="op">&lt;&gt;</span> [<span class="dt">Space</span>, link])</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  f x <span class="ot">=</span> x</span></code></pre></div>
-<p>Note that we only apply this change to headings of depth greater than one. I do not need to provide a link for the article title, which is at the top of the page. For all other headers, we add a <code>Link</code> to its inline content, where the target is the fragment pointing at the <code>idAddr</code> of the header itself.</p>
-<p>To apply the transformation, I had to replace a single occurrence of:</p>
+<p>Note that we only apply this change to headings of depth greater
+than one. I do not need to provide a link for the article title,
+which is at the top of the page. For all other headers, we add a
+<code>Link</code> to its inline content, where the target is the fragment
+pointing at the <code>idAddr</code> of the header itself.</p>
+<p>To apply the transformation, I had to replace a single occurrence
+of:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">pandocCompiler ::</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">String</span>)</span></code></pre></div>
 <p>with:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pandocCompilerWithTransform</span>
@@ -84,7 +122,9 @@
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        defaultHakyllWriterOptions</span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        addSectionLinks</span></code></pre></div>
 <h2 id="style">Style <a href="#style" class="section">§</a></h2>
-<p>I want to hide the heading link unless the cursor is hovering over the heading. I would like to accomplish it with this small dose of CSS:</p>
+<p>I want to hide the heading link unless the cursor is hovering over
+the heading. I would like to accomplish it with this small dose of
+CSS:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="in">:is(h2, h3, h4, h5, h6)</span> a {</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
@@ -94,7 +134,11 @@
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="in">:is(h2, h3, h4, h5, h6):hover</span> a {</span>
 <span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
 <span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<p>The <code>is()</code> pseudo-class function matches anything that matches the selector arguments, avoiding tedious repetition. It is part of CSS <a href="https://www.w3.org/TR/selectors-4/#matches">Selectors Level 4</a>, which is still a draft. Firefox and Safari fully support it but unfortunately other browsers are <a href="https://caniuse.com/css-matches-pseudo">lagging behind</a>. So I am stuck with the tedious repetition for now:</p>
+<p>The <code>is()</code> pseudo-class function matches anything that matches the
+selector arguments, avoiding tedious repetition. It is part of CSS
+<a href="https://www.w3.org/TR/selectors-4/#matches">Selectors Level 4</a>, which is still a draft. Firefox and Safari
+fully support it but unfortunately other browsers are <a href="https://caniuse.com/css-matches-pseudo">lagging
+behind</a>. So I am stuck with the tedious repetition for now:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>h2 a<span class="op">,</span> h3 a<span class="op">,</span> h4 a<span class="op">,</span> h5 a<span class="op">,</span> h6 a {</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
@@ -104,19 +148,30 @@
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>h2<span class="in">:hover</span> a<span class="op">,</span> h3<span class="in">:hover</span> a<span class="op">,</span> h4<span class="in">:hover</span> a<span class="op">,</span> h5<span class="in">:hover</span> a<span class="op">,</span> h6<span class="in">:hover</span> a {</span>
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<p>I also used <code>text-decoration</code> and <code>color</code> to make the link appearance clean and understated.</p>
+<p>I also used <code>text-decoration</code> and <code>color</code> to make the link
+appearance clean and understated.</p>
 <h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
-<p>As a result of this change, the HTML emitted for section headers (of depth &gt; 1) looks like:</p>
+<p>As a result of this change, the HTML emitted for section headers (of
+depth &gt; 1) looks like:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h2</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  Probabilities <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#probabilities&quot;</span><span class="kw">&gt;</span>§<span class="kw">&lt;/a&gt;</span></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
-<p>You can experience the results for yourself, right here on this page (and in my other posts). You can also <a href="https://github.com/frasertweedale/blog-fp/commit/fe72af9144fea3ece5295ac5446f647560119088">view the commit</a> that implements this feature.</p>
-<p>There’s not much else to say, really. Pandoc is still awesome. Hakyll is still awesome. And I am very happy with the results of this little enhancement. Go forth and pilcrow-ise your Hakyll sites!</p>
+<p>You can experience the results for yourself, right here on this page
+(and in my other posts). You can also <a href="https://github.com/frasertweedale/blog-fp/commit/fe72af9144fea3ece5295ac5446f647560119088">view the commit</a> that
+implements this feature.</p>
+<p>There’s not much else to say, really. Pandoc is still awesome.
+Hakyll is still awesome. And I am very happy with the results of
+this little enhancement. Go forth and pilcrow-ise your Hakyll
+sites!</p>
 </div>
 <div id="postFooter">
     <div id="recent">
 Recent posts:
 <ul>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
     
         <li>
             <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
@@ -132,10 +187,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
         </li>
     
 </ul>

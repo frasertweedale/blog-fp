@@ -6,7 +6,10 @@
         <title>pureblog - Type-guided development and garden paths</title>
         <link rel="stylesheet" type="text/css" href="../css/default.css" />
         <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Type-guided development and garden paths","datePublished":"2021-05-12T00:00:00"}</script>
-        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html" /><meta property="og:title" content="Type-guided development and garden paths" /><meta property="og:description" content="When the type checker is happy but the behaviour is all wrong, it can be hard to find where you took the wrong turn. In this post I’ll share real-world examples of this phenomenon, and offer some tips on how to avoid it." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html" /><meta property="og:title" content="Type-guided development and garden paths" /><meta property="og:description" content="When the type checker is happy but the behaviour is all wrong, it
+can be hard to find where you took the wrong turn. In this post
+I’ll share real-world examples of this phenomenon, and offer some
+tips on how to avoid it." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
         <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
     </head>
     <body>
@@ -29,21 +32,32 @@
 
 <div id="postContent">
     <h1 id="type-guided-development-and-garden-paths">Type-guided development and garden paths</h1>
-<p><em>“Types help you reason about effects”</em>, we declare. And they do! Except when they don’t. <em>“Just follow the types!”</em> we insist. But sometimes the types take you down a garden path.</p>
-<p>When the type checker is happy but the behaviour is all wrong, it can be hard to find where you took the wrong turn. In this post I’ll share real-world examples of this phenomenon, and offer some tips on how to avoid it.</p>
+<p><em>“Types help you reason about effects”</em>, we declare. And they do!
+Except when they don’t. <em>“Just follow the types!”</em> we insist. But
+sometimes the types take you down a garden path.</p>
+<p>When the type checker is happy but the behaviour is all wrong, it
+can be hard to find where you took the wrong turn. In this post
+I’ll share real-world examples of this phenomenon, and offer some
+tips on how to avoid it.</p>
 <h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives" class="section">§</a></h2>
-<p>The <code>Applicative</code> type class provides a function for lifting a “pure” value into the applicative data type:</p>
+<p>The <code>Applicative</code> type class provides a function for lifting a
+“pure” value into the applicative data type:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Applicative</span> (<span class="ot">k ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>) <span class="kw">where</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  pure ::</span> a <span class="ot">-&gt;</span> k a</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  (&lt;*&gt;) ::</span> k (a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> k a <span class="ot">-&gt;</span> k b</span></code></pre></div>
-<p>Assume we have a random generator of values of type <code>a</code>, and wish to generate random applicatives. The shape of this problem is:</p>
+<p>Assume we have a random generator of values of type <code>a</code>, and wish to
+generate random applicatives. The shape of this problem is:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">genAp ::</span> (<span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> <span class="dt">Gen</span> a <span class="ot">-&gt;</span> <span class="dt">Gen</span> (t a)</span></code></pre></div>
 <p>We can generalise <code>Gen</code> to any effect <code>f</code>:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">effAp ::</span> (<span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span></code></pre></div>
-<p>How can implement this? <em>Follow the types!</em> <code>t</code> has an <code>Applicative</code> instance, so if we introduce a <code>Functor</code> constraint on <code>f</code> we can write:</p>
+<p>How can implement this? <em>Follow the types!</em> <code>t</code> has an
+<code>Applicative</code> instance, so if we introduce a <code>Functor</code> constraint on
+<code>f</code> we can write:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">effAp ::</span> (<span class="dt">Functor</span> f, <span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>effAp <span class="ot">=</span> <span class="fu">fmap</span> <span class="fu">pure</span></span></code></pre></div>
-<p>Now we have a nice, general function that runs an effect and lifts the result into an applicative. Let’s test it by generating single-value lists of <code>Word8</code>:</p>
+<p>Now we have a nice, general function that runs an effect and lifts
+the result into an applicative. Let’s test it by generating
+single-value lists of <code>Word8</code>:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> [<span class="dt">Word8</span>]</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>[<span class="dv">120</span>]</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> [<span class="dt">Word8</span>]</span>
@@ -57,19 +71,26 @@
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Foldable</span> <span class="dt">V3</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Traversable</span> <span class="dt">V3</span></span></code></pre></div>
 <div class="note">
-<p>This type is similar to <a href="https://hackage.haskell.org/package/linear-1.21.5/docs/Linear-V3.html#t:V3"><code>Linear.V3.V3</code></a> from <a href="https://hackage.haskell.org/package/linear"><em>linear</em></a>, a popular linear algebra package.</p>
+<p>This type is similar to <a href="https://hackage.haskell.org/package/linear-1.21.5/docs/Linear-V3.html#t:V3"><code>Linear.V3.V3</code></a> from
+<a href="https://hackage.haskell.org/package/linear"><em>linear</em></a>, a popular linear algebra package.</p>
 </div>
 <p>The random <code>V3</code> values generated are:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> (<span class="dt">V3</span> <span class="dt">Word8</span>)</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">V3</span> <span class="dv">186</span> <span class="dv">186</span> <span class="dv">186</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> (<span class="dt">V3</span> <span class="dt">Word8</span>)</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="dt">V3</span> <span class="dv">215</span> <span class="dv">215</span> <span class="dv">215</span></span></code></pre></div>
-<p>Oh dear. We followed the types to implement <code>effAp</code>, but the implementation is not correct! Instead of running the effect 3 times to generate 3 random vector components, it ran the effect once and used the result 3 times.</p>
-<p><code>effAp</code> should first lift the <em>effect</em> into the applicative type using <code>pure</code>, giving a value of the type <code>(Applicative t) =&gt; t (f a)</code>. The shape of the hole is now <code>t (f a) -&gt; f (t a)</code>. That is exactly the shape of <code>sequenceA</code>:</p>
+<p>Oh dear. We followed the types to implement <code>effAp</code>, but the
+implementation is not correct! Instead of running the effect 3
+times to generate 3 random vector components, it ran the effect once
+and used the result 3 times.</p>
+<p><code>effAp</code> should first lift the <em>effect</em> into the applicative type
+using <code>pure</code>, giving a value of the type <code>(Applicative t) =&gt; t (f a)</code>. The shape of the hole is now <code>t (f a) -&gt; f (t a)</code>. That is
+exactly the shape of <code>sequenceA</code>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sequenceA</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Traversable</span> t, <span class="dt">Applicative</span> f)</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> t (f a) <span class="ot">-&gt;</span> f (t a)</span></code></pre></div>
-<p>Accepting the tighter constraints, the implementation of <code>effAp</code> becomes:</p>
+<p>Accepting the tighter constraints, the implementation of <code>effAp</code>
+becomes:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>effAp</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Traversable</span> t, <span class="dt">Applicative</span> f, <span class="dt">Applicative</span> t)</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span>
@@ -81,37 +102,79 @@ V3 251 198 213</code></pre>
 <p><code>V3</code> is one of many types for which <code>fmap pure</code> and <code>sequenceA . pure</code> behave differently. Other examples include <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,)</code></a> and <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy</code></a>.</p>
 </div>
 <h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them" class="section">§</a></h2>
-<p>In <a href="https://github.com/purebred-mua/purebred">Purebred</a> we have an input validation system that checks inputs as the user types. It dispatches the validation work to a background thread, so the UI stays responsive. Each time the user edits the input, the program kills the outstanding validation thread (if any) and spawns a new one. The program code (simplified for this article) is:</p>
+<p>In <a href="https://github.com/purebred-mua/purebred">Purebred</a> we have an input validation system that checks
+inputs as the user types. It dispatches the validation work to a
+background thread, so the UI stays responsive. Each time the user
+edits the input, the program kills the outstanding validation thread
+(if any) and spawns a new one. The program code (simplified for
+this article) is:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>dispatchValidation <span class="ot">=</span> <span class="kw">do</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> spawn <span class="ot">=</span> forkIO doValidation</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  oldId <span class="ot">&lt;-</span> getValidationThread</span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  newId <span class="ot">&lt;-</span> <span class="fu">maybe</span> spawn (killThread <span class="op">$&gt;</span> spawn) oldId</span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  _ <span class="ot">&lt;-</span> setValidationThread (<span class="dt">Just</span> newId)</span></code></pre></div>
-<p>The outstanding validation thread is stored in a <code>Maybe ThreadId</code>. In the <code>Just</code> case the program kills the old thread, spawns a new thread and returns the new <code>ThreadId</code>:</p>
+<p>The outstanding validation thread is stored in a <code>Maybe ThreadId</code>.
+In the <code>Just</code> case the program kills the old thread, spawns a new
+thread and returns the new <code>ThreadId</code>:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>(killThread <span class="op">$&gt;</span> spawn)<span class="ot"> ::</span> <span class="dt">ThreadId</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">ThreadId</span></span></code></pre></div>
-<p>Except, it does not. At a glance, we see the actions occurring in the correct order. But there was a bug. Input validation had unexpected and nondeterministic results. For example, a valid input might (or might not) result in an error being shown.</p>
+<p>Except, it does not. At a glance, we see the actions occurring in
+the correct order. But there was a bug. Input validation had
+unexpected and nondeterministic results. For example, a valid input
+might (or might not) result in an error being shown.</p>
 <p>We can apprehend the error by equational reasoning:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>  killThread <span class="op">$&gt;</span> spawn</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> <span class="fu">const</span> spawn <span class="op">&lt;$&gt;</span> killThread       <span class="co">-- definition of ($&gt;)</span></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> <span class="fu">const</span> spawn <span class="op">.</span> killThread         <span class="co">-- fmap for ((-&gt;) r)</span></span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> \x <span class="ot">-&gt;</span> <span class="fu">const</span> spawn (killThread x) <span class="co">-- definition of (.)</span></span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> \x <span class="ot">-&gt;</span> spawn                      <span class="co">-- definition of const</span></span></code></pre></div>
-<p>The expression discards the old <code>ThreadId</code> and never executes <code>killThread</code>. As a consequence, validation threads run wild, finishing their work in a nondeterminstic order.</p>
-<p>When we finally understood the problem, <a href="https://github.com/purebred-mua/purebred/pull/413/commits/4eefd939d4bb201c37e5fe2956e8777e85a6b930">the fix</a> was straightforward. We replaced the expression:</p>
+<p>The expression discards the old <code>ThreadId</code> and never executes
+<code>killThread</code>. As a consequence, validation threads run wild,
+finishing their work in a nondeterminstic order.</p>
+<p>When we finally understood the problem, <a href="https://github.com/purebred-mua/purebred/pull/413/commits/4eefd939d4bb201c37e5fe2956e8777e85a6b930">the fix</a> was
+straightforward. We replaced the expression:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>killThread <span class="op">$&gt;</span> spawn  <span class="co">-- broken</span></span></code></pre></div>
 <p>with:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>\t <span class="ot">-&gt;</span> killThread t <span class="op">*&gt;</span> spawn  <span class="co">-- fixed</span></span></code></pre></div>
 <h2 id="lessons-learned">Lessons learned <a href="#lessons-learned" class="section">§</a></h2>
-<p>I discussed two bugs where the type checker was happy and the code seemed <em>superficially</em> reasonable. Both had implementations guided by “type tetris” (<em>what fits here?</em>) that turned out to be fundamentally wrong. What strategies can help avoid such traps?</p>
-<p>The first bug involved use of the wrong abstraction; <code>Functor</code> instead of <code>Applicative</code>. Making an effort to test generic functions with a greater diversity of instances might have helped discover this bug sooner. In the case of applicatives, don’t just test with <code>[]</code>, <code>Maybe</code> and other “common” types where <code>pure</code> constructs a “singleton” value. Test with <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy a</code></a> (which has zero <code>a</code> values), <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,) a</code></a> (two <code>a</code> values), and so on.</p>
-<p>As for the second bug, my advice is don’t try to be clever when writing effectful code. <code>do</code> notation and explicit binds are fine. Using underscore binds to ignore values may result in more readable code than <code>const</code> and related functions. If you have a hole with a function type, start by writing the lambda, and work step by step to complete the definition. Make sure it’s correct first, and only then tidy it up (if you want to).</p>
-<p>In the case of the Purebred bug, we had a hole with the type <code>ThreadId -&gt; IO ThreadId</code>, and filled it with an expression that <strong>subtly</strong> ignored the <code>ThreadId</code> argument. Our next step, when faced with this hole, should have been to write the expression <code>(\threadId -&gt; _)</code>. Critically, this binds the <code>ThreadId</code> argument, making it hard to ignore.</p>
-<p>The final takeaway is: don’t be smug about the power of the type system. Type-guided development is indeed wonderful and powerful, but let’s be honest that in many cases, reasoning from the types alone won’t get you all the way to a correct solution. On the contrary, you may find yourself at the end of a garden path!</p>
+<p>I discussed two bugs where the type checker was happy and the code
+seemed <em>superficially</em> reasonable. Both had implementations guided
+by “type tetris” (<em>what fits here?</em>) that turned out to be
+fundamentally wrong. What strategies can help avoid such traps?</p>
+<p>The first bug involved use of the wrong abstraction; <code>Functor</code>
+instead of <code>Applicative</code>. Making an effort to test generic
+functions with a greater diversity of instances might have helped
+discover this bug sooner. In the case of applicatives, don’t just
+test with <code>[]</code>, <code>Maybe</code> and other “common” types where <code>pure</code>
+constructs a “singleton” value. Test with <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy a</code></a>
+(which has zero <code>a</code> values), <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,) a</code></a> (two <code>a</code>
+values), and so on.</p>
+<p>As for the second bug, my advice is don’t try to be clever when
+writing effectful code. <code>do</code> notation and explicit binds are fine.
+Using underscore binds to ignore values may result in more readable
+code than <code>const</code> and related functions. If you have a hole with a
+function type, start by writing the lambda, and work step by step to
+complete the definition. Make sure it’s correct first, and only
+then tidy it up (if you want to).</p>
+<p>In the case of the Purebred bug, we had a hole with the type
+<code>ThreadId -&gt; IO ThreadId</code>, and filled it with an expression that
+<strong>subtly</strong> ignored the <code>ThreadId</code> argument. Our next step, when
+faced with this hole, should have been to write the expression
+<code>(\threadId -&gt; _)</code>. Critically, this binds the <code>ThreadId</code> argument,
+making it hard to ignore.</p>
+<p>The final takeaway is: don’t be smug about the power of the type
+system. Type-guided development is indeed wonderful and powerful,
+but let’s be honest that in many cases, reasoning from the types
+alone won’t get you all the way to a correct solution. On the
+contrary, you may find yourself at the end of a garden path!</p>
 </div>
 <div id="postFooter">
     <div id="recent">
 Recent posts:
 <ul>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
     
         <li>
             <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
@@ -127,10 +190,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
         </li>
     
 </ul>

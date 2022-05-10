@@ -6,7 +6,9 @@
         <title>pureblog - Haddock: disambiguating types and values</title>
         <link rel="stylesheet" type="text/css" href="../css/default.css" />
         <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Haddock: disambiguating types and values","datePublished":"2021-11-12T00:00:00"}</script>
-        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-11-12-haddock-disambiguation.html" /><meta property="og:title" content="Haddock: disambiguating types and values" /><meta property="og:description" content="In this post I show how to disambiguate types and values in Haddock documentation." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-11-12-haddock-disambiguation.html" /><meta property="og:title" content="Haddock: disambiguating types and values" /><meta property="og:description" content="In this post I show how
+to disambiguate types and values in Haddock
+documentation." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
         <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
     </head>
     <body>
@@ -29,7 +31,11 @@
 
 <div id="postContent">
     <h1 id="haddock-disambiguating-types-and-values">Haddock: disambiguating types and values</h1>
-<p>Haskell has separate namespaces for types and values. When types and data constructors share a name, <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">Haddock</a>, Haskell’s documentation generator, can get confused. <span class="abstract">In this post I show how to disambiguate types and values in Haddock documentation.</span></p>
+<p>Haskell has separate namespaces for types and values. When types
+and data constructors share a name, <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">Haddock</a>, Haskell’s
+documentation generator, can get confused. <span class="abstract">In this post I show how
+to disambiguate types and values in Haddock
+documentation.</span></p>
 <h2 id="demonstrating-the-problem">Demonstrating the problem <a href="#demonstrating-the-problem" class="section">§</a></h2>
 <p>For demonstration purposes I created a simple module, <code>ACME.Disamb</code>:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb</span> (<span class="dt">Foo</span>(<span class="op">..</span>), <span class="dt">Bar</span>(<span class="op">..</span>), <span class="dt">Quux</span>, <span class="dt">Xyxxy</span>) <span class="kw">where</span></span>
@@ -45,8 +51,13 @@
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Quux</span></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Xyxxy</span> a</span></code></pre></div>
-<p>Note that <code>Foo</code> is the name of both a type and a data constructor. Same for <code>Bar</code>. <code>Quux</code> is a type with no constructor and <code>Xyxxy</code> is a class. The Haddock for type <code>Bar</code> contains ambiguous references to both <code>Bar</code> and <code>Foo</code>.</p>
-<p>Let’s look at the HTML Haddock generated for each top-level declaration:</p>
+<p>Note that <code>Foo</code> is the name of both a type and a data constructor.
+Same for <code>Bar</code>. <code>Quux</code> is a type with no constructor and <code>Xyxxy</code> is
+a class. The Haddock
+for type <code>Bar</code> contains ambiguous references to both <code>Bar</code> and
+<code>Foo</code>.</p>
+<p>Let’s look at the HTML Haddock generated for each top-level
+declaration:</p>
 <h3 id="data-foo"><code>data Foo</code> <a href="#data-foo" class="section">§</a></h3>
 <div class="sourceCode" id="cb2"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
@@ -65,7 +76,10 @@
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;/table&gt;</span></span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
-<p>The element representing type <code>Foo</code> has <code>id="t:Foo"</code>, whereas the constructor has <code>id="v:Foo"</code>. These identifiers can be used as fragment identifiers in hyperlinks. Types and values are disambiguated through the <code>t:…</code> and <code>v:…</code> identifier prefixes.</p>
+<p>The element representing type <code>Foo</code> has <code>id="t:Foo"</code>, whereas the
+constructor has <code>id="v:Foo"</code>. These identifiers can be used as
+fragment identifiers in hyperlinks. Types and values are
+disambiguated through the <code>t:…</code> and <code>v:…</code> identifier prefixes.</p>
 <h3 id="data-bar"><code>data Bar</code> <a href="#data-bar" class="section">§</a></h3>
 <div class="sourceCode" id="cb3"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
@@ -81,8 +95,13 @@
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
 <span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- constructors elided --&gt;</span></span>
 <span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
-<p>Here we can see that all references to <code>Foo</code> and <code>Bar</code> in the documentation I wrote <strong>all link to <code>t:Foo</code> or <code>t:Bar</code></strong>. This is not what I intended. The usage example should refer to the data constructors.</p>
-<p>In my example this is a minor nuisance, but recall that <code>Foo</code> could be the constructor of some other type. The <em>type</em> <code>Foo</code> could be unrelated!</p>
+<p>Here we can see that all references to <code>Foo</code> and <code>Bar</code> in the
+documentation I wrote <strong>all link to <code>t:Foo</code> or <code>t:Bar</code></strong>. This is
+not what I intended. The usage example should refer to the data
+constructors.</p>
+<p>In my example this is a minor nuisance, but recall that <code>Foo</code> could
+be the constructor of some other type. The <em>type</em> <code>Foo</code> could be
+unrelated!</p>
 <h3 id="data-quux"><code>data Quux</code> <a href="#data-quux" class="section">§</a></h3>
 <div class="sourceCode" id="cb4"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;src&quot;</span><span class="kw">&gt;</span></span>
@@ -98,9 +117,11 @@
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#t:Xyzzy&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;selflink&quot;</span><span class="kw">&gt;</span>#<span class="kw">&lt;/a&gt;</span></span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
-<p>Type class names inhabit the type namespace. Therefore the corresponding element identifiers also use the <code>t:…</code> prefix.</p>
+<p>Type class names inhabit the type namespace. Therefore the
+corresponding element identifiers also use the <code>t:…</code> prefix.</p>
 <h2 id="the-solution">The solution <a href="#the-solution" class="section">§</a></h2>
-<p>To refer explicitly to a type or value, prefix the reference with <code>t</code> or <code>v</code>. For example:</p>
+<p>To refer explicitly to a type or value, prefix the reference with
+<code>t</code> or <code>v</code>. For example:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | A bar contains a 'Foo'.  Example:</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- @let bar = v'Bar' v'Foo'@</span></span>
@@ -117,13 +138,16 @@
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/div&gt;</span></span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
 <div class="note">
-<p>This feature is available since <a href="https://hackage.haskell.org/package/haddock-2.23.0/changelog">haddock-2.23.0</a> (<a href="https://github.com/haskell/haddock/commit/dd47029cb29c80b1ab4db520c9c2ce4dca37f833">commit</a>). The published <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">user guide</a> is out of date but you can read <a href="https://github.com/haskell/haddock/blob/haddock-2.25.0-release/doc/markup.rst#hyperlinked-identifiers">up-to-date documentation on GitHub</a>.</p>
+<p>This feature is available since <a href="https://hackage.haskell.org/package/haddock-2.23.0/changelog">haddock-2.23.0</a> (<a href="https://github.com/haskell/haddock/commit/dd47029cb29c80b1ab4db520c9c2ce4dca37f833">commit</a>).
+The published <a href="https://haskell-haddock.readthedocs.io/en/latest/index.html">user guide</a> is out of date but you can read
+<a href="https://github.com/haskell/haddock/blob/haddock-2.25.0-release/doc/markup.rst#hyperlinked-identifiers">up-to-date documentation on GitHub</a>.</p>
 </div>
 <h2 id="inter-module-references">Inter-module references <a href="#inter-module-references" class="section">§</a></h2>
 <p>Consider the following module:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | See also 'ACME.Disamb.Quux'.</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb2</span> <span class="kw">where</span></span></code></pre></div>
-<p>Unlike references <em>within</em> a module, inter-module references default to the <em>value</em> namespace:</p>
+<p>Unlike references <em>within</em> a module, inter-module references default
+to the <em>value</em> namespace:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;p</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;caption&quot;</span><span class="kw">&gt;</span>Description<span class="kw">&lt;/p&gt;</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;doc&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;p&gt;</span></span>
@@ -131,7 +155,8 @@
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;code&gt;&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;ACME-Disamb.html#v:Quux&quot;</span> <span class="er">title</span><span class="ot">=</span><span class="st">&quot;ACME.Disamb&quot;</span><span class="kw">&gt;</span>Quux<span class="kw">&lt;/a&gt;&lt;/code&gt;</span>.</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/p&gt;</span></span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
-<p>Recall that <code>Quux</code> has no constructor. So the link doesn’t even target the wrong identifier; it targets a <em>non-existent</em> identifier.</p>
+<p>Recall that <code>Quux</code> has no constructor. So the link doesn’t even
+target the wrong identifier; it targets a <em>non-existent</em> identifier.</p>
 <p>The solution is the same: prefix the whole reference with <code>t</code>:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | See also t'ACME.Disamb.Quux'.</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ACME.Disamb2</span> <span class="kw">where</span></span></code></pre></div>
@@ -140,6 +165,10 @@
     <div id="recent">
 Recent posts:
 <ul>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
     
         <li>
             <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
@@ -155,10 +184,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
         </li>
     
 </ul>

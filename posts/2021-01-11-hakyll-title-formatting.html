@@ -6,7 +6,11 @@
         <title>pureblog - Hakyll how-to: Fancy title formatting</title>
         <link rel="stylesheet" type="text/css" href="../css/default.css" />
         <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Hakyll how-to: Fancy title formatting","datePublished":"2021-01-11T00:00:00"}</script>
-        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-01-11-hakyll-title-formatting.html" /><meta property="og:title" content="Hakyll how-to: Fancy title formatting" /><meta property="og:description" content="Sometimes you need special formatting in an article title. I often use monospace (e.g. for a function name), but subscript, superscript or italics might be useful too. The standard Hakyll metadata block doesn’t offer a good way of doing this. But Hakyll is very flexible. In this post I’ll walk through my solution." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2021-01-11-hakyll-title-formatting.html" /><meta property="og:title" content="Hakyll how-to: Fancy title formatting" /><meta property="og:description" content="Sometimes you need special formatting in an article title. I often
+use monospace (e.g. for a function name), but subscript, superscript
+or italics might be useful too. The standard Hakyll metadata
+block doesn’t offer a good way of doing this. But Hakyll is very
+flexible. In this post I’ll walk through my solution." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
         <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
     </head>
     <body>
@@ -29,20 +33,28 @@
 
 <div id="postContent">
     <h1 id="hakyll-how-to-fancy-title-formatting">Hakyll how-to: <em>Fancy</em> <code>title</code> <span class="smallcaps">formatting</span></h1>
-<p>Sometimes you need special formatting in an article title. I often use monospace (e.g. for a function name), but subscript, superscript or italics might be useful too. The standard <a href="https://jaspervdj.be/hakyll/">Hakyll</a> metadata block doesn’t offer a good way of doing this. But Hakyll is very flexible. In this post I’ll walk through my solution.</p>
+<p>Sometimes you need special formatting in an article title. I often
+use monospace (e.g. for a function name), but subscript, superscript
+or italics might be useful too. The standard <a href="https://jaspervdj.be/hakyll/">Hakyll</a> metadata
+block doesn’t offer a good way of doing this. But Hakyll is very
+flexible. In this post I’ll walk through my solution.</p>
 <h2 id="the-standard-approach">The standard approach <a href="#the-standard-approach" class="section">§</a></h2>
-<p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an input file. You specify the <code>title</code> there:</p>
+<p><a href="https://pandoc.org/">Pandoc</a> reads an optional YAML <em>metadata block</em> at the beginning of an
+input file. You specify the <code>title</code> there:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> Fancy Hakyll title formatting</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>Sometimes you need…</span></code></pre></div>
-<p>Hakyll propagates these metadata fields in the <a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>, so that you can refer to <code>$title$</code> in the article template(s):</p>
+<p>Hakyll propagates these metadata fields in the
+<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>, so that you can refer to
+<code>$title$</code> in the article template(s):</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h1&gt;</span>$title$<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>$body$</span></code></pre></div>
-<p>Typically you also include <code>$title$</code> in the HTML <code>&lt;title&gt;</code> element, in the “top-level” template:</p>
+<p>Typically you also include <code>$title$</code> in the HTML <code>&lt;title&gt;</code> element,
+in the “top-level” template:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;html</span> <span class="er">xmlns</span><span class="ot">=</span><span class="st">&quot;http://www.w3.org/1999/xhtml&quot;</span> <span class="er">xml:lang</span><span class="ot">=</span><span class="st">&quot;en&quot;</span> <span class="er">lang</span><span class="ot">=</span><span class="st">&quot;en&quot;</span><span class="kw">&gt;</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;head&gt;</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;title&gt;</span>pureblog - $title$<span class="kw">&lt;/title&gt;</span></span>
@@ -51,7 +63,8 @@
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  …</span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/html&gt;</span></span></code></pre></div>
 <h3 id="limitations">Limitations <a href="#limitations" class="section">§</a></h3>
-<p>Say you want to use monospace for the “Hakyll” in the title. Trying with backticks…</p>
+<p>Say you want to use monospace for the “Hakyll” in the title. Trying
+with backticks…</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> Fancy `Hakyll` title formatting</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
@@ -65,7 +78,9 @@
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>…</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h1&gt;</span>Fancy `Hakyll` title formatting<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
-<p>Not what we want. The backticks were propagated verbatim, instead of resulting in a <code>&lt;code&gt;</code> element. Worse, when you have formatting at the <em>beginning</em> of the value…</p>
+<p>Not what we want. The backticks were propagated verbatim, instead
+of resulting in a <code>&lt;code&gt;</code> element. Worse, when you have formatting
+at the <em>beginning</em> of the value…</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> *Fancy* Hakyll title formatting</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
@@ -97,10 +112,17 @@ did not find expected alphabetic or numeric character
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>…</span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h1&gt;&lt;em&gt;</span>Fancy<span class="kw">&lt;/em&gt;</span> <span class="kw">&lt;code&gt;</span>Hakyll<span class="kw">&lt;/code&gt;</span> title formatting<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
-<p>The <code>&lt;h1&gt;</code> header is formatted exactly how we want. But now there are literal HTML tags in the <code>&lt;title&gt;</code> (browsers do not recognise formatting here). So we need a “plain” variant of the title to put in the <code>&lt;title&gt;</code> element. We may also need to use the plain variant in Atom/RSS feeds, or other parts of the site.</p>
-<p>Also, writing HTML is not nice. A big reason to use Hakyll and Pandoc is to write in a more fluent and human-friendly markup format. It is undesirable to have to revert to HTML.</p>
+<p>The <code>&lt;h1&gt;</code> header is formatted exactly how we want. But now there
+are literal HTML tags in the <code>&lt;title&gt;</code> (browsers do not recognise
+formatting here). So we need a “plain” variant of the title to put
+in the <code>&lt;title&gt;</code> element. We may also need to use the plain variant
+in Atom/RSS feeds, or other parts of the site.</p>
+<p>Also, writing HTML is not nice. A big reason to use Hakyll and
+Pandoc is to write in a more fluent and human-friendly markup
+format. It is undesirable to have to revert to HTML.</p>
 <h2 id="two-titles">Two titles? <a href="#two-titles" class="section">§</a></h2>
-<p>As demonstrated, two variants of the title are needed—one with (optional) formatting, and one without. Therefore we could write:</p>
+<p>As demonstrated, two variants of the title are needed—one with
+(optional) formatting, and one without. Therefore we could write:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> Fancy Hakyll title formatting</span></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="an">fancyTitle:</span><span class="co"> &lt;em&gt;Fancy&lt;/em&gt; &lt;code&gt;Hakyll&lt;/code&gt; title formatting</span></span>
@@ -112,10 +134,15 @@ did not find expected alphabetic or numeric character
 <div class="sourceCode" id="cb11"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h1&gt;</span>$fancyTitle$<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>$body$</span></code></pre></div>
-<p>This approach works. But it is unsatisfying because not only are we writing HTML; we are also writing the same title twice! This fails the DRY (<em>don’t repeat yourself</em>) principle. Even when <code>fancyTitle</code> has formatting, the content is substantially similar. In fact, you could derive the plain variant from the other.</p>
+<p>This approach works. But it is unsatisfying because not only are we
+writing HTML; we are also writing the same title twice! This fails
+the DRY (<em>don’t repeat yourself</em>) principle. Even when <code>fancyTitle</code>
+has formatting, the content is substantially similar. In fact, you
+could derive the plain variant from the other.</p>
 <p>So that’s what I do.</p>
 <h2 id="solution">Solution <a href="#solution" class="section">§</a></h2>
-<p>First, promote the title out of the metadata block and into the document itself, as a heading:</p>
+<p>First, promote the title out of the metadata block and into the
+document itself, as a heading:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span><span class="co"> hakyll, pandoc</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
@@ -123,14 +150,20 @@ did not find expected alphabetic or numeric character
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="fu"># *Fancy* `Hakyll` title formatting</span></span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>Sometimes you need…</span></code></pre></div>
-<p>You’ll need to update the the compilation rule to extract the first header from the document, compute values for <code>$title$</code> and <code>$fancyTitle$</code> and remember them. Define the extraction function:</p>
+<p>You’ll need to update the the compilation rule to extract the first
+header from the document, compute values for <code>$title$</code> and
+<code>$fancyTitle$</code> and remember them. Define the extraction function:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ot">firstHeader ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>firstHeader (<span class="dt">Pandoc</span> _ xs) <span class="ot">=</span> go xs</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  go [] <span class="ot">=</span> <span class="dt">Nothing</span></span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  go (<span class="dt">Header</span> _ _ ys <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> ys</span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  go (_ <span class="op">:</span> xs) <span class="ot">=</span> go xs</span></code></pre></div>
-<p><span id="removeFormatting">And define the “strip formatting” function. <code>removeFormatting</code> uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the “terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally appends the values yielded by the inner function <code>f</code>.</span></p>
+<p><span id="removeFormatting">And define the “strip formatting” function. <code>removeFormatting</code>
+uses <a href="https://hackage.haskell.org/package/pandoc-types-1.22/docs/Text-Pandoc-Walk.html#v:query"><code>Text.Pandoc.Walk.query</code></a> to yield, in order, only the
+“terminal” or “leaf” data from a <code>[Inline]</code>. <code>query</code> monoidally
+appends the values yielded by the inner function
+<code>f</code>.</span></p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ot">removeFormatting ::</span> [<span class="dt">Inline</span>] <span class="ot">-&gt;</span> [<span class="dt">Inline</span>]</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>removeFormatting <span class="ot">=</span> query f</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
@@ -143,7 +176,8 @@ did not find expected alphabetic or numeric character
 <span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Math</span> _ s <span class="ot">-&gt;</span> [<span class="dt">Str</span> s]</span>
 <span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">RawInline</span> _ s <span class="ot">-&gt;</span> [<span class="dt">Str</span> s]</span>
 <span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    _ <span class="ot">-&gt;</span> []</span></code></pre></div>
-<p>Next, update the Hakyll compilation rule to extract the header, process and render its content, and save snapshots of the values.</p>
+<p>Next, update the Hakyll compilation rule to extract the header,
+process and render its content, and save snapshots of the values.</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>compile <span class="op">$</span> <span class="kw">do</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- </span><span class="re">BEGIN</span><span class="co"> title processing</span></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  pandoc <span class="ot">&lt;-</span> readPandoc <span class="op">=&lt;&lt;</span> getResourceBody</span>
@@ -161,7 +195,8 @@ did not find expected alphabetic or numeric character
 <span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">&gt;&gt;=</span> loadAndApplyTemplate <span class="st">&quot;templates/post.html&quot;</span> ctx</span>
 <span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">&gt;&gt;=</span> loadAndApplyTemplate <span class="st">&quot;templates/default.html&quot;</span> ctx</span>
 <span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">&gt;&gt;=</span> relativizeUrls</span></code></pre></div>
-<p>The final code change is to update <code>ctx</code> to retrieve values for <code>$title$</code> and <code>$fancyTitle$</code> from the snapshots:</p>
+<p>The final code change is to update <code>ctx</code> to retrieve values
+for <code>$title$</code> and <code>$fancyTitle$</code> from the snapshots:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ot">ctx ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>ctx <span class="ot">=</span></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  dateField <span class="st">&quot;date&quot;</span> <span class="st">&quot;%Y-%m-%d&quot;</span></span>
@@ -172,9 +207,12 @@ did not find expected alphabetic or numeric character
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="ot">snapshotField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Snapshot</span> <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
 <span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>snapshotField key snap <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span></span>
 <span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>  loadSnapshotBody (itemIdentifier item) snap</span></code></pre></div>
-<p>Finally, update relevant templates. The post template (<code>templates/post.html</code>) does not refer to <code>$title$</code> or <code>$fancyTitle$</code>; the title is now part of the document <code>$body$</code>:</p>
+<p>Finally, update relevant templates. The post template
+(<code>templates/post.html</code>) does not refer to <code>$title$</code> or
+<code>$fancyTitle$</code>; the title is now part of the document <code>$body$</code>:</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>$body$</span></code></pre></div>
-<p>Other templates (e.g. the archive page, <code>templates/archive.html</code>) can use the <code>$fancyTitle$</code>:</p>
+<p>Other templates (e.g. the archive page, <code>templates/archive.html</code>)
+can use the <code>$fancyTitle$</code>:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>Here you can find all my previous posts.</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;ul&gt;</span></span>
@@ -185,7 +223,9 @@ did not find expected alphabetic or numeric character
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  $endfor$</span>
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/ul&gt;</span></span></code></pre></div>
 <h3 id="results">Results <a href="#results" class="section">§</a></h3>
-<p>The resulting HTML has the plain <code>$title$</code> value in the <code>&lt;title&gt;</code> element. The formatted title appears as an <code>&lt;h1&gt;</code> element in the article <code>$body$</code>.</p>
+<p>The resulting HTML has the plain <code>$title$</code> value in the <code>&lt;title&gt;</code>
+element. The formatted title appears as an <code>&lt;h1&gt;</code> element in the
+article <code>$body$</code>.</p>
 <div class="sourceCode" id="cb19"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>…</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;head&gt;</span></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&lt;title&gt;</span>pureblog - Fancy Hakyll title formatting<span class="kw">&lt;/title&gt;</span></span>
@@ -193,7 +233,8 @@ did not find expected alphabetic or numeric character
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h1</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;fancy-hakyll-title-formatting&quot;</span><span class="kw">&gt;&lt;em&gt;</span>Fancy<span class="kw">&lt;/em&gt;</span></span>
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;code&gt;</span>Hakyll<span class="kw">&lt;/code&gt;</span> title formatting.<span class="kw">&lt;/h1&gt;</span></span>
 <span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
-<p>The archive page uses <code>$fancyTitle$</code>, with the rich formatting, as the link (<code>&lt;a&gt;</code>) text for each post:</p>
+<p>The archive page uses <code>$fancyTitle$</code>, with the rich formatting, as
+the link (<code>&lt;a&gt;</code>) text for each post:</p>
 <div class="sourceCode" id="cb20"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>…</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;ul&gt;</span></span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;li&gt;</span></span>
@@ -203,11 +244,16 @@ did not find expected alphabetic or numeric character
 <span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&lt;/li&gt;</span></span>
 <span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>  …</span></code></pre></div>
 <h2 id="performance-what-not-to-do">Performance (what not to do) <a href="#performance-what-not-to-do" class="section">§</a></h2>
-<p>It is critical for performance to extract and process the header <em>during compilation</em>, saving snapshots of the computed values. I found this out the hard way. In a previous iteration of my solution, during compilation I only saved a snapshot of the input <em>source</em>:</p>
+<p>It is critical for performance to extract and process the header
+<em>during compilation</em>, saving snapshots of the computed values. I
+found this out the hard way. In a previous iteration of my
+solution, during compilation I only saved a snapshot of the input
+<em>source</em>:</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>compile <span class="op">$</span> <span class="kw">do</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  getResourceBody <span class="op">&gt;&gt;=</span> saveSnapshot <span class="st">&quot;source&quot;</span></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  pandocCompiler <span class="op">&gt;&gt;=</span> …</span></code></pre></div>
-<p>The behaviour to load the source from the snapshot, parse it and extract the title was part of the <code>Context</code>:</p>
+<p>The behaviour to load the source from the snapshot, parse it and
+extract the title was part of the <code>Context</code>:</p>
 <div class="sourceCode" id="cb22"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ot">headerField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> ([<span class="dt">Inline</span>] <span class="ot">-&gt;</span> [<span class="dt">Inline</span>]) <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>headerField key f <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span> <span class="kw">do</span></span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  doc <span class="ot">&lt;-</span> readPandoc <span class="op">=&lt;&lt;</span> loadSnapshot (itemIdentifier item) <span class="st">&quot;source&quot;</span></span>
@@ -222,8 +268,17 @@ did not find expected alphabetic or numeric character
 <span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> headerField <span class="st">&quot;title&quot;</span> removeFormatting</span>
 <span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> headerField <span class="st">&quot;fancyTitle&quot;</span> <span class="fu">id</span></span>
 <span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> defaultContext</span></code></pre></div>
-<p>With this implementation the build duration for my work blog (68 posts at the time) was around 34 seconds. Certainly long enough to irritate me. When I investigated, I discovered that Hakyll executes the process in <code>headerField</code>—load snapshot, parse with Pandoc, extract title—every time it encountered <code>$title$</code> or <code>$fancyTitle$</code> in a template. That was 683 times, or over 10 times per post!</p>
-<p>That seemed like an huge number to me, so I worked the numbers. Each post page has its <code>&lt;title&gt;</code>, and also a list of 5 recent articles. Each article appears in the main archive list, and also the list for each of its tags (I guess an average of 3 tags per article). And there are 5 recent articles on the home page.</p>
+<p>With this implementation the build duration for my work blog (68
+posts at the time) was around 34 seconds. Certainly long enough to
+irritate me. When I investigated, I discovered that Hakyll executes
+the process in <code>headerField</code>—load snapshot, parse with Pandoc,
+extract title—every time it encountered <code>$title$</code> or <code>$fancyTitle$</code>
+in a template. That was 683 times, or over 10 times per post!</p>
+<p>That seemed like an huge number to me, so I worked the numbers.
+Each post page has its <code>&lt;title&gt;</code>, and also a list of 5 recent
+articles. Each article appears in the main archive list, and also
+the list for each of its tags (I guess an average of 3 tags per
+article). And there are 5 recent articles on the home page.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="kw">import</span> <span class="dt">Data.Monoid</span> (<span class="dt">Sum</span>(..))</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> titles <span class="ot">=</span> <span class="fu">id</span></span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> recent <span class="ot">=</span> (<span class="op">*</span><span class="dv">5</span>)</span>
@@ -232,15 +287,39 @@ did not find expected alphabetic or numeric character
 <span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="fu">index</span> <span class="ot">=</span> <span class="fu">const</span> <span class="dv">5</span></span>
 <span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="fu">mconcat</span> [titles, recent, archive, tags, <span class="fu">index</span>] <span class="op">$</span> <span class="dt">Sum</span> <span class="dv">68</span></span>
 <span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="dt">Sum</span> {getSum <span class="ot">=</span> <span class="dv">685</span>}</span></code></pre></div>
-<p>The estimate (685) was very close to the actual value (683). Although this is the worst case scenario, even the best case scenario—when nothing has changed at all—still caused 192 parses and took significant time (about 9 seconds). This seems to be caused by tags pages always being recompiled. I’m not sure why that happens, but when the titles are cached it’s fast enough to not be an issue (&lt;0.5 seconds).</p>
-<p>The big takeaway from all this is: do as little processing as possible in <code>Context</code> field definitions. In my case, doing the title processing in <code>compile</code> and caching the results in dedicated snapshots (<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Core-Compiler.html#v:saveSnapshot"><code>saveSnapshot</code></a>) reduced site build time from 34 seconds to 9 seconds!</p>
+<p>The estimate (685) was very close to the actual value (683).
+Although this is the worst case scenario, even the best case
+scenario—when nothing has changed at all—still caused 192 parses and
+took significant time (about 9 seconds). This seems to be caused by
+tags pages always being recompiled. I’m not sure why that happens,
+but when the titles are cached it’s fast enough to not be an issue
+(&lt;0.5 seconds).</p>
+<p>The big takeaway from all this is: do as little processing as
+possible in <code>Context</code> field definitions. In my case, doing the
+title processing in <code>compile</code> and caching the results in dedicated
+snapshots (<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Core-Compiler.html#v:saveSnapshot"><code>saveSnapshot</code></a>) reduced site build time
+from 34 seconds to 9 seconds!</p>
 <h2 id="final-words">Final words <a href="#final-words" class="section">§</a></h2>
-<p>Pandoc and Hakyll continue to be awesome and powerful tools. Any time I’ve wished to do something a little differently, or enhance my site, I’ve always found a way (up to HTML and CSS, anyway).</p>
-<p>I did confirm that my solution results in 1 additional parse of each article source (2 parses in total). Using <a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a> I might be able to do the title processing in a callback, so that each article source gets parsed exactly once. This would further reduce the build time. I left this as a future improvement (and an exercise for the reader).</p>
-<p>Earlier I did omit one important detail for the sake of clarity. The “recent posts” list accompanying each article requires an additional <code>Rules</code> set, creating a <code>"recent"</code> version of each article <code>Item</code> that can be referenced in the “main” article.</p>
+<p>Pandoc and Hakyll continue to be awesome and powerful tools. Any
+time I’ve wished to do something a little differently, or enhance my
+site, I’ve always found a way (up to HTML and CSS, anyway).</p>
+<p>I did confirm that my solution results in 1 additional parse of each
+article source (2 parses in total). Using
+<a href="https://hackage.haskell.org/package/hakyll-4.13.4.1/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a> I
+might be able to do the title processing in a callback, so that each
+article source gets parsed exactly once. This would further reduce
+the build time. I left this as a future improvement (and an
+exercise for the reader).</p>
+<p>Earlier I did omit one important detail for the sake of clarity.
+The “recent posts” list accompanying each article requires an
+additional <code>Rules</code> set, creating a <code>"recent"</code> version of each
+article <code>Item</code> that can be referenced in the “main” article.</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>match <span class="st">&quot;posts/*&quot;</span> <span class="op">$</span> version <span class="st">&quot;recent&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  …</span></code></pre></div>
-<p>It is in <em>this</em> <code>Rules</code> set that I extract and snapshot the titles. Accordingly, in <code>snapshotField</code> I have to explicitly (and unconditionally) request the snapshot from the <code>"recent"</code> version of the current <code>Item</code>.</p>
+<p>It is in <em>this</em> <code>Rules</code> set that I extract and snapshot the titles.
+Accordingly, in <code>snapshotField</code> I have to explicitly (and
+unconditionally) request the snapshot from the <code>"recent"</code> version of
+the current <code>Item</code>.</p>
 <div class="sourceCode" id="cb25"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ot">snapshotField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Snapshot</span> <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>snapshotField key snap <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span></span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
@@ -253,6 +332,10 @@ did not find expected alphabetic or numeric character
     <div id="recent">
 Recent posts:
 <ul>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
     
         <li>
             <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
@@ -268,10 +351,6 @@ Recent posts:
     
         <li>
             <a href="../posts/2021-07-26-hakyll-without-sources.html">Hakyll how-to: pages without source files</a>
-        </li>
-    
-        <li>
-            <a href="../posts/2021-06-11-hakyll-abstracts.html">Generating abstracts for Hakyll articles</a>
         </li>
     
 </ul>
