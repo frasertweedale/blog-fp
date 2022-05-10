@@ -64,7 +64,7 @@ reveal that:
   result.  For example, when the executable file has been deleted.
   The result may vary during the lifetime of a process.
 
-The `Maybe a` type models the existence or absense of a value:
+The `Maybe a` type models the existence or absence of a value:
 
 ```haskell
 data Maybe a = Nothing | Just a
@@ -76,7 +76,7 @@ Accordingly, a suitable type to model this problem is:
 executablePath :: Maybe (IO (Maybe FilePath)
 ```
 
-The outer `Maybe` models the presence or absense of a query
+The outer `Maybe` models the presence or absence of a query
 mechanism.  The query itself has the type `IO (Maybe FilePath)`.
 The inner `Maybe` models that the query might be unable to return
 a valid `FilePath`.
