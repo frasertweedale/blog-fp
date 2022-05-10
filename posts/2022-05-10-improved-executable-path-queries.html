@@ -79,11 +79,11 @@ not change over the lifetime of a process.</p></li>
 result. For example, when the executable file has been deleted.
 The result may vary during the lifetime of a process.</p></li>
 </ul>
-<p>The <code>Maybe a</code> type models the existence or absense of a value:</p>
+<p>The <code>Maybe a</code> type models the existence or absence of a value:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Maybe</span> a <span class="ot">=</span> <span class="dt">Nothing</span> <span class="op">|</span> <span class="dt">Just</span> a</span></code></pre></div>
 <p>Accordingly, a suitable type to model this problem is:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">executablePath ::</span> <span class="dt">Maybe</span> (<span class="dt">IO</span> (<span class="dt">Maybe</span> <span class="dt">FilePath</span>)</span></code></pre></div>
-<p>The outer <code>Maybe</code> models the presence or absense of a query
+<p>The outer <code>Maybe</code> models the presence or absence of a query
 mechanism. The query itself has the type <code>IO (Maybe FilePath)</code>.
 The inner <code>Maybe</code> models that the query might be unable to return
 a valid <code>FilePath</code>.</p>
