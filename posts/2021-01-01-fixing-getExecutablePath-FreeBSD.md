@@ -1,5 +1,5 @@
 ---
-tags: ffi
+tags: ffi, ghc
 ---
 
 # Fixing `getExecutablePath` on FreeBSD
