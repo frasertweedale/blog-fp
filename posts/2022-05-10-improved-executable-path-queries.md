@@ -176,6 +176,16 @@ executablePath = Just (fmap check getExecutablePath)
           | otherwise                  = Just s
 ```
 
+::: note
+
+What if the file is named `foo (deleted)`?  The behaviour is
+ambiguous.  Checking the existence of the file is not safe either.
+If the file was `foo`, a *different* file `foo (deleted)` could
+exist beside it.  Better a false negative in an unlikely scenario,
+than an **unsafe false positive**.
+
+:::
+
 
 ### Windows
 
