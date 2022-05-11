@@ -135,6 +135,13 @@ with the other platforms.</p>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  check s <span class="op">|</span> <span class="st">&quot;(deleted)&quot;</span> <span class="ot">`isSuffixOf`</span> s <span class="ot">=</span> <span class="dt">Nothing</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>          <span class="op">|</span> <span class="fu">otherwise</span>                  <span class="ot">=</span> <span class="dt">Just</span> s</span></code></pre></div>
+<div class="note">
+<p>What if the file is named <code>foo (deleted)</code>? The behaviour is
+ambiguous. Checking the existence of the file is not safe either.
+If the file was <code>foo</code>, a <em>different</em> file <code>foo (deleted)</code> could
+exist beside it. Better a false negative in an unlikely scenario,
+than an <strong>unsafe false positive</strong>.</p>
+</div>
 <h3 id="windows">Windows <a href="#windows" class="section">§</a></h3>
 <p>Windows prevents the deletion of an executable file during the
 lifetime of any process created from it. So <code>executablePath</code> simply
