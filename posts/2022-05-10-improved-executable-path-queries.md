@@ -73,7 +73,7 @@ data Maybe a = Nothing | Just a
 Accordingly, a suitable type to model this problem is:
 
 ```haskell
-executablePath :: Maybe (IO (Maybe FilePath)
+executablePath :: Maybe (IO (Maybe FilePath))
 ```
 
 The outer `Maybe` models the presence or absence of a query
