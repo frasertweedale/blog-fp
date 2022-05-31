@@ -8,8 +8,270 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2022-05-10T00:00:00Z</updated>
+    <updated>2022-05-31T00:00:00Z</updated>
     <entry>
+    <title>Writing tests for GHC</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2022-05-31-ghc-test-suite.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2022-05-31-ghc-test-suite.html</id>
+    <published>2022-05-31T00:00:00Z</published>
+    <updated>2022-05-31T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="writing-tests-for-ghc">Writing tests for GHC</h1>
+<p>In this post I explain how to write functional tests for GHC, with
+examples.</p>
+<h2 id="overview-of-the-ghc-test-suite">Overview of the GHC test suite <a href="#overview-of-the-ghc-test-suite" class="section">§</a></h2>
+<p>The <em>Glasgow Haskell Compiler (GHC)</em> is a huge project. It
+includes:</p>
+<ul>
+<li>a Haskell compiler (parser, simplifier, codegen, etc)</li>
+<li>the runtime system (GC, thread scheduler, STM, etc)</li>
+<li>GHCi (interactive interpreter / REPL)</li>
+<li>bundled libraries (<em>base</em>, <em>template-haskell</em>, <em>ghc-prim</em>, etc)</li>
+<li>build tooling (Makefiles, <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/hadrian">Hadrian</a>)</li>
+<li>the users guide</li>
+<li>a test suite</li>
+</ul>
+<p>The test suite should test all the functional parts of GHC. There
+are different kinds of tests:</p>
+<ul>
+<li><p><strong>Testing the compiler.</strong> The test suite includes Haskell program
+sources. A test can assert that the program compiles, or that
+compilation failure is expected.</p></li>
+<li><p><strong>Testing the resulting programs.</strong> Does the behaviour of a
+program match expectations?</p></li>
+<li><p><strong>Testing the bundled libraries.</strong> This is conceptually distinct
+from the preceding point. In practice it can be achieved in
+the same way.</p></li>
+<li><p><strong>Performance tests</strong> ensure that the performance of the
+compiler, and of compiled programs, does not regress. This is a
+complex topic and I won’t discuss it further in this post. The
+GHC wiki has <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">a good introduction</a>.</p></li>
+</ul>
+<p>The GHC GitLab instances runs a <strong>continuous integration (CI)</strong>
+pipeline for all merge requests. It builds GHC and runs the test
+suite on a variety of target architectures and operating systems.
+Here’s an <a href="https://gitlab.haskell.org/frasertweedale/ghc/-/pipelines/51652">example for one of my merge requests</a>.</p>
+<p>The test suite driver is implemented in Python. Tests are described
+in terms of its library interface. I won’t discuss the
+<em>implementation</em> of the test driver—I just want to show you how to
+use it.</p>
+<h2 id="writing-tests">Writing tests <a href="#writing-tests" class="section">§</a></h2>
+<p>In the GHC source repository, tests are organised heirarchically
+under <code>testsuite/tests/</code>. Bundled libraries can also supply tests.
+For example, some tests for <em>base</em> sit under
+<code>libraries/base/tests/</code>. <code>.T</code> files describe the tests, using the
+Python DSL. Usually the name <code>all.T</code> is used. The source code for
+each test lives alongside the <code>.T</code> file.</p>
+<h3 id="the-test-driver-dsl">The test driver DSL <a href="#the-test-driver-dsl" class="section">§</a></h3>
+<p>Each test is described in a <code>.T</code> file by an invocation of the <code>test</code>
+function:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>test(<span class="op">&lt;</span>name<span class="op">&gt;</span>, <span class="op">&lt;</span>setup<span class="op">&gt;</span>, <span class="op">&lt;</span>test<span class="op">-</span>fn<span class="op">&gt;</span>, <span class="op">&lt;</span>args<span class="op">&gt;</span>)</span></code></pre></div>
+<ul>
+<li><p><code>&lt;name&gt;</code> is the <strong>name of the test</strong> source file (without file
+extension), or the directory containing the source code (for
+multi-module builds). Often, the name is based on an issue
+number.</p></li>
+<li><p><code>&lt;setup&gt;</code> is a function or list of functions that affect <strong>when or
+how to run the test program</strong>. For example, you can set extra
+program arguments, declare the expected exit status, or supply a
+predicate for skipping the test. The GHC wiki gives a <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-setup-field">full
+list</a> with descriptions.</p></li>
+<li><p><code>&lt;test-fn&gt;</code> specifies <strong>how to compile</strong> the test program, and
+<strong>whether to run</strong> the resulting program. Common values include
+<code>compile</code>, <code>compile_fail</code> (compilation failure expected) and
+<code>compile_and_run</code> (run the resulting program). There are <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-test-fn-field">several
+other options</a> such as for multi-module builds, and
+GHCi sessions.</p></li>
+<li><p><code>&lt;args&gt;</code> specifies extra <strong>arguments for GHC</strong> when compiling the
+test program. It also has other use patterns depending on the
+value of <code>&lt;test-fn&gt;</code>.</p></li>
+</ul>
+<p>Alongside the source file (<code>&lt;name&gt;.hs</code>) are optional files for
+specifying the input and output of the test program:</p>
+<ul>
+<li><code>&lt;name&gt;.stdin</code>: data to feed on standard input</li>
+<li><code>&lt;name&gt;.stdout</code>: data expected on standard output</li>
+<li><code>&lt;name&gt;.stderr</code>: data expected on standard error from the test
+program (for compile-only tests, from GHC).</li>
+</ul>
+<h3 id="example">Example <a href="#example" class="section">§</a></h3>
+<p>Test <code>T20757</code> is a regression test for issue <a href="https://gitlab.haskell.org/ghc/ghc/-/issues/20757"><code>#20757</code></a>.
+The test program source code lives in
+<code>testsuite/tests/ghc-api/T20757.hs</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">GHC.SysTools.BaseDir</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> findToolDir <span class="dt">False</span> <span class="st">&quot;/&quot;</span> <span class="op">&gt;&gt;=</span> <span class="fu">print</span></span></code></pre></div>
+<p>The test driver file <code>testsuite/tests/ghc-api/all.T</code> declares the
+test (alongside several others):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>test(<span class="st">&#39;T20757&#39;</span>,</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>     [unless(opsys(<span class="st">&#39;mingw32&#39;</span>), skip), exit_code(<span class="dv">1</span>)],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>     compile_and_run,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>     [<span class="st">&#39;-package ghc&#39;</span>])</span></code></pre></div>
+<p>This declaration:</p>
+<ul>
+<li>tells the test driver to both compile and run the test program</li>
+<li>skips the test on operating systems other than Windows</li>
+<li>sets the expected exit status to <code>1</code></li>
+<li>adds <code>-package ghc</code> to the <em>compiler</em> CLI options</li>
+</ul>
+<p>Additionally, <code>testsuite/tests/ghc-api/T20757.stderr</code> exists. The
+test driver shall assert that whatever the <em>test program</em> writes to
+standard error matches the contents of that file.</p>
+<h2 id="running-tests">Running tests <a href="#running-tests" class="section">§</a></h2>
+<p>I use <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/hadrian">Hadrian</a> to build and test GHC:</p>
+<pre class="shell"><code>% ./hadrian/build -j test</code></pre>
+<p>The <code>-j[N]</code> option sets the number of jobs that can be run in
+parallel. If the integer argument is not specified, it defaults to
+the number of CPU cores.</p>
+<p>There are around 9000 tests in the GHC test suite. It takes a while
+to run them all (~15 minutes with 12 parallel jobs on my 12-core
+workstation). If you’re hacking on GHC you might want to limit the
+driver to one or just a few tests. Use the <code>--only</code> option to do
+this:</p>
+<pre class="shell"><code>% ./hadrian/build -j test --only=T20757
+...
+SUMMARY for test run started at Wed May 18 22:58:26 2022 
+0:00:00.162930 spent to go through
+       1 total tests, which gave rise to
+       9 test cases, of which
+       9 were skipped
+       0 had missing libraries
+
+       0 expected passes
+       0 expected failures
+
+       0 caused framework failures
+       0 caused framework warnings
+       0 unexpected passes
+       0 unexpected failures
+       0 unexpected stat failures
+       0 fragile tests
+
+Build completed in 1.30s</code></pre>
+<p>The driver ran zero tests. Well, I am using FreeBSD; <code>T20757</code> skips
+on all platforms except Windows. Let’s add one more test. You can
+specify multiple tests via <code>--only</code>, <strong>separated by spaces</strong>:</p>
+<pre class="shell"><code>% ./hadrian/build -j test --only=&quot;T20757 executablePath&quot;
+...
+SUMMARY for test run started at Wed May 18 23:02:33 2022
+0:00:00.513652 spent to go through
+       2 total tests, which gave rise to
+      18 test cases, of which
+      17 were skipped
+       0 had missing libraries
+
+       1 expected passes
+       0 expected failures
+
+       0 caused framework failures
+       0 caused framework warnings
+       0 unexpected passes
+       0 unexpected failures
+       0 unexpected stat failures
+       0 fragile tests
+
+Build completed in 11.82s</code></pre>
+<p>That’s more like it.</p>
+<p>Each test seems to inflate to 9 <em>test cases</em>. I think these
+correspond to the different <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/compiler-ways"><em>compiler ways</em></a>, and the test is
+only run for the configured way(s).</p>
+<p>Use <code>--test-verbose=[1,2,3,4,5]</code> to see more verbose output. The
+commands and output for compiling and running the test program
+appear at level <code>3</code> and above.</p>
+<p>See the GHC wiki for further <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/running">details about running tests</a>.</p>
+<h2 id="testing-executablepath">Testing <code>executablePath</code> <a href="#testing-executablepath" class="section">§</a></h2>
+<p>In my <a href="2022-05-10-improved-executable-path-queries.html">previous post</a> I described
+<a href="https://downloads.haskell.org/ghc/9.4.1-alpha1/docs/html/libraries/base/System-Environment.html#v:executablePath"><code>System.Environment.executablePath</code></a>, an improved
+way to query the path to the executable file of the calling process.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">executablePath ::</span> <span class="dt">Maybe</span> (<span class="dt">IO</span> (<span class="dt">Maybe</span> <span class="dt">FilePath</span>))</span></code></pre></div>
+<p>The <code>IO</code> query is not defined on all platforms. Where it is
+defined, its behaviour differs by platform. So it is an interesting
+feature to test.</p>
+<p>One could write multiple small test programs, one for each operating
+system. Then tell the test driver to run the test for the current
+system, and skip the others. Alternatively, define a single test
+program, but tell it what platform it’s running on. That is what I
+did.</p>
+<p>The test driver declaration adds the operating system to the test
+program’s arguments:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>test(<span class="st">&#39;executablePath&#39;</span>,</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>     extra_run_opts(config.os),</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>     compile_and_run,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>     [<span class="st">&#39;&#39;</span>])</span></code></pre></div>
+<p>The test program itself then implements some OS-aware checks of the
+behaviour of <code>executablePath</code>. First come lists of which systems
+have what behaviour:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>canQuery <span class="ot">=</span> [<span class="st">&quot;mingw32&quot;</span>,<span class="st">&quot;freebsd&quot;</span>,<span class="st">&quot;linux&quot;</span>,<span class="st">&quot;darwin&quot;</span>,<span class="st">&quot;netbsd&quot;</span>]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>canDelete <span class="ot">=</span> [<span class="st">&quot;freebsd&quot;</span>,<span class="st">&quot;linux&quot;</span>,<span class="st">&quot;darwin&quot;</span>,<span class="st">&quot;netbsd&quot;</span>]</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>canQueryAfterDelete <span class="ot">=</span> [<span class="st">&quot;netbsd&quot;</span>]</span></code></pre></div>
+<p>In <code>main</code>, grab the OS from the program arguments:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  [os] <span class="ot">&lt;-</span> getArgs</span></code></pre></div>
+<p>Next grab the query function. If the query is <em>expectedly</em>
+undefined, stop here (<code>exitSuccess</code>). If the query is <em>unexpected</em>
+undefined, or <em>unexpectedly defined</em>, fail the test. Otherwise
+return the query.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>  query <span class="ot">&lt;-</span> <span class="kw">case</span> (os <span class="ot">`elem`</span> canQuery, executablePath) <span class="kw">of</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">False</span>, <span class="dt">Nothing</span>) <span class="ot">-&gt;</span> exitSuccess</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">False</span>, <span class="dt">Just</span> _) <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpectedly defined&quot;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">True</span>, <span class="dt">Nothing</span>) <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpected not defined&quot;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">True</span>, <span class="dt">Just</span> k) <span class="ot">-&gt;</span> <span class="fu">pure</span> k</span></code></pre></div>
+<p>Now run the query. If it returns <code>Nothing</code>, fail the test
+(it should return a result).</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>  before <span class="ot">&lt;-</span> query <span class="op">&gt;&gt;=</span> \r <span class="ot">-&gt;</span> <span class="kw">case</span> r <span class="kw">of</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span>   <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpectedly returned Nothing&quot;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> path <span class="ot">-&gt;</span> <span class="fu">pure</span> path</span></code></pre></div>
+<p>We need to compare the result (<code>before</code>) to the expected value.
+That is, the file <code>executablePath</code> in the current directory:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>  cwd <span class="ot">&lt;-</span> getCurrentDirectory</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> expected <span class="ot">=</span> cwd <span class="op">&lt;/&gt;</span> <span class="st">&quot;executablePath&quot;</span></span></code></pre></div>
+<p>Also drop the file extension (if any) from the result of the query.
+This is needed because GHC names the executables it generates with a
+file extension on some platforms (e.g. <code>.exe</code> on Windows).</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> actual <span class="ot">=</span> dropExtension before</span></code></pre></div>
+<p>Now compare <code>expected</code> and <code>actual</code>. Use <code>equalFilePath</code> because
+the query may return a non-normalised path on some systems (I have
+observed this on NetBSD):</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>  unless (equalFilePath actual expected) <span class="op">$</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    die <span class="st">&quot;query result did not match expected&quot;</span></span></code></pre></div>
+<p>Now, what happens if we <em>delete the executable</em> while the process
+runs? First of all, some operating systems don’t even allow
+that. We grant those systems an honourable discharge. The
+remaining systems delete the file.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>  unless (os <span class="ot">`elem`</span> canDelete)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    exitSuccess</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  removeFile before</span></code></pre></div>
+<p>Finally we run the query again. Once again, the expected behaviour
+differs by platform. On Mac OS X and FreeBSD, we expect <code>Nothing</code>.
+But NetBSD successfully returns the original value.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>  after <span class="ot">&lt;-</span> query</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">case</span> after <span class="kw">of</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> os <span class="ot">`elem`</span> canQueryAfterDelete</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpected failed after delete&quot;</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> <span class="fu">otherwise</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> <span class="fu">pure</span> ()</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> _</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> os <span class="ot">`elem`</span> canQueryAfterDelete</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> <span class="fu">pure</span> ()</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> <span class="fu">otherwise</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> die <span class="op">$</span> <span class="st">&quot;query unexpected succeeded after delete&quot;</span></span></code></pre></div>
+<p>Phew, quite a lot of code to test one little feature. There is no
+standard system interface for querying the executable path. So it
+is no surprise to see such diverse behaviour across different
+platforms—including no query mechanism at all (looking at you,
+OpenBSD).</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>In this article I gave an introduction to writing tests for the GHC
+test suite, with some examples. The GHC wiki <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding">contains more
+comprehensive documentation</a>. <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">Performance
+tests</a> are a more complex aspect of the GHC test
+suite which I didn’t discuss in detail.</p>]]></summary>
+</entry>
+<entry>
     <title>Better executable path queries in GHC 9.4</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2022-05-10-improved-executable-path-queries.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2022-05-10-improved-executable-path-queries.html</id>
@@ -1596,326 +1858,6 @@ it in practice, because few plugins have been implemented. So I’m
 not going to try to solve the problem prematurely. I have an idea
 that does not add much complexity and should be simple for users to
 understand. But I will save that discussion for a future post.</p>]]></summary>
-</entry>
-<entry>
-    <title>How Dyre works with Cabal Nix-style builds</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-03-18-dyre-cabal-store.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-03-18-dyre-cabal-store.html</id>
-    <published>2021-03-18T00:00:00Z</published>
-    <updated>2021-03-18T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="how-dyre-works-with-cabal-nix-style-builds">How Dyre works with Cabal Nix-style builds</h1>
-<p><a href="https://hackage.haskell.org/package/dyre">Dyre</a> is a tool for Haskell program configuration by
-(re)compilation. In <a href="2021-02-21-dyre-0.9-rc.html">my previous post</a> I discussed the changes
-planned for the Dyre 0.9 release. That release happened a couple of
-days ago… but I soon discovered a critical bug in Dyre’s support for
-<em>cabal-install</em> Nix-style local builds.</p>
-<p>I have now <a href="https://github.com/willdonnelly/dyre/commit/414d961222b5b864933f35f0a0d74b1a2f501a23">fixed the bug</a> and <a href="https://hackage.haskell.org/package/dyre-0.9.1">released v0.9.1</a>. As a result
-of the experience I decided to write this post about how Nix-style
-local builds work, and how Dyre works with programs built and
-installed that way.</p>
-<h2 id="ghc-and-package-databases">GHC and package databases <a href="#ghc-and-package-databases" class="section">§</a></h2>
-<p>Haskell packages are installed in <em>package databases</em>. The package
-database contains libraries’ object code and Haskell interface
-(<code>*.hi</code>) files, as well as package descriptions and references to
-the library’s dependencies. When compiling and linking a program or
-library, GHC looks for dependencies in the configured package
-database(s).</p>
-<p>By default, GHC knows about two package databases. The <em>global
-package database</em> is where <em>base</em> and the other libraries bundled
-with GHC are installed. The database location is tied to the GHC
-release; for example: <code>/usr/lib64/ghc-8.8.4/package.conf.d</code>. On
-most operating systems, the system package manager will install
-Haskell libraries in the global package database.</p>
-<p>GHC also knows about <em>user package databases</em>. On Unix systems
-these are located at <code>~/.ghc/ARCH-OS-GHCVER/package.conf.d</code>. As the
-name and location suggests, unprivileged users can install packages
-to their user package database. GHC will also search for
-dependencies in there, unless told otherwise.</p>
-<p><em>cabal-install</em> (the <code>cabal</code> program) and the system package manager take care of these
-package databases. Users don’t normally need to look into or modify
-them. For the curious (or cursed), you can use the <code>ghc-pkg</code>
-program to inspect and modify package databases. For example,
-here’s how to list the contents of the global package database:</p>
-<pre class="shell"><code>% ghc-pkg --global list
-/usr/lib64/ghc-8.8.4/package.conf.d
-    Cabal-3.0.1.0
-    Glob-0.10.0
-    HTTP-4000.3.14
-    HsYAML-0.2.1.0
-    HsYAML-aeson-0.2.0.0
-    … (many more)</code></pre>
-<p>Let’s have a look at one of the records in the global package
-database:</p>
-<pre><code>% cat /usr/lib64/ghc-8.8.4/package.conf.d/mtl-2.2.2.conf
-name:                 mtl
-version:              2.2.2
-visibility:           public
-id:                   mtl-2.2.2
-key:                  mtl-2.2.2
-license:              BSD-3-Clause
-maintainer:           Edward Kmett &lt;ekmett@gmail.com&gt;
-author:               Andy Gill
-homepage:             http://github.com/haskell/mtl
-synopsis:             Monad classes, using functional dependencies
-description:
-    … (elided)
-category:             Control
-abi:                  7208c11cc6615ddff9d903a90a9878f8
-exposed:              True
-exposed-modules:
-    … (elided)
-import-dirs:          /usr/lib64/ghc-8.8.4/mtl-2.2.2
-library-dirs:         /usr/lib64/ghc-8.8.4/mtl-2.2.2
-dynamic-library-dirs: /usr/lib64
-data-dir:             /usr/share/x86_64-linux-ghc-8.8.4/mtl-2.2.2
-hs-libraries:         HSmtl-2.2.2
-depends:              base-4.13.0.0 transformers-0.5.6.2
-haddock-interfaces:   /usr/share/doc/ghc/html/libraries/mtl-2.2.2/mtl.haddock
-haddock-html:         /usr/share/doc/ghc/html/libraries/mtl-2.2.2</code></pre>
-<p>Most fields are self explanatory, but some need a little
-explanation:</p>
-<ul>
-<li><p><strong><code>id</code></strong> is the <em>unit ID</em> that uniquely identifies the package. In
-the example above it includes the package <code>name</code> and <code>version</code>;
-a unit ID can also include other identifying data.</p></li>
-<li><p><strong><code>depends</code></strong> lists the direct dependencies of this package, as
-unit IDs.</p></li>
-<li><p><strong><code>exposed</code></strong> controls whether the modules in the package are
-available to import during compilation. This is just the
-default. GHC command line options and <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html#package-environments"><em>package environment
-files</em></a> can alter package visibility.</p></li>
-</ul>
-<p>For more details see the <a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/packages.html"><em>Packages</em> chapter</a> of
-the GHC User’s Guide.</p>
-<h2 id="cabal-install-and-package-databases"><em>cabal-install</em> and package databases <a href="#cabal-install-and-package-databases" class="section">§</a></h2>
-<p>In earlier times, the <em>cabal-install</em> build tool would install all
-dependencies of a package into the global or user package database.
-But when you have multiple packages with conflicting dependencies,
-this approach does not work. It also makes updating packages very
-risky. Updating one package (because some dependent program or
-library requires a newer version) would often break other installed
-dependent packages.</p>
-<p><em>cabal-install</em>’s first solution to this problem was <a href="https://cabal.readthedocs.io/en/3.2/installing-packages.html#developing-with-sandboxes">per-project
-sandboxes</a>. When using a sandbox, <em>cabal-install</em> installs
-dependencies (those that are not in the global or user package
-database) under <code>.cabal-sandbox/</code> in the project directory.
-Sandboxes are isolated from each other. This solved the main
-problem but introduced another. Many projects meant many sandboxes,
-wasting a lot of time and space as common dependencies got built
-over and over again, in different sandboxes.</p>
-<p>Furthermore, users had to deliberately create sandboxes. The
-problematic behaviour (install to the user package database) was the
-default behaviour. You had to <em>know</em> about, and use, sandboxes to
-avoid trouble.</p>
-<div class="note">
-<p>Sandbox support was removed in <em>cabal-install</em> 3.4.</p>
-</div>
-<h2 id="nix-style-local-builds">Nix-style local builds <a href="#nix-style-local-builds" class="section">§</a></h2>
-<p><em>cabal-install</em> since version 1.24 supports <a href="https://cabal.readthedocs.io/en/3.4/nix-local-build-overview.html"><em>Nix-style local
-builds</em></a>. It is the default behaviour (i.e. what <code>cabal build</code> does) since version 2.0. The feature is also called
-<em><code>v2-build</code></em> or <em><code>new-build</code></em></p>
-<p>This build system caches dependencies in a package database at
-<code>~/.cabal/store/GHCVER/package.db</code>. I call this package database
-the <strong><em>Cabal store</em></strong>. The unit IDs of packages in the Cabal store
-include the name, version, and a digest (hash) of the entire package
-contents, which prevents collisions. For example, <code>ghc-pkg</code> can
-print the unit IDs of all the variants of <em>purebred-email</em> in my
-Cabal store. Note that there are multiple variants even of
-particular versions (some were development builds):</p>
-<pre class="shell"><code>% ghc-pkg \
-    --package-db ~/.cabal/store/ghc-8.8.4/package.db \
-    field purebred-email id \
-    | sort
-id: purebred-email-0.4.2-904f4dca7fc38b0732875f3118229289f0a854a1b29ceb6f61952455fc536475
-id: purebred-email-0.4.2-937f77fe675ce899d5b8bf4e451f09d83f458db59751e28d393dafa5d0e46e80
-id: purebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7
-id: purebred-email-0.4.3-132e0f4a654056feced84d90a98b5cc3f8635b2a56e2821e5193cace1a73946d
-id: purebred-email-0.5.0-04c8aceff5a68a6eb0537475f958dcb2aa763675c36a57893119534e690ebfe7
-id: purebred-email-0.5.0-0a5c9f98d485c79e5bbbb3eefbc8239c4e5a74dc26d03fc0a12ce8a45a304c8d
-id: purebred-email-0.5.0-4c9fa1b81ac8638346df176519fee11541953f243502699a8693f69fafc2293f
-id: purebred-email-0.5.0-cc781fa90dc462076d5be322d38e59b76a1604cb866e8b6a15a150653e9f6595
-id: purebred-email-0.5.0-e8d411ef4593a88bbd40293b523c03079a01138f9bb1278781a4eb5a15cf461f</code></pre>
-<p>If we inspect the <code>depends</code> fields of one of these packages, we see
-a mix of unit IDs with and without hashes. The ones without hashes
-will be located in the global package database, and the ones with
-hashes are other packges in the Cabal store:</p>
-<pre class="shell"><code>% ghc-pkg \
-    --package-db ~/.cabal/store/ghc-8.8.4/package.db \
-    --unit-id \
-    field purebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7 \
-    depends
-depends: attoparsec-0.13.2.4-6pdJvsCYDtQ1ZikLcQPH6i base-4.13.0.0
-         base64-bytestring-1.0.0.3-6nNbupf0oNc9ekFOSwyfJw
-         bytestring-0.10.10.1 case-insensitive-1.2.1.0-GK3nA3zBZszGkFybfKiPH
-         concise-0.1.0.1-9e9a3f5d1a0cb55cc27d6ed4559347484ed0182db25d17f54fecc4cb16c664f3
-         deepseq-1.4.4.0 lens-4.18.1-1Ci7u4sFw8083dvBI6HqCw
-         semigroupoids-5.3.4-3QeAlkxMhKa1rjJSsIVWj7
-         semigroups-0.19.1-LKdktuRRdRZ1yx9gBXzSbK
-         stringsearch-0.3.6.6-ea9567d6b6c3d6f0b0229eaa65b28da6602e2135e50018657a4d1545dc4a0d0c
-         text-1.2.4.0 time-1.9.3</code></pre>
-<p>Object code filenames of libraries installed in the Cabal store
-incorporate the full unit ID:</p>
-<pre class="shell"><code>% cd ~/.cabal/store/ghc-8.8.4/purebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7/lib
-% ls
-Data
-libHSpurebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7.a
-libHSpurebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7-ghc8.8.4.so</code></pre>
-<p>To assist the dynamic linker, the <code>RUNPATH</code> attribute in dynamically
-linked executables and shared objects includes the subdirectories of
-the Cabal store where the needed shared objects are located:</p>
-<pre class="shell"><code>% objdump -x libHSpurebred-email-0.4.3-12899342c54e9be6f8bfabf40ea03e13ba08a15da3d519a6ba6c16b5e8a2fdf7-ghc8.8.4.so \
-    | grep RUNPATH \
-    | awk &#39;{ print $2 }&#39; \
-    | tr : &#39;\n&#39; \
-    | sort
-/home/ftweedal/.cabal/store/ghc-8.8.4/concise-0.1.0.1-9e9a3f5d1a0cb55cc27d6ed4559347484ed0182db25d17f54fecc4cb16c664f3/lib
-/home/ftweedal/.cabal/store/ghc-8.8.4/stringsearch-0.3.6.6-ea9567d6b6c3d6f0b0229eaa65b28da6602e2135e50018657a4d1545dc4a0d0c/lib
-/usr/lib64
-/usr/lib64/ghc-8.8.4/rts</code></pre>
-<p>Executables are installed in the Cabal store and referenced by a
-symbolic link installed in <code>~/.cabal/bin/</code> or a similar location.</p>
-<pre class="shell"><code>% which purebred
-~/.cabal/bin/purebred
-% readlink ~/.cabal/bin/purebred
-../store/ghc-8.8.4/purebred-0.1.0.0-ffa8d363a9788cf11f71e6dbad787526a4fa1f9f750969f4d55036610f5cb027/bin/purebred</code></pre>
-<h2 id="dyre-and-the-cabal-store">Dyre and the Cabal store <a href="#dyre-and-the-cabal-store" class="section">§</a></h2>
-<p>When using <em>cabal-install</em>, the details about the Cabal store are
-hidden from the user. But a Dyre-enabled program does not have the
-luxury of using <em>cabal-install</em> when (re)compiling a custom
-executable. We cannot assume that the <code>cabal</code> program is available.
-Even if we did make that assumption, using <em>cabal-install</em> would
-introduce <strong>a lot</strong> of additional complexity. And maintenance
-overhead, because <em>cabal-install</em>’s behaviour is continually
-evolving, whereas GHC’s command line interface is stable.</p>
-<p>So Dyre invokes GHC directly. When a Dyre application’s main
-library is in the global or user package database, GHC finds it and
-all is well. But when the library is in the Cabal store, GHC cannot
-find it:</p>
-<pre class="shell"><code>% purebred
-Configuration &#39;/home/fraser/.config/purebred/purebred.hs&#39; changed. Recompiling.
-Error occurred while loading configuration file.
-purebred: 
-/home/fraser/.config/purebred/purebred.hs:5:1: error:
-    Could not find module ‘Purebred’
-    Use -v (or `:set -v` in ghci) to see a list of the files searched for.
-  |
-5 | import Purebred
-  | ^^^^^^^^^^^^^^^
-
-CallStack (from HasCallStack):
-  error, called at src/Purebred.hs:347:69 in purebred-0.1.0.0-95b0b0050ea0df258f6dce7f45c7c58630549c4395e1e143f3e0915c057e8cbc:Purebred</code></pre>
-<p>To overcome this, Dyre needs to detect when the application library
-is installed in the Cabal store, and pass some additional command
-line options to GHC:</p>
-<ul>
-<li><p>The <code>-package-db &lt;FILE&gt;</code> option adds the package database at
-<code>FILE</code> to the list of databases GHC searches. Dyre uses this
-option to add the Cabal store.</p></li>
-<li><p>The <code>-package-id &lt;UNIT-ID&gt;</code> option <em>exposes</em> the package
-identified by <code>UNIT-ID</code>, making its public modules available for
-import. Dyre uses this option to expose the main application
-library.</p></li>
-</ul>
-<p>In Dyre’s implementation, the <code>getCabalStoreGhcArgs</code> function
-computes these options. It is applied to a Dyre project name and a
-library path. If the library path is in the Cabal store <em>and</em>
-matches the project name, Dyre derives the appropriate <code>-package-db</code>
-and <code>-package-id</code> options.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.FilePath</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  (joinPath, splitPath, dropTrailingPathSeparator)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ot">getCabalStoreGhcArgs ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">FilePath</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>]</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>getCabalStoreGhcArgs proj <span class="ot">=</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    mkArgs <span class="op">.</span> go <span class="op">.</span> <span class="fu">fmap</span> dropTrailingPathSeparator <span class="op">.</span> splitPath</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  go (<span class="st">&quot;.cabal&quot;</span> <span class="op">:</span> <span class="st">&quot;store&quot;</span> <span class="op">:</span> hc <span class="op">:</span> pid <span class="op">:</span> _) <span class="ot">=</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> splitOn <span class="ch">&#39;-&#39;</span> pid <span class="kw">of</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      [name, _version, _hash] <span class="op">|</span> name <span class="op">==</span> proj</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="ot">-&gt;</span> <span class="dt">Just</span> (pid, [<span class="st">&quot;.cabal&quot;</span>, <span class="st">&quot;store&quot;</span>, hc, <span class="st">&quot;package.db&quot;</span>])</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>      _ <span class="ot">-&gt;</span> <span class="dt">Nothing</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  go (h <span class="op">:</span> t<span class="op">@</span>(_ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _ <span class="op">:</span> _)) <span class="ot">=</span> <span class="fu">fmap</span> (h<span class="op">:</span>) <span class="op">&lt;$&gt;</span> go t</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  go _ <span class="ot">=</span> <span class="dt">Nothing</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  mkArgs <span class="dt">Nothing</span> <span class="ot">=</span> []</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  mkArgs (<span class="dt">Just</span> (unitId, pkgDb)) <span class="ot">=</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    [<span class="st">&quot;-package-db&quot;</span>, joinPath pkgDb, <span class="st">&quot;-package-id&quot;</span>, unitId]</span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  splitOn a l <span class="ot">=</span> <span class="kw">case</span> <span class="fu">span</span> (<span class="op">/=</span> a) l <span class="kw">of</span></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    (h, []) <span class="ot">-&gt;</span> [h]</span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    (h, _ <span class="op">:</span> t) <span class="ot">-&gt;</span> h <span class="op">:</span> splitOn a t</span></code></pre></div>
-<div class="note">
-<p><em>cabal-install</em> lets you <a href="https://cabal.readthedocs.io/en/3.4/cabal-project.html?highlight=store-dir#cmdoption-store-dir">override the Cabal store directory</a>. Dyre
-assumes the default <code>~/.cabal/store/</code>. If the Cabal store is not in
-the expected place, the detection logic fails.</p>
-</div>
-<p>The final piece of the puzzle is how Dyre learns the application’s
-library directory that will be the <code>FilePath</code> argument to
-<code>getCabalStoreGhcArgs</code>. Dyre itself is just a library. We rely on
-the main program to tell Dyre where its library is located. The
-only alternative I know of is brittle, operating system-specific
-hacks.</p>
-<p>Cabal packages can make use of an auto-generated <a href="https://cabal.readthedocs.io/en/3.4/cabal-package.html#accessing-data-files-from-package-code"><code>Paths_&lt;pkgname&gt;</code>
-module</a>. It provides <code>IO</code> actions that return the
-installation paths of the package (object files, binaries, data and
-so on), including:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">getLibDir ::</span> <span class="dt">IO</span> <span class="dt">FilePath</span></span></code></pre></div>
-<p>Dyre applications can read this value and pass it to Dyre via the
-<a href="https://hackage.haskell.org/package/dyre-0.9.1/docs/Config-Dyre.html#v:includeDirs"><code>includeDirs</code></a> field in the <code>Params</code> object. Here is
-a simplified example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">MyApp</span> <span class="kw">where</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Config.Dyre</span> <span class="kw">as</span> <span class="dt">Dyre</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Paths_myapp</span> (getLibDir)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Configuration</span> <span class="ot">=</span> …</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultConfig ::</span> <span class="dt">Configuration</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>defaultConfig <span class="ot">=</span> …</span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="ot">realMain ::</span> <span class="dt">Configuration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>realMain <span class="ot">=</span> …</span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>  libdir <span class="ot">&lt;-</span> getLibDir</span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> params <span class="ot">=</span></span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>        ( Dyre.newParams <span class="st">&quot;myapp&quot;</span> realMain (<span class="fu">const</span> <span class="fu">error</span>) )</span>
-<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>        { Dyre.includeDirs <span class="ot">=</span> [libdir] }</span>
-<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>  Dyre.wrapMain params defaultConfig</span></code></pre></div>
-<div class="note">
-<p>For Cabal store detection to work, the Dyre project name (<code>myapp</code> in
-the example above), <strong>must</strong> be the same as the library package
-name. Otherwise <code>getCabalStoreGhcArgs</code> will fail to detect the
-package ID to expose.</p>
-</div>
-<p>With this small additional behaviour in place, Dyre detects that the
-library is in a Cabal store and passes the extra CLI options to GHC.
-GHC finds the library and compiles the program successfully:</p>
-<pre class="shell"><code>% purebred
-Configuration &#39;/home/fraser/.config/purebred/purebred.hs&#39; changed.
-Recompiling.
-Program reconfiguration successful.
-Launching custom binary /home/fraser/.cache/purebred/purebred-linux-x86_64
-… (realMain executes)</code></pre>
-<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
-<p>It is unfortunate that the author of a Dyre application must do
-extra work to enable it to work with the Cabal store. Even though
-it is a small effort, it is something most programs will want to do.
-I have so far been unable to conceive a robust solution that avoids
-this work.</p>
-<p>Dyre pre-0.9 did not have this feature. To enable <a href="https://github.com/purebred-mua/purebred">Purebred</a> to
-work with the Cabal store, we performed the detection and
-constructed the extra GHC options ourselves. Then we passed the
-extra options to Dyre via the <a href="https://hackage.haskell.org/package/dyre-0.9.1/docs/Config-Dyre.html#v:ghcOpts"><code>ghcOpts</code></a> fields of the <code>Params</code> type.
-This behaviour was ported to Dyre more or less <em>as-is</em> for the 0.9
-release. Except for the bit that I forgot to port, which was
-restored in v0.9.1.</p>
-<p>My Purebred co-author reported a regression with Nix support in Dyre
-0.9.x. Under Nix, GHC fails to find the application library during
-custom binary compilation. I suspect the cause is an incidental
-behavioural change as a result of porting the detection logic from
-Purebred to Dyre. But I have not yet started a proper
-investigation.</p>]]></summary>
 </entry>
 
 </feed>

@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Writing tests for GHC</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Writing tests for GHC","datePublished":"2022-05-31T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2022-05-31-ghc-test-suite.html" /><meta property="og:title" content="Writing tests for GHC" /><meta property="og:description" content="In this post I explain how to write functional tests for GHC, with
+examples." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'ghc'." href="../tags/ghc.html">ghc</a>, <a title="All pages tagged 'testing'." href="../tags/testing.html">testing</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="writing-tests-for-ghc">Writing tests for GHC</h1>
+<p>In this post I explain how to write functional tests for GHC, with
+examples.</p>
+<h2 id="overview-of-the-ghc-test-suite">Overview of the GHC test suite <a href="#overview-of-the-ghc-test-suite" class="section">§</a></h2>
+<p>The <em>Glasgow Haskell Compiler (GHC)</em> is a huge project. It
+includes:</p>
+<ul>
+<li>a Haskell compiler (parser, simplifier, codegen, etc)</li>
+<li>the runtime system (GC, thread scheduler, STM, etc)</li>
+<li>GHCi (interactive interpreter / REPL)</li>
+<li>bundled libraries (<em>base</em>, <em>template-haskell</em>, <em>ghc-prim</em>, etc)</li>
+<li>build tooling (Makefiles, <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/hadrian">Hadrian</a>)</li>
+<li>the users guide</li>
+<li>a test suite</li>
+</ul>
+<p>The test suite should test all the functional parts of GHC. There
+are different kinds of tests:</p>
+<ul>
+<li><p><strong>Testing the compiler.</strong> The test suite includes Haskell program
+sources. A test can assert that the program compiles, or that
+compilation failure is expected.</p></li>
+<li><p><strong>Testing the resulting programs.</strong> Does the behaviour of a
+program match expectations?</p></li>
+<li><p><strong>Testing the bundled libraries.</strong> This is conceptually distinct
+from the preceding point. In practice it can be achieved in
+the same way.</p></li>
+<li><p><strong>Performance tests</strong> ensure that the performance of the
+compiler, and of compiled programs, does not regress. This is a
+complex topic and I won’t discuss it further in this post. The
+GHC wiki has <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">a good introduction</a>.</p></li>
+</ul>
+<p>The GHC GitLab instances runs a <strong>continuous integration (CI)</strong>
+pipeline for all merge requests. It builds GHC and runs the test
+suite on a variety of target architectures and operating systems.
+Here’s an <a href="https://gitlab.haskell.org/frasertweedale/ghc/-/pipelines/51652">example for one of my merge requests</a>.</p>
+<p>The test suite driver is implemented in Python. Tests are described
+in terms of its library interface. I won’t discuss the
+<em>implementation</em> of the test driver—I just want to show you how to
+use it.</p>
+<h2 id="writing-tests">Writing tests <a href="#writing-tests" class="section">§</a></h2>
+<p>In the GHC source repository, tests are organised heirarchically
+under <code>testsuite/tests/</code>. Bundled libraries can also supply tests.
+For example, some tests for <em>base</em> sit under
+<code>libraries/base/tests/</code>. <code>.T</code> files describe the tests, using the
+Python DSL. Usually the name <code>all.T</code> is used. The source code for
+each test lives alongside the <code>.T</code> file.</p>
+<h3 id="the-test-driver-dsl">The test driver DSL <a href="#the-test-driver-dsl" class="section">§</a></h3>
+<p>Each test is described in a <code>.T</code> file by an invocation of the <code>test</code>
+function:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>test(<span class="op">&lt;</span>name<span class="op">&gt;</span>, <span class="op">&lt;</span>setup<span class="op">&gt;</span>, <span class="op">&lt;</span>test<span class="op">-</span>fn<span class="op">&gt;</span>, <span class="op">&lt;</span>args<span class="op">&gt;</span>)</span></code></pre></div>
+<ul>
+<li><p><code>&lt;name&gt;</code> is the <strong>name of the test</strong> source file (without file
+extension), or the directory containing the source code (for
+multi-module builds). Often, the name is based on an issue
+number.</p></li>
+<li><p><code>&lt;setup&gt;</code> is a function or list of functions that affect <strong>when or
+how to run the test program</strong>. For example, you can set extra
+program arguments, declare the expected exit status, or supply a
+predicate for skipping the test. The GHC wiki gives a <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-setup-field">full
+list</a> with descriptions.</p></li>
+<li><p><code>&lt;test-fn&gt;</code> specifies <strong>how to compile</strong> the test program, and
+<strong>whether to run</strong> the resulting program. Common values include
+<code>compile</code>, <code>compile_fail</code> (compilation failure expected) and
+<code>compile_and_run</code> (run the resulting program). There are <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-test-fn-field">several
+other options</a> such as for multi-module builds, and
+GHCi sessions.</p></li>
+<li><p><code>&lt;args&gt;</code> specifies extra <strong>arguments for GHC</strong> when compiling the
+test program. It also has other use patterns depending on the
+value of <code>&lt;test-fn&gt;</code>.</p></li>
+</ul>
+<p>Alongside the source file (<code>&lt;name&gt;.hs</code>) are optional files for
+specifying the input and output of the test program:</p>
+<ul>
+<li><code>&lt;name&gt;.stdin</code>: data to feed on standard input</li>
+<li><code>&lt;name&gt;.stdout</code>: data expected on standard output</li>
+<li><code>&lt;name&gt;.stderr</code>: data expected on standard error from the test
+program (for compile-only tests, from GHC).</li>
+</ul>
+<h3 id="example">Example <a href="#example" class="section">§</a></h3>
+<p>Test <code>T20757</code> is a regression test for issue <a href="https://gitlab.haskell.org/ghc/ghc/-/issues/20757"><code>#20757</code></a>.
+The test program source code lives in
+<code>testsuite/tests/ghc-api/T20757.hs</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">GHC.SysTools.BaseDir</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> findToolDir <span class="dt">False</span> <span class="st">&quot;/&quot;</span> <span class="op">&gt;&gt;=</span> <span class="fu">print</span></span></code></pre></div>
+<p>The test driver file <code>testsuite/tests/ghc-api/all.T</code> declares the
+test (alongside several others):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>test(<span class="st">'T20757'</span>,</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>     [unless(opsys(<span class="st">'mingw32'</span>), skip), exit_code(<span class="dv">1</span>)],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>     compile_and_run,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>     [<span class="st">'-package ghc'</span>])</span></code></pre></div>
+<p>This declaration:</p>
+<ul>
+<li>tells the test driver to both compile and run the test program</li>
+<li>skips the test on operating systems other than Windows</li>
+<li>sets the expected exit status to <code>1</code></li>
+<li>adds <code>-package ghc</code> to the <em>compiler</em> CLI options</li>
+</ul>
+<p>Additionally, <code>testsuite/tests/ghc-api/T20757.stderr</code> exists. The
+test driver shall assert that whatever the <em>test program</em> writes to
+standard error matches the contents of that file.</p>
+<h2 id="running-tests">Running tests <a href="#running-tests" class="section">§</a></h2>
+<p>I use <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/hadrian">Hadrian</a> to build and test GHC:</p>
+<pre class="shell"><code>% ./hadrian/build -j test</code></pre>
+<p>The <code>-j[N]</code> option sets the number of jobs that can be run in
+parallel. If the integer argument is not specified, it defaults to
+the number of CPU cores.</p>
+<p>There are around 9000 tests in the GHC test suite. It takes a while
+to run them all (~15 minutes with 12 parallel jobs on my 12-core
+workstation). If you’re hacking on GHC you might want to limit the
+driver to one or just a few tests. Use the <code>--only</code> option to do
+this:</p>
+<pre class="shell"><code>% ./hadrian/build -j test --only=T20757
+...
+SUMMARY for test run started at Wed May 18 22:58:26 2022 
+0:00:00.162930 spent to go through
+       1 total tests, which gave rise to
+       9 test cases, of which
+       9 were skipped
+       0 had missing libraries
+
+       0 expected passes
+       0 expected failures
+
+       0 caused framework failures
+       0 caused framework warnings
+       0 unexpected passes
+       0 unexpected failures
+       0 unexpected stat failures
+       0 fragile tests
+
+Build completed in 1.30s</code></pre>
+<p>The driver ran zero tests. Well, I am using FreeBSD; <code>T20757</code> skips
+on all platforms except Windows. Let’s add one more test. You can
+specify multiple tests via <code>--only</code>, <strong>separated by spaces</strong>:</p>
+<pre class="shell"><code>% ./hadrian/build -j test --only=&quot;T20757 executablePath&quot;
+...
+SUMMARY for test run started at Wed May 18 23:02:33 2022
+0:00:00.513652 spent to go through
+       2 total tests, which gave rise to
+      18 test cases, of which
+      17 were skipped
+       0 had missing libraries
+
+       1 expected passes
+       0 expected failures
+
+       0 caused framework failures
+       0 caused framework warnings
+       0 unexpected passes
+       0 unexpected failures
+       0 unexpected stat failures
+       0 fragile tests
+
+Build completed in 11.82s</code></pre>
+<p>That’s more like it.</p>
+<p>Each test seems to inflate to 9 <em>test cases</em>. I think these
+correspond to the different <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/compiler-ways"><em>compiler ways</em></a>, and the test is
+only run for the configured way(s).</p>
+<p>Use <code>--test-verbose=[1,2,3,4,5]</code> to see more verbose output. The
+commands and output for compiling and running the test program
+appear at level <code>3</code> and above.</p>
+<p>See the GHC wiki for further <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/running">details about running tests</a>.</p>
+<h2 id="testing-executablepath">Testing <code>executablePath</code> <a href="#testing-executablepath" class="section">§</a></h2>
+<p>In my <a href="2022-05-10-improved-executable-path-queries.html">previous post</a> I described
+<a href="https://downloads.haskell.org/ghc/9.4.1-alpha1/docs/html/libraries/base/System-Environment.html#v:executablePath"><code>System.Environment.executablePath</code></a>, an improved
+way to query the path to the executable file of the calling process.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">executablePath ::</span> <span class="dt">Maybe</span> (<span class="dt">IO</span> (<span class="dt">Maybe</span> <span class="dt">FilePath</span>))</span></code></pre></div>
+<p>The <code>IO</code> query is not defined on all platforms. Where it is
+defined, its behaviour differs by platform. So it is an interesting
+feature to test.</p>
+<p>One could write multiple small test programs, one for each operating
+system. Then tell the test driver to run the test for the current
+system, and skip the others. Alternatively, define a single test
+program, but tell it what platform it’s running on. That is what I
+did.</p>
+<p>The test driver declaration adds the operating system to the test
+program’s arguments:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>test(<span class="st">'executablePath'</span>,</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>     extra_run_opts(config.os),</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>     compile_and_run,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>     [<span class="st">''</span>])</span></code></pre></div>
+<p>The test program itself then implements some OS-aware checks of the
+behaviour of <code>executablePath</code>. First come lists of which systems
+have what behaviour:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>canQuery <span class="ot">=</span> [<span class="st">&quot;mingw32&quot;</span>,<span class="st">&quot;freebsd&quot;</span>,<span class="st">&quot;linux&quot;</span>,<span class="st">&quot;darwin&quot;</span>,<span class="st">&quot;netbsd&quot;</span>]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>canDelete <span class="ot">=</span> [<span class="st">&quot;freebsd&quot;</span>,<span class="st">&quot;linux&quot;</span>,<span class="st">&quot;darwin&quot;</span>,<span class="st">&quot;netbsd&quot;</span>]</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>canQueryAfterDelete <span class="ot">=</span> [<span class="st">&quot;netbsd&quot;</span>]</span></code></pre></div>
+<p>In <code>main</code>, grab the OS from the program arguments:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  [os] <span class="ot">&lt;-</span> getArgs</span></code></pre></div>
+<p>Next grab the query function. If the query is <em>expectedly</em>
+undefined, stop here (<code>exitSuccess</code>). If the query is <em>unexpected</em>
+undefined, or <em>unexpectedly defined</em>, fail the test. Otherwise
+return the query.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>  query <span class="ot">&lt;-</span> <span class="kw">case</span> (os <span class="ot">`elem`</span> canQuery, executablePath) <span class="kw">of</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">False</span>, <span class="dt">Nothing</span>) <span class="ot">-&gt;</span> exitSuccess</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">False</span>, <span class="dt">Just</span> _) <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpectedly defined&quot;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">True</span>, <span class="dt">Nothing</span>) <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpected not defined&quot;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">True</span>, <span class="dt">Just</span> k) <span class="ot">-&gt;</span> <span class="fu">pure</span> k</span></code></pre></div>
+<p>Now run the query. If it returns <code>Nothing</code>, fail the test
+(it should return a result).</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>  before <span class="ot">&lt;-</span> query <span class="op">&gt;&gt;=</span> \r <span class="ot">-&gt;</span> <span class="kw">case</span> r <span class="kw">of</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span>   <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpectedly returned Nothing&quot;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> path <span class="ot">-&gt;</span> <span class="fu">pure</span> path</span></code></pre></div>
+<p>We need to compare the result (<code>before</code>) to the expected value.
+That is, the file <code>executablePath</code> in the current directory:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>  cwd <span class="ot">&lt;-</span> getCurrentDirectory</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> expected <span class="ot">=</span> cwd <span class="op">&lt;/&gt;</span> <span class="st">&quot;executablePath&quot;</span></span></code></pre></div>
+<p>Also drop the file extension (if any) from the result of the query.
+This is needed because GHC names the executables it generates with a
+file extension on some platforms (e.g. <code>.exe</code> on Windows).</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> actual <span class="ot">=</span> dropExtension before</span></code></pre></div>
+<p>Now compare <code>expected</code> and <code>actual</code>. Use <code>equalFilePath</code> because
+the query may return a non-normalised path on some systems (I have
+observed this on NetBSD):</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>  unless (equalFilePath actual expected) <span class="op">$</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    die <span class="st">&quot;query result did not match expected&quot;</span></span></code></pre></div>
+<p>Now, what happens if we <em>delete the executable</em> while the process
+runs? First of all, some operating systems don’t even allow
+that. We grant those systems an honourable discharge. The
+remaining systems delete the file.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>  unless (os <span class="ot">`elem`</span> canDelete)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    exitSuccess</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  removeFile before</span></code></pre></div>
+<p>Finally we run the query again. Once again, the expected behaviour
+differs by platform. On Mac OS X and FreeBSD, we expect <code>Nothing</code>.
+But NetBSD successfully returns the original value.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>  after <span class="ot">&lt;-</span> query</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">case</span> after <span class="kw">of</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> os <span class="ot">`elem`</span> canQueryAfterDelete</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> die <span class="st">&quot;query unexpected failed after delete&quot;</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> <span class="fu">otherwise</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> <span class="fu">pure</span> ()</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> _</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> os <span class="ot">`elem`</span> canQueryAfterDelete</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> <span class="fu">pure</span> ()</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>      <span class="op">|</span> <span class="fu">otherwise</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> die <span class="op">$</span> <span class="st">&quot;query unexpected succeeded after delete&quot;</span></span></code></pre></div>
+<p>Phew, quite a lot of code to test one little feature. There is no
+standard system interface for querying the executable path. So it
+is no surprise to see such diverse behaviour across different
+platforms—including no query mechanism at all (looking at you,
+OpenBSD).</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>In this article I gave an introduction to writing tests for the GHC
+test suite, with some examples. The GHC wiki <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding">contains more
+comprehensive documentation</a>. <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">Performance
+tests</a> are a more complex aspect of the GHC test
+suite which I didn’t discuss in detail.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2022-05-31-ghc-test-suite.html">Writing tests for GHC</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-12-aeson-hash-flooding-protection.html">How to protect <em>aeson</em> code from hash flooding</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-03-hedgehog-reuse-random.html">Reusing random generators in Hedgehog</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
