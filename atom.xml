@@ -8,8 +8,181 @@
         <name>Fraser Tweedale</name>
         <email>frase@frase.id.au</email>
     </author>
-    <updated>2022-05-31T00:00:00Z</updated>
+    <updated>2022-09-23T00:00:00Z</updated>
     <entry>
+    <title>Haskell FFI call safety and garbage collection</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2022-09-23-ffi-safety-and-gc.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2022-09-23-ffi-safety-and-gc.html</id>
+    <published>2022-09-23T00:00:00Z</published>
+    <updated>2022-09-23T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="haskell-ffi-call-safety-and-garbage-collection">Haskell FFI call safety and garbage collection</h1>
+<p>The Haskell <em>Foreign Function Interface (FFI)</em> lets you interface
+with code written in other languages, including C. Some kinds of
+foreign calls—such as those that could call back into Haskell
+code—require the GHC <em>runtime system (RTS)</em> to do some bookkeeping.
+This bookkeeping has a performance cost, so there is a mechanism to
+out of it for foreign calls that can’t call back into Haskell. This
+mechanism is called the <em>safety level</em>. There are two levels:</p>
+<ul>
+<li><strong><code>safe</code></strong>: do the bookkeeping; callbacks are safe</li>
+<li><strong><code>unsafe</code></strong>: skip the bookkeeping; callbacks have undefined
+behaviour</li>
+</ul>
+<p>But beware! Besides callback safety, there are other situations
+that require a <code>safe</code> foreign call. And some that may require an
+<code>unsafe</code> call (not just for performance). <span class="abstract">In this post I explain
+the garbage collection behaviour of <code>safe</code> and <code>unsafe</code> foreign
+calls, and describe how the wrong choice led to a nasty deadlock bug
+in <em>hs-notmuch</em>.</span></p>
+<h2 id="foreign-imports">Foreign imports <a href="#foreign-imports" class="section">§</a></h2>
+<p><a href="https://www.haskell.org/onlinereport/haskell2010/haskellch8.html">Chapter 8 of the Haskell 2010 Language Report</a> specifies the
+foreign function interface syntax and semantics. A <code>foreign import</code>
+declaration creates a Haskell binding to a foreign function or
+value:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall unsafe &quot;notmuch.h notmuch_database_open&quot;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  notmuch_database_open</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> <span class="dt">CString</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">CInt</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> (<span class="dt">Ptr</span> <span class="dt">DatabaseHandle</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span></span></code></pre></div>
+<p>You can see that the <code>foreign import</code> declaration contains:</p>
+<ul>
+<li>the safety declaration (<code>unsafe</code>)</li>
+<li>a reference to the C header and symbol to be imported</li>
+<li>a name for the function on the Haskell side</li>
+<li>a type annotation, which corresponds to the C type signature</li>
+</ul>
+<p>If you need a <code>safe</code> foreign call, write <code>safe</code> or just omit the
+safety declaration (<code>safe</code>) is the default.</p>
+<div class="note">
+<p><code>notmuch_database_open</code> is a C <em>double-pointer style constructor</em>.
+The arguments are the filesystem path (<code>CString</code>), a mode enum
+(<code>CInt</code>) and a location to write the pointer to the database handle
+upon success <code>(Ptr (Ptr DatabaseHandle))</code>. The return value is <code>0</code>
+on success or a nonzero error code (<code>CInt</code>).</p>
+</div>
+<h2 id="finalizers">Finalizers <a href="#finalizers" class="section">§</a></h2>
+<p>Haskell is a garbage collected language. It is possible to use the
+garbage collector to clean up objects that were allocated in foreign
+calls, when the are no longer referenced. The clean up functions
+are called <em>finalizers</em>. Often, finalizers themselves are imported
+from the foreign library:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall &quot;notmuch.h &amp;notmuch_database_destroy&quot;</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  notmuch_database_destroy ::</span> <span class="dt">FinalizerPtr</span> <span class="dt">DatabaseHandle</span></span></code></pre></div>
+<p>Note the ampersand (<code>&amp;</code>) which denotes that we are importing a
+<em>function pointer</em> rather than the function itself.</p>
+<p><code>FinalizerPtr</code> is a type synonym defined in the
+<a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#t:FinalizerPtr"><code>Foreign.ForeignPtr</code></a> module:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">FinalizerPtr</span> a <span class="ot">=</span> <span class="dt">FunPtr</span> (<span class="dt">Ptr</span> a <span class="ot">-&gt;</span> <span class="dt">IO</span> ())</span></code></pre></div>
+<p>This arises from the usual definition of a destructor or <code>free</code>
+function. That is, a void function whose single argument is the
+pointer to the object to be destroyed or memory to be freed.</p>
+<p>Programs need to associate finalizers with the objects they are to
+clean up. The function to do this is
+<a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#v:newForeignPtr"><code>newForeignPtr</code></a>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>newForeignPtr</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">FinalizerPtr</span> a <span class="ot">-&gt;</span> <span class="dt">Ptr</span> a <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">ForeignPtr</span> a)</span></code></pre></div>
+<div class="note">
+<p>A <code>ForeignPtr a</code> can have multiple (or zero) finalizers. Use cases
+for multiple finalizers are uncommon.</p>
+</div>
+<h2 id="ffi-safety-and-garbage-collection">FFI safety and garbage collection <a href="#ffi-safety-and-garbage-collection" class="section">§</a></h2>
+<p>Consider the wording of the Haskell 2010 FFI chapter:</p>
+<blockquote>
+<p>A <code>safe</code> call … guarantees to leave the Haskell system in a state
+that allows callbacks from the external code. In contrast, an
+<code>unsafe</code> call, while carrying less overhead, must not trigger a
+callback into the Haskell system. If it does, the system behaviour
+is undefined. … Note that a callback into the Haskell system
+implies that a garbage collection might be triggered after an
+external entity was called, but before this call returns.</p>
+</blockquote>
+<p>This says that garbage collection can occur during a <code>safe</code> call.
+But it <em>does not say</em> whether GC is allowed, or not, during an
+<code>unsafe</code> call. It is up to implementations to decide what to do.</p>
+<p>GHC’s behaviour here has changed over time. Since version 8.4, GHC
+<em>guarantees</em> that <strong>garbage collection will never occur during an
+<code>unsafe</code> FFI call.</strong> This guarantee allows <code>unsafe</code> FFI calls to
+work with heap-allocated data, which enables some performance
+optimisations.</p>
+<div class="note">
+<p>The <a href="https://downloads.haskell.org/ghc/9.4.1/docs/users_guide/exts/ffi.html#guaranteed-call-safety">GHC users guide</a> has a more thorough treatment of
+this topic. It also mentions important details about the threading
+and the FFI, among other things.</p>
+</div>
+<h2 id="crouching-gc-hidden-deadlock">Crouching GC, hidden deadlock <a href="#crouching-gc-hidden-deadlock" class="section">§</a></h2>
+<p>We have discussed the FFI, finalizers, foreign call (un)safety and
+garbage collection. What’s it all coming to?</p>
+<p>The earlier foreign import examples are from
+<a href="https://hackage.haskell.org/package/notmuch"><em>hs-notmuch</em></a>, my Haskell binding to the
+<a href="https://notmuchmail.org/"><em>notmuch</em></a> mail indexer. Note the following:</p>
+<ul>
+<li><p><code>notmuch_database_open</code> is an <code>unsafe</code> foreign call (because it
+doesn’t call back into Haskell and I don’t want the bookkeeping
+overhead).</p></li>
+<li><p><code>notmuch_database_destroy</code> is a finalizer that closes the database
+and frees resources. The finalizer will be scheduled by the
+garbage collector when the database handle is no longer in use.</p></li>
+<li><p>Wrapper code in <em>hs-notmuch</em> uses <code>newForeignPtr</code> to associate the
+the <code>notmuch_database_destroy</code> finalizer with the pointers created
+by <code>notmuch_database_open</code>.</p></li>
+<li><p>The finalizer (called after GC) is the <em>only way</em> to close a
+database handle. The <em>hs-notmuch</em> API does not offer an explicit
+close function.</p></li>
+</ul>
+<p>An application could attempt to open a database multiple times.
+This might be intentional. Or this could occur because there is an
+unreferenced database handle whose finalizer has not yet been
+executed.</p>
+<p><em>libnotmuch</em> uses locks to prevent multiple read/write sessions to a
+single database. <code>notmuch_database_open</code> blocks if the lock is
+held. In the event of <em>accidental</em> multiple open this isn’t a
+problem, because GC will eventually occur, finalizers will run and
+the lock will be released.</p>
+<p><strong>Except it won’t, because GHC prevents garbage collection during
+<code>unsafe</code> foreign calls.</strong> As a result, the program deadlocks.
+Non-deterministically.</p>
+<p>This bug went unnoticed for a long time. It was <a href="https://github.com/purebred-mua/purebred/issues/468">eventually
+detected</a> by <a href="https://github.com/purebred-mua/purebred"><em>purebred</em></a>’s automated user acceptance
+tests, which perform many user actions very quickly. (<em>purebred</em> is
+a mail program that uses <em>hs-notmuch</em>). Whether deadlock is likely
+to occur depends very much on the application and/or user behaviour.</p>
+<p>Fortunately, the fix was simple: make <code>notmuch_database_open</code> a
+<code>safe</code> foreign call. Opening the database would typically be an
+infrequent operation so the bookkeeping overhead is tolerable.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>This post discussed the FFI, finalizers, and GHC’s garbage
+collection behaviour (or lack thereof) during <code>safe</code> and <code>unsafe</code>
+foreign calls. I used a deadlock bug in a foreign binding library
+as a case study of this behaviour.</p>
+<p>The folk wisdom regarding <code>safe</code> versus <code>unsafe</code> foreign calls
+mainly deals with callbacks and performance overheads. I have
+rarely seen the garbage collection mentioned. This is unfortunate
+because the GC behaviour is critical to program safety and
+correctness (as the case study proves). Resources (wiki pages, blog
+posts, etc) that discuss FFI call safety but fail to mention the GC
+behaviour of <code>safe</code> versus <code>unsafe</code> should be updated.</p>
+<p>With these things in mind, here are my recommendations for Haskell
+programmers working with the FFI:</p>
+<ul>
+<li><p>If a foreign function could call back into Haskell code, it must
+be <code>safe</code>.</p></li>
+<li><p>If a foreign call might block, it probably needs to be <code>safe</code>
+(unless you are certain about what you are doing).</p></li>
+<li><p>If you are unsure about whether a foreign call could block (or
+why), make it <code>safe</code>.</p></li>
+</ul>
+<p>In fact, it’s fine to make every foreign import <code>safe</code> unless:</p>
+<ul>
+<li><p>You need to guarantee that heap-allocated objects (e.g. unpinned
+<code>ByteArray#</code>) will not move during the foreign call, or</p></li>
+<li><p>The bookkeeping overhead is a real performance issue (e.g. C-style
+<code>_valid()</code>/<code>_get()</code>/<code>_next()</code> iterators, calls in tight loops).</p></li>
+</ul>
+<p>Doing so might deliver you from debugging a non-deterministic
+deadlock.</p>]]></summary>
+</entry>
+<entry>
     <title>Writing tests for GHC</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2022-05-31-ghc-test-suite.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2022-05-31-ghc-test-suite.html</id>
@@ -1520,344 +1693,6 @@ system. Type-guided development is indeed wonderful and powerful,
 but let’s be honest that in many cases, reasoning from the types
 alone won’t get you all the way to a correct solution. On the
 contrary, you may find yourself at the end of a garden path!</p>]]></summary>
-</entry>
-<entry>
-    <title>Purebred plugin system: implementation</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-03-30-purebred-plugins-implementation.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-03-30-purebred-plugins-implementation.html</id>
-    <published>2021-03-30T00:00:00Z</published>
-    <updated>2021-03-30T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="purebred-plugin-system-implementation">Purebred plugin system: implementation</h1>
-<p>I previously wrote about a <a href="2021-02-02-plugin-system-prototype.html">prototype plugin system</a>
-for <a href="https://github.com/purebred-mua/purebred">Purebred</a>. In this post I discuss some improvements to the
-design, and report on the implementation progress.</p>
-<h2 id="recap">Recap <a href="#recap" class="section">§</a></h2>
-<p>The requirements for the plugin system were:</p>
-<ul>
-<li><p>Plugin types must express the <strong>capabilities</strong> they use, to help
-users understand what the plugin can and cannot do.</p></li>
-<li><p>Diverse plugins must <strong>compose</strong> together, even when they use
-different capabilities.</p></li>
-<li><p>Plugin function types must use <strong>abstract</strong> constraints, not
-concrete types, so the application can evolve without breaking
-plugins.</p></li>
-<li><p>Types should be <strong>human friendly</strong>.</p></li>
-<li><p>It must be possible to <strong>configure</strong> plugins, if required.</p></li>
-</ul>
-<p>The prototype design satisfied these requirements, with some
-caveats. The biggest deficiencies were that the plugin’s type does
-not reveal which hook(s) the plugin uses, and the plugin’s type
-expresses the <em>union</em> of capabilities needed by all its hook
-functions. There was no way for a plugin to say, for example, that
-it uses <code>CanIO</code> for one hook, and <code>CanRWState</code> for some other hook.</p>
-<h2 id="plugin-record-type-improvements">Plugin record type improvements <a href="#plugin-record-type-improvements" class="section">§</a></h2>
-<p>Recall the <code>Plugin</code> record type from the previous article:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Plugin</span> ctx <span class="ot">=</span> <span class="dt">Plugin</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> pluginName ::</span> <span class="dt">String</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> pluginHook ::</span> <span class="kw">forall</span> m<span class="op">.</span> (ctx m) <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> m <span class="dt">Int</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
-<p><code>ctx</code> is the capability, for example <code>CanIO</code>. The many hooks in a
-real application would appear as additional fields in this record
-type. One consequence of this design is that the capability of the
-plugin as a whole must be the union of capabilities actually
-required by the plugin’s hook functions.</p>
-<p>It also means that there is no way for the application to offer
-limited capabliities to some hooks. Put another way, all
-capabilities are available to all hooks. This does not reflect the
-needs of real applications; they may need to restrict which
-capabilities are available in different hooks.</p>
-<p>The plugin system implemented in Purebred improves on the prototype
-design. We define the plugin record type, now called <code>PluginDict</code>,
-as follows:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">PluginDict</span> <span class="ot">=</span> <span class="dt">PluginDict</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> _pluginName ::</span> <span class="dt">String</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> _pluginVersion ::</span> <span class="dt">Version</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> _pluginBuiltIn ::</span> <span class="dt">Bool</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> _configHook ::</span> <span class="dt">ConfigHook</span> <span class="dt">CanIO</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> _preSendHook ::</span> <span class="dt">PreSendHook</span> <span class="dt">Unconstrained</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
-<p>The <code>ctx</code> type parameter is gone. Instead, each hook function field
-specifies the capabilities available to that hook.</p>
-<p>Each hook function is no longer a bare function but is wrapped in a
-<code>newtype</code>. This (I feel) improves readability. It allows lenses to
-be defined, without resorting the GHC’s currently-flaky support for
-impredicative types. Use of optics is also why the field accessors,
-which are not exported, are prefixed with <code>_</code>.</p>
-<p>As an example of a hook type, here is the definition of
-<code>PreSendHook</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">newtype</span> <span class="dt">PreSendHook</span> cap <span class="ot">=</span> <span class="dt">PreSendHook</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  ( <span class="kw">forall</span> m<span class="op">.</span> (cap m) <span class="ot">=&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span> )</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>getPreSendHook</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (cap m)</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">PreSendHook</span> cap <span class="ot">-&gt;</span> <span class="dt">MIMEMessage</span> <span class="ot">-&gt;</span> m <span class="dt">MIMEMessage</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>getPreSendHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> f</span></code></pre></div>
-<div id="note-field-accessors" class="note">
-<p><code>getSendPreHook</code> must be a standalone function, not a field
-accessor. This is because <strong>GHC 9.0.1</strong> and later preserve the
-written order of quantified type variables in field selectors
-(<a href="https://downloads.haskell.org/ghc/9.0.1/docs/html/users_guide/9.0.1-notes.html#language">release note</a>):</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="kw">data</span> <span class="dt">T</span> c <span class="ot">=</span> <span class="dt">T</span> {<span class="ot"> unT ::</span> <span class="kw">forall</span> m<span class="op">.</span> (c m) <span class="ot">=&gt;</span> () <span class="ot">-&gt;</span> m () }</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> <span class="op">:</span>t unT</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- GHC 8.10.5</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ot">unT ::</span> c m <span class="ot">=&gt;</span> <span class="dt">T</span> c <span class="ot">-&gt;</span> () <span class="ot">-&gt;</span> m ()</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- GHC 9.0.1</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ot">unT ::</span> <span class="dt">T</span> c <span class="ot">-&gt;</span> <span class="kw">forall</span> (<span class="ot">m ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>)<span class="op">.</span> c m <span class="ot">=&gt;</span> () <span class="ot">-&gt;</span> m ()</span></code></pre></div>
-</div>
-<p>Finally, I added a field to store the plugin version, and a boolean
-to distinguish between built-in and external plugins. We (the
-Purebred authors) intend to use the plugin system to provide some
-baseline functionality. But we do not want to treat these
-behaviours as plugins from the user’s point of view. The
-<code>_pluginBuiltIn</code> field lets us discriminate.</p>
-<h2 id="public-plugin-type-improvements">Public plugin type improvements <a href="#public-plugin-type-improvements" class="section">§</a></h2>
-<p>Plugin modules no longer export a plugin record value (what we now
-call <code>PluginDict</code>). The <code>Plugin</code> type lives on, in a different
-form:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Plugin</span> hooks <span class="ot">=</span> <span class="dt">Plugin</span> <span class="dt">String</span> <span class="dt">Version</span> hooks</span></code></pre></div>
-<p>A <code>Plugin</code> value has a name, version, and <code>hooks</code>. What is <code>hooks</code>?
-It is best understood in the context of the <code>usePlugin</code> function.
-Like the <code>relax</code> function from the prototype, <code>usePlugin</code>
-monomorphises plugins and prepares them for use in the main program.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">usePlugin ::</span> (<span class="dt">Hook</span> hooks) <span class="ot">=&gt;</span> <span class="dt">Plugin</span> hooks <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>usePlugin (<span class="dt">Plugin</span> name ver hook) <span class="ot">=</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  setHook hook <span class="op">$</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">PluginDict</span> name ver <span class="dt">False</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">ConfigHook</span> <span class="fu">pure</span>)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      (<span class="dt">PreSendHook</span> <span class="fu">pure</span>)</span></code></pre></div>
-<p><code>usePlugin</code> constructs a <code>PluginDict</code> full of <em>no-op</em> hooks, then
-sets the plugin’s hooks via the <code>setHook</code> function. <code>hooks</code> must
-have an instance of the <code>Hook</code> type class:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Hook</span> t <span class="kw">where</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  setHook ::</span> t <span class="ot">-&gt;</span> <span class="dt">PluginDict</span> <span class="ot">-&gt;</span> <span class="dt">PluginDict</span></span></code></pre></div>
-<p>Each hook function type has an instance of <code>Hook</code>. These instances
-set the hook function in the <code>PluginDict</code>. A quantified constraint
-ensures the capabilities demanded by the hook function do not exceed
-the capabilities offered. Here, as an example, is the instance for
-<code>PreSendHook</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">Unconstrained</span> m <span class="ot">=&gt;</span> cap m)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> <span class="dt">Hook</span> (<span class="dt">PreSendHook</span> cap) <span class="kw">where</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  setHook (<span class="dt">PreSendHook</span> f) <span class="ot">=</span> set preSendHook (<span class="dt">PreSendHook</span> f)</span></code></pre></div>
-<p>This is another reason why it was necessary to <code>newtype</code> all the
-hook functions.</p>
-<p>To support plugins that use multiple hooks, we declare an instance
-of <code>Hook</code> for pairs (2-tuples). This allows plugins to define as
-many hooks as they need, using nested tuples:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">Hook</span> h1, <span class="dt">Hook</span> h2) <span class="ot">=&gt;</span> <span class="dt">Hook</span> (h1, h2) <span class="kw">where</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  setHook (h1, h2) <span class="ot">=</span> setHook h1 <span class="op">.</span> setHook h2</span></code></pre></div>
-<h2 id="implementing-plugins">Implementing plugins <a href="#implementing-plugins" class="section">§</a></h2>
-<p>Plugins construct and export a <code>Plugin hook</code> value, where <code>hook</code> is
-a hook function type or a nested tuple of the same.</p>
-<div class="note">
-<p>If a plugin defines the same hook multiple times, <code>usePlugin</code>
-discards all but the “leftmost” occurrence.</p>
-</div>
-<p>Here is the implementation of our <code>User-Agent</code> plugin:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.UserAgent</span> (plugin) <span class="kw">where</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Lens</span> (set, view)</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.MIME</span> (headerText)</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version, userAgent)</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (confCharset)</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="ot">plugin ::</span> <span class="dt">Plugin</span> (<span class="dt">PreSendHook</span> <span class="dt">CanReadConfig</span>)</span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>plugin <span class="ot">=</span> <span class="dt">Plugin</span> <span class="st">&quot;UserAgent&quot;</span> version (<span class="dt">PreSendHook</span> hook) <span class="kw">where</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  hook msg <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    charsets <span class="ot">&lt;-</span> view confCharsets</span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> l <span class="ot">=</span> headerText charsets <span class="st">&quot;User-Agent&quot;</span></span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pure</span> <span class="op">$</span> set l (<span class="dt">Just</span> userAgent) msg</span></code></pre></div>
-<p>The concrete type of a plugin shows the hook(s) used by the plugin,
-and the capabilities required by each hook. If a plugin needs to
-use multiple hooks, use nested pairs. In the example above,
-<code>plugin</code> uses the <code>PreSendHook</code> with the <code>CanReadConfig</code> capability.
-The type proves that the the <code>User-Agent</code> plugin only uses the
-<code>PreSendHook</code>, cannot perform I/O, and so on.</p>
-<div class="note">
-<p>We could define <code>Hook</code> instances for 3-tuples, 4-tuples, and so on.
-But I decided not to, because where does it end? Besides, I don’t
-think there will be many plugins that use more than two hooks.</p>
-</div>
-<p>The name of the plugin value (<code>plugin</code> in the preceding example) is
-not important. Plugin authors can use whatever name makes sense.
-Plugins that require configuration should export a function instead
-of a plain <code>Plugin</code> value, as in the following examples:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Purebred.Plugin.TweakConfig</span> <span class="kw">where</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Plugin</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Version</span> (version)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred.Types</span> (<span class="dt">UserConfiguration</span>)</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>tweakConfig</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">UserConfiguration</span>)</span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">Pure</span>)</span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>tweakConfig hook <span class="ot">=</span></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig&quot;</span> version</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> (<span class="fu">pure</span> <span class="op">.</span> hook))</span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO</span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> ( <span class="kw">forall</span> m<span class="op">.</span> (<span class="dt">CanIO</span> m) <span class="ot">=&gt;</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>       <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> m <span class="dt">UserConfiguration</span> )</span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">Plugin</span> (<span class="dt">ConfigHook</span> <span class="dt">CanIO</span>)</span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>tweakConfigWithIO hook <span class="ot">=</span></span>
-<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Plugin</span> <span class="st">&quot;Purebred.Plugin.TweakConfig (IO)&quot;</span> version</span>
-<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">ConfigHook</span> hook)</span></code></pre></div>
-<p>The <code>TweakConfig</code> module provides two variants of a plugin to adjust
-Purebred’s configuration at startup. <code>tweakConfig</code> takes a pure
-transformation and yields a <code>Plugin (ConfigHook Pure)</code>, whereas
-<code>tweakConfigWithIO</code> allows the use of <code>IO</code>.</p>
-<h2 id="using-plugins">Using plugins <a href="#using-plugins" class="section">§</a></h2>
-<p>Users apply <code>usePlugin</code> to each plugin and produce a <code>[PluginDict]</code>.
-That list is then given as argument to the main Purebred entry
-point:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
-<p>The user configuration file, in a basic sense, is a program that
-constructs a list of plugins and applies <code>purebred</code> to it. Here is
-a cut-down version of my <code>~/.config/purebred/purebred.hs</code>:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Purebred</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.TweakConfig</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Purebred.Plugin.ICU</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>listKeybindings <span class="ot">=</span></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  [ <span class="co">{- my preferred keybindings -}</span> ]</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>tweak <span class="ot">=</span></span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    over (confIndexView <span class="op">.</span> ivBrowseThreadsKeybindings)</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>         (listKeybindings <span class="op">&lt;&gt;</span>)</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="op">.</span> set (confNotmuch <span class="op">.</span> nmNewTag) <span class="st">&quot;inbox&quot;</span></span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> purebred</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  [ usePlugin <span class="op">$</span></span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.TweakConfig.tweakConfig tweak</span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>  , usePlugin</span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>      Purebred.Plugin.ICU.plugin</span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
-<p>Some plugins have no configuration and just do their thing. But
-other plugins may require the user to construct a substantial
-configuration. A PGP/MIME plugin that uses GnuPG, though not
-written yet, seems likely to have a lot of knobs. Plugins that
-require configuration should offer ergonomic ways to construct
-sensible, safe configurations.</p>
-<h3 id="built-in-plugins">Built-in plugins <a href="#built-in-plugins" class="section">§</a></h3>
-<p><code>defaultConfig</code> is the default <code>UserConfiguration</code> value. It is not
-exported, but it can be modified by <code>ConfigHook</code>s. Built-in plugins
-are already set in the <code>confPlugins</code> field of <code>defaultConfig</code>:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ot">defaultConfig ::</span> <span class="dt">UserConfiguration</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>defaultConfig <span class="ot">=</span> <span class="dt">Configuration</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  { _confPlugins <span class="ot">=</span> set pluginBuiltIn <span class="dt">True</span> <span class="op">&lt;$&gt;</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>      [ usePlugin Purebred.Plugin.UserAgent.plugin</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>      …</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>      ]</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  …</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  }</span></code></pre></div>
-<p><code>usePlugin</code> sets the <code>pluginBuiltIn</code> field to <code>False</code>. But we reset
-it to <code>True</code> for all built-in plugins. The <code>pluginBuiltIn</code> optic is
-not exported. Therefore users cannot change the treatment of a
-plugin from built-in to external, or vice versa.</p>
-<p>The <code>purebred</code> entry point merges user-supplied plugins with the
-built-in plugins:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ot">purebred ::</span> [<span class="dt">PluginDict</span>] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>purebred plugins <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  …</span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    cfg <span class="ot">=</span> over confPlugins (plugins <span class="op">&lt;&gt;</span>) defaultConfig</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    dyreParams <span class="ot">=</span> …</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  Dyre.wrapMain dyreParams cfg</span></code></pre></div>
-<h2 id="executing-plugins">Executing plugins <a href="#executing-plugins" class="section">§</a></h2>
-<p>Purebred executes <code>ConfigHook</code>s immediately after Dyre (the
-configuration system) invokes the “real main” action (called
-<code>launch</code>):</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ot">launch ::</span> <span class="dt">UserConfiguration</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>launch inCfg <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    plugins <span class="ot">=</span> view confPlugins inCfg</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    hooks <span class="ot">=</span> getConfigHook <span class="op">.</span> view configHook <span class="op">&lt;$&gt;</span> plugins</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> <span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks inCfg</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  …</span></code></pre></div>
-<p><code>PreSendHook</code>s are executed in the action that sends mail:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> msg <span class="ot">=</span> …</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  hooks <span class="ot">&lt;-</span> uses (asConfig <span class="op">.</span> confPlugins)</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>           (<span class="fu">fmap</span> (getPreSendHook <span class="op">.</span> view preSendHook))</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  cfg <span class="ot">&lt;-</span> use asConfig</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  msg&#39; <span class="ot">&lt;-</span> runReaderT (<span class="fu">foldr</span> (<span class="op">&gt;=&gt;</span>) <span class="fu">pure</span> hooks msg) cfg</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  k (buildMessage msg&#39;)</span></code></pre></div>
-<p>These two examples reveal a pattern for hook execution:</p>
-<ol type="1">
-<li><p>Extract the relevant hook functions from the <code>[PluginDict]</code></p></li>
-<li><p>Use Kleisli composition <code>(&gt;=&gt;)</code> to fold the list into a single
-action.</p></li>
-<li><p>Execute the composed action, using transformers if necessary.</p></li>
-</ol>
-<p>This pattern applies when the hook function type has the shape <code>a -&gt; m a</code>. So far, all the hook functions have that shape.</p>
-<h2 id="hooks-in-purebred">Hooks in Purebred <a href="#hooks-in-purebred" class="section">§</a></h2>
-<p>The hooks we have already implemented are:</p>
-<ul>
-<li><p><strong><code>ConfigHook</code></strong>: modify configuration at program startup.</p></li>
-<li><p><strong><code>PreSendHook</code></strong>: modify or process a message immediately prior
-to sending. We currently use this hook, in a built-in plugin, to
-add a <code>User-Agent</code> header to outgoing messages. Can perform I/O.
-This is the hook that will be used to sign and/or encrypt outgoing
-mail. We will probably also add a capability to enable a plugin
-to abort sending.</p></li>
-</ul>
-<p>Hooks we haven’t implemented, but must, include (names subject to
-change):</p>
-<ul>
-<li><p><strong><code>DisplayHook</code></strong>: modify or process a message before displaying
-it. One use case is to perform decryption or verify signatures.</p></li>
-<li><p><strong><code>PreEditHook</code></strong>: process a part before editing it. Together
-with <code>PostEditHook</code> this could be used to enable editing of
-headers along with text bodies.</p></li>
-<li><p><strong><code>PostEditHook</code></strong>: process a message part after editing it.</p></li>
-</ul>
-<p>We have thought of some other hooks that seem useful, but haven’t
-yet committed to implementing:</p>
-<ul>
-<li><p><strong><code>CreateHook</code></strong>: modify a message immediately after creation
-(i.e. before editing). A proposed use is appending “signature”
-content.</p></li>
-<li><p><strong><code>ReadHook</code></strong>: process raw message data when reading from disk.
-A plugin could use this to detect compressed files and inflate
-them. Another use case could be to attempt to “repair” corrupt or
-nonconformant messages.</p></li>
-</ul>
-<p>Purebred also needs an “address book” interface. We want plugins to
-be able to provide address book behaviour. But we haven’t designed
-it yet. It remains to be seen whether we will do it by way of hooks
-(as described in this post), or by updating the main configuration
-(via <code>ConfigHook</code>), or by some other means.</p>
-<h2 id="discussion">Discussion <a href="#discussion" class="section">§</a></h2>
-<p>Although I felt that the prototype design did satisfy the
-<em>capabilities</em> requirement, there were some deficiencies. I
-identified and discussed these in <a href="2021-02-02-plugin-system-prototype.html">the original
-article</a>. In particular, the <code>Plugin</code> type did not
-express which hooks the plugin uses, nor could a plugin acquire
-different capabilities for different hooks. The updated design
-eliminates these deficiencies.</p>
-<p>Plugins now have a version field, and the internal representation
-also distinguishes between built-in and external plugins. We use
-this to hide built-ins when listing plugins in the <code>--version</code>
-output.</p>
-<p>The problems of UI interaction, and how plugins can store and use
-plugin-specific state, remain unsolved.</p>
-<p>There is also the question of hook execution order or priority.
-Hook functions process and potentially modify a datum of interest,
-such as a <code>Message</code> or a <code>ByteString</code>. Consider <code>ReadHook</code>, for
-processing messages as they’re read from disk, and its hypothetical
-counterpart <code>WriteHook</code>. A plugin for on-disk mail compression would use
-these hooks. When reading mail, decompression must precede other
-operations. When writing, compression should be the final step.
-The current implementation runs plugins hooks in the order they’re
-stored—external plugins first, then built-ins. So plugins that
-involve dual operations (compression, encryption) present inherent
-challenges. And there is no way to tame unwanted interactions
-between external and built-in plugins.</p>
-<p>For now, the ordering problem is theoretical. I haven’t encountered
-it in practice, because few plugins have been implemented. So I’m
-not going to try to solve the problem prematurely. I have an idea
-that does not add much complexity and should be simple for users to
-understand. But I will save that discussion for a future post.</p>]]></summary>
 </entry>
 
 </feed>

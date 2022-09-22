@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Haskell FFI call safety and garbage collection</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Haskell FFI call safety and garbage collection","datePublished":"2022-09-23T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2022-09-23-ffi-safety-and-gc.html" /><meta property="og:title" content="Haskell FFI call safety and garbage collection" /><meta property="og:description" content="In this post I explain the garbage collection behaviour of safe and unsafe foreign calls, and describe how the wrong choice led to a nasty deadlock bug in hs-notmuch." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta property="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'ffi'." href="../tags/ffi.html">ffi</a>, <a title="All pages tagged 'gotcha'." href="../tags/gotcha.html">gotcha</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="haskell-ffi-call-safety-and-garbage-collection">Haskell FFI call safety and garbage collection</h1>
+<p>The Haskell <em>Foreign Function Interface (FFI)</em> lets you interface
+with code written in other languages, including C. Some kinds of
+foreign calls—such as those that could call back into Haskell
+code—require the GHC <em>runtime system (RTS)</em> to do some bookkeeping.
+This bookkeeping has a performance cost, so there is a mechanism to
+out of it for foreign calls that can’t call back into Haskell. This
+mechanism is called the <em>safety level</em>. There are two levels:</p>
+<ul>
+<li><strong><code>safe</code></strong>: do the bookkeeping; callbacks are safe</li>
+<li><strong><code>unsafe</code></strong>: skip the bookkeeping; callbacks have undefined
+behaviour</li>
+</ul>
+<p>But beware! Besides callback safety, there are other situations
+that require a <code>safe</code> foreign call. And some that may require an
+<code>unsafe</code> call (not just for performance). <span class="abstract">In this post I explain
+the garbage collection behaviour of <code>safe</code> and <code>unsafe</code> foreign
+calls, and describe how the wrong choice led to a nasty deadlock bug
+in <em>hs-notmuch</em>.</span></p>
+<h2 id="foreign-imports">Foreign imports <a href="#foreign-imports" class="section">§</a></h2>
+<p><a href="https://www.haskell.org/onlinereport/haskell2010/haskellch8.html">Chapter 8 of the Haskell 2010 Language Report</a> specifies the
+foreign function interface syntax and semantics. A <code>foreign import</code>
+declaration creates a Haskell binding to a foreign function or
+value:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall unsafe &quot;notmuch.h notmuch_database_open&quot;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  notmuch_database_open</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> <span class="dt">CString</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">CInt</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Ptr</span> (<span class="dt">Ptr</span> <span class="dt">DatabaseHandle</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">CInt</span></span></code></pre></div>
+<p>You can see that the <code>foreign import</code> declaration contains:</p>
+<ul>
+<li>the safety declaration (<code>unsafe</code>)</li>
+<li>a reference to the C header and symbol to be imported</li>
+<li>a name for the function on the Haskell side</li>
+<li>a type annotation, which corresponds to the C type signature</li>
+</ul>
+<p>If you need a <code>safe</code> foreign call, write <code>safe</code> or just omit the
+safety declaration (<code>safe</code>) is the default.</p>
+<div class="note">
+<p><code>notmuch_database_open</code> is a C <em>double-pointer style constructor</em>.
+The arguments are the filesystem path (<code>CString</code>), a mode enum
+(<code>CInt</code>) and a location to write the pointer to the database handle
+upon success <code>(Ptr (Ptr DatabaseHandle))</code>. The return value is <code>0</code>
+on success or a nonzero error code (<code>CInt</code>).</p>
+</div>
+<h2 id="finalizers">Finalizers <a href="#finalizers" class="section">§</a></h2>
+<p>Haskell is a garbage collected language. It is possible to use the
+garbage collector to clean up objects that were allocated in foreign
+calls, when the are no longer referenced. The clean up functions
+are called <em>finalizers</em>. Often, finalizers themselves are imported
+from the foreign library:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall &quot;notmuch.h &amp;notmuch_database_destroy&quot;</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  notmuch_database_destroy ::</span> <span class="dt">FinalizerPtr</span> <span class="dt">DatabaseHandle</span></span></code></pre></div>
+<p>Note the ampersand (<code>&amp;</code>) which denotes that we are importing a
+<em>function pointer</em> rather than the function itself.</p>
+<p><code>FinalizerPtr</code> is a type synonym defined in the
+<a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#t:FinalizerPtr"><code>Foreign.ForeignPtr</code></a> module:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">FinalizerPtr</span> a <span class="ot">=</span> <span class="dt">FunPtr</span> (<span class="dt">Ptr</span> a <span class="ot">-&gt;</span> <span class="dt">IO</span> ())</span></code></pre></div>
+<p>This arises from the usual definition of a destructor or <code>free</code>
+function. That is, a void function whose single argument is the
+pointer to the object to be destroyed or memory to be freed.</p>
+<p>Programs need to associate finalizers with the objects they are to
+clean up. The function to do this is
+<a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#v:newForeignPtr"><code>newForeignPtr</code></a>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>newForeignPtr</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">FinalizerPtr</span> a <span class="ot">-&gt;</span> <span class="dt">Ptr</span> a <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">ForeignPtr</span> a)</span></code></pre></div>
+<div class="note">
+<p>A <code>ForeignPtr a</code> can have multiple (or zero) finalizers. Use cases
+for multiple finalizers are uncommon.</p>
+</div>
+<h2 id="ffi-safety-and-garbage-collection">FFI safety and garbage collection <a href="#ffi-safety-and-garbage-collection" class="section">§</a></h2>
+<p>Consider the wording of the Haskell 2010 FFI chapter:</p>
+<blockquote>
+<p>A <code>safe</code> call … guarantees to leave the Haskell system in a state
+that allows callbacks from the external code. In contrast, an
+<code>unsafe</code> call, while carrying less overhead, must not trigger a
+callback into the Haskell system. If it does, the system behaviour
+is undefined. … Note that a callback into the Haskell system
+implies that a garbage collection might be triggered after an
+external entity was called, but before this call returns.</p>
+</blockquote>
+<p>This says that garbage collection can occur during a <code>safe</code> call.
+But it <em>does not say</em> whether GC is allowed, or not, during an
+<code>unsafe</code> call. It is up to implementations to decide what to do.</p>
+<p>GHC’s behaviour here has changed over time. Since version 8.4, GHC
+<em>guarantees</em> that <strong>garbage collection will never occur during an
+<code>unsafe</code> FFI call.</strong> This guarantee allows <code>unsafe</code> FFI calls to
+work with heap-allocated data, which enables some performance
+optimisations.</p>
+<div class="note">
+<p>The <a href="https://downloads.haskell.org/ghc/9.4.1/docs/users_guide/exts/ffi.html#guaranteed-call-safety">GHC users guide</a> has a more thorough treatment of
+this topic. It also mentions important details about the threading
+and the FFI, among other things.</p>
+</div>
+<h2 id="crouching-gc-hidden-deadlock">Crouching GC, hidden deadlock <a href="#crouching-gc-hidden-deadlock" class="section">§</a></h2>
+<p>We have discussed the FFI, finalizers, foreign call (un)safety and
+garbage collection. What’s it all coming to?</p>
+<p>The earlier foreign import examples are from
+<a href="https://hackage.haskell.org/package/notmuch"><em>hs-notmuch</em></a>, my Haskell binding to the
+<a href="https://notmuchmail.org/"><em>notmuch</em></a> mail indexer. Note the following:</p>
+<ul>
+<li><p><code>notmuch_database_open</code> is an <code>unsafe</code> foreign call (because it
+doesn’t call back into Haskell and I don’t want the bookkeeping
+overhead).</p></li>
+<li><p><code>notmuch_database_destroy</code> is a finalizer that closes the database
+and frees resources. The finalizer will be scheduled by the
+garbage collector when the database handle is no longer in use.</p></li>
+<li><p>Wrapper code in <em>hs-notmuch</em> uses <code>newForeignPtr</code> to associate the
+the <code>notmuch_database_destroy</code> finalizer with the pointers created
+by <code>notmuch_database_open</code>.</p></li>
+<li><p>The finalizer (called after GC) is the <em>only way</em> to close a
+database handle. The <em>hs-notmuch</em> API does not offer an explicit
+close function.</p></li>
+</ul>
+<p>An application could attempt to open a database multiple times.
+This might be intentional. Or this could occur because there is an
+unreferenced database handle whose finalizer has not yet been
+executed.</p>
+<p><em>libnotmuch</em> uses locks to prevent multiple read/write sessions to a
+single database. <code>notmuch_database_open</code> blocks if the lock is
+held. In the event of <em>accidental</em> multiple open this isn’t a
+problem, because GC will eventually occur, finalizers will run and
+the lock will be released.</p>
+<p><strong>Except it won’t, because GHC prevents garbage collection during
+<code>unsafe</code> foreign calls.</strong> As a result, the program deadlocks.
+Non-deterministically.</p>
+<p>This bug went unnoticed for a long time. It was <a href="https://github.com/purebred-mua/purebred/issues/468">eventually
+detected</a> by <a href="https://github.com/purebred-mua/purebred"><em>purebred</em></a>’s automated user acceptance
+tests, which perform many user actions very quickly. (<em>purebred</em> is
+a mail program that uses <em>hs-notmuch</em>). Whether deadlock is likely
+to occur depends very much on the application and/or user behaviour.</p>
+<p>Fortunately, the fix was simple: make <code>notmuch_database_open</code> a
+<code>safe</code> foreign call. Opening the database would typically be an
+infrequent operation so the bookkeeping overhead is tolerable.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>This post discussed the FFI, finalizers, and GHC’s garbage
+collection behaviour (or lack thereof) during <code>safe</code> and <code>unsafe</code>
+foreign calls. I used a deadlock bug in a foreign binding library
+as a case study of this behaviour.</p>
+<p>The folk wisdom regarding <code>safe</code> versus <code>unsafe</code> foreign calls
+mainly deals with callbacks and performance overheads. I have
+rarely seen the garbage collection mentioned. This is unfortunate
+because the GC behaviour is critical to program safety and
+correctness (as the case study proves). Resources (wiki pages, blog
+posts, etc) that discuss FFI call safety but fail to mention the GC
+behaviour of <code>safe</code> versus <code>unsafe</code> should be updated.</p>
+<p>With these things in mind, here are my recommendations for Haskell
+programmers working with the FFI:</p>
+<ul>
+<li><p>If a foreign function could call back into Haskell code, it must
+be <code>safe</code>.</p></li>
+<li><p>If a foreign call might block, it probably needs to be <code>safe</code>
+(unless you are certain about what you are doing).</p></li>
+<li><p>If you are unsure about whether a foreign call could block (or
+why), make it <code>safe</code>.</p></li>
+</ul>
+<p>In fact, it’s fine to make every foreign import <code>safe</code> unless:</p>
+<ul>
+<li><p>You need to guarantee that heap-allocated objects (e.g. unpinned
+<code>ByteArray#</code>) will not move during the foreign call, or</p></li>
+<li><p>The bookkeeping overhead is a real performance issue (e.g. C-style
+<code>_valid()</code>/<code>_get()</code>/<code>_next()</code> iterators, calls in tight loops).</p></li>
+</ul>
+<p>Doing so might deliver you from debugging a non-deterministic
+deadlock.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2022-09-23-ffi-safety-and-gc.html">Haskell FFI call safety and garbage collection</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2022-05-31-ghc-test-suite.html">Writing tests for GHC</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2022-05-10-improved-executable-path-queries.html">Better executable path queries in GHC 9.4</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-11-12-haddock-disambiguation.html">Haddock: disambiguating types and values</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2021-10-12-aeson-hash-flooding-protection.html">How to protect <em>aeson</em> code from hash flooding</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
