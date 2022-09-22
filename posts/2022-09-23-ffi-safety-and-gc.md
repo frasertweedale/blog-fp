@@ -57,7 +57,7 @@ safety declaration (`safe` is the default).
 `notmuch_database_open` is a C *double-pointer style constructor*.
 The arguments are the filesystem path (`CString`), a mode enum
 (`CInt`) and a location to write the pointer to the database handle
-upon success `(Ptr (Ptr DatabaseHandle))`.  The return value is `0`
+upon success (`Ptr (Ptr DatabaseHandle)`).  The return value is `0`
 on success or a nonzero error code (`CInt`).
 
 :::
