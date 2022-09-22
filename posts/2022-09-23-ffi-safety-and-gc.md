@@ -48,7 +48,7 @@ You can see that the `foreign import` declaration contains:
 - a type annotation, which corresponds to the C type signature
 
 If you need a `safe` foreign call, write `safe` or just omit the
-safety declaration (`safe`) is the default.
+safety declaration (`safe` is the default).
 
 [ch8]: https://www.haskell.org/onlinereport/haskell2010/haskellch8.html
 
