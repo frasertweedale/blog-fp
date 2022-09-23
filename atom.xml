@@ -64,7 +64,7 @@ on success or a nonzero error code (<code>CInt</code>).</p>
 <h2 id="finalizers">Finalizers <a href="#finalizers" class="section">§</a></h2>
 <p>Haskell is a garbage collected language. It is possible to use the
 garbage collector to clean up objects that were allocated in foreign
-calls, when the are no longer referenced. The clean up functions
+calls, when they are no longer referenced. The clean up functions
 are called <em>finalizers</em>. Often, finalizers themselves are imported
 from the foreign library:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall &quot;notmuch.h &amp;notmuch_database_destroy&quot;</span>
