@@ -65,18 +65,18 @@ on success or a nonzero error code (<code>CInt</code>).</p>
 <p>Haskell is a garbage collected language. It is possible to use the
 garbage collector to clean up objects that were allocated in foreign
 calls, when they are no longer referenced. The clean up functions
-are called <em>finalizers</em>. Often, finalizers themselves are imported
+are called <em>finalizers</em>. Often, finalizers are themselves imported
 from the foreign library:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall &quot;notmuch.h &amp;notmuch_database_destroy&quot;</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  notmuch_database_destroy ::</span> <span class="dt">FinalizerPtr</span> <span class="dt">DatabaseHandle</span></span></code></pre></div>
-<p>Note the ampersand (<code>&amp;</code>) which denotes that we are importing a
-<em>function pointer</em> rather than the function itself.</p>
+<p>The ampersand (<code>&amp;</code>) denotes that we are importing a <em>function
+pointer</em> rather than the function itself.</p>
 <p><code>FinalizerPtr</code> is a type synonym defined in the
 <a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#t:FinalizerPtr"><code>Foreign.ForeignPtr</code></a> module:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">FinalizerPtr</span> a <span class="ot">=</span> <span class="dt">FunPtr</span> (<span class="dt">Ptr</span> a <span class="ot">-&gt;</span> <span class="dt">IO</span> ())</span></code></pre></div>
 <p>This arises from the usual definition of a destructor or <code>free</code>
 function. That is, a void function whose single argument is the
-pointer to the object to be destroyed or memory to be freed.</p>
+pointer to the object to be destroyed, or memory to be freed.</p>
 <p>Programs need to associate finalizers with the objects they are to
 clean up. The function to do this is
 <a href="https://hackage.haskell.org/package/base-4.16.2.0/docs/Foreign-ForeignPtr.html#v:newForeignPtr"><code>newForeignPtr</code></a>:</p>
@@ -107,7 +107,7 @@ work with heap-allocated data, which enables some performance
 optimisations.</p>
 <div class="note">
 <p>The <a href="https://downloads.haskell.org/ghc/9.4.1/docs/users_guide/exts/ffi.html#guaranteed-call-safety">GHC users guide</a> has a more thorough treatment of
-this topic. It also mentions important details about the threading
+this topic. It also mentions important details about threading
 and the FFI, among other things.</p>
 </div>
 <h2 id="crouching-gc-hidden-deadlock">Crouching GC, hidden deadlock <a href="#crouching-gc-hidden-deadlock" class="section">§</a></h2>
@@ -121,8 +121,8 @@ garbage collection. What’s it all coming to?</p>
 doesn’t call back into Haskell and I don’t want the bookkeeping
 overhead).</p></li>
 <li><p><code>notmuch_database_destroy</code> is a finalizer that closes the database
-and frees resources. The finalizer will be scheduled by the
-garbage collector when the database handle is no longer in use.</p></li>
+and frees resources. The garbage collector schedules the
+finalizer when the database handle is no longer in use.</p></li>
 <li><p>Wrapper code in <em>hs-notmuch</em> uses <code>newForeignPtr</code> to associate the
 the <code>notmuch_database_destroy</code> finalizer with the pointers created
 by <code>notmuch_database_open</code>.</p></li>
@@ -131,13 +131,13 @@ database handle. The <em>hs-notmuch</em> API does not offer an explicit
 close function.</p></li>
 </ul>
 <p>An application could attempt to open a database multiple times.
-This might be intentional. Or this could occur because there is an
+This might be intentional. Or it could occur when there is an
 unreferenced database handle whose finalizer has not yet been
 executed.</p>
-<p><em>libnotmuch</em> uses locks to prevent multiple read/write sessions to a
+<p><em>libnotmuch</em> uses locks to prevent multiple read-write sessions to a
 single database. <code>notmuch_database_open</code> blocks if the lock is
-held. In the event of <em>accidental</em> multiple open this isn’t a
-problem, because GC will eventually occur, finalizers will run and
+already held. In the case of <em>accidental</em> multiple open this isn’t
+a problem because GC will eventually occur, finalizers will run and
 the lock will be released.</p>
 <p><strong>Except it won’t, because GHC prevents garbage collection during
 <code>unsafe</code> foreign calls.</strong> As a result, the program deadlocks.
