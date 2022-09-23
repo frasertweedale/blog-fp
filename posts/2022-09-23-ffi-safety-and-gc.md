@@ -68,7 +68,7 @@ on success or a nonzero error code (`CInt`).
 Haskell is a garbage collected language.  It is possible to use the
 garbage collector to clean up objects that were allocated in foreign
 calls, when they are no longer referenced.  The clean up functions
-are called *finalizers*.  Often, finalizers themselves are imported
+are called *finalizers*.  Often, finalizers are themselves imported
 from the foreign library:
 
 ```haskell
@@ -76,8 +76,8 @@ foreign import ccall "notmuch.h &notmuch_database_destroy"
   notmuch_database_destroy :: FinalizerPtr DatabaseHandle
 ```
 
-Note the ampersand (`&`) which denotes that we are importing a
-*function pointer* rather than the function itself.
+The ampersand (`&`) denotes that we are importing a *function
+pointer* rather than the function itself.
 
 `FinalizerPtr` is a type synonym defined in the
 [`Foreign.ForeignPtr`][doc-ForeignPtr] module:
@@ -90,7 +90,7 @@ type FinalizerPtr a = FunPtr (Ptr a -> IO ())
 
 This arises from the usual definition of a destructor or `free`
 function.  That is, a void function whose single argument is the
-pointer to the object to be destroyed or memory to be freed.
+pointer to the object to be destroyed, or memory to be freed.
 
 Programs need to associate finalizers with the objects they are to
 clean up.  The function to do this is
@@ -136,7 +136,7 @@ optimisations.
 ::: note
 
 The [GHC users guide][guide-ffi] has a more thorough treatment of
-this topic.  It also mentions important details about the threading
+this topic.  It also mentions important details about threading
 and the FFI, among other things.
 
 :::
@@ -158,8 +158,8 @@ The earlier foreign import examples are from
   overhead).
 
 - `notmuch_database_destroy` is a finalizer that closes the database
-  and frees resources.  The finalizer will be scheduled by the
-  garbage collector when the database handle is no longer in use.
+  and frees resources.  The garbage collector schedules the
+  finalizer when the database handle is no longer in use.
 
 - Wrapper code in *hs-notmuch* uses `newForeignPtr` to associate the
   the `notmuch_database_destroy` finalizer with the pointers created
@@ -173,14 +173,14 @@ The earlier foreign import examples are from
 [notmuch]: https://notmuchmail.org/
 
 An application could attempt to open a database multiple times.
-This might be intentional.  Or this could occur because there is an
+This might be intentional.  Or it could occur when there is an
 unreferenced database handle whose finalizer has not yet been
 executed.
 
-*libnotmuch* uses locks to prevent multiple read/write sessions to a
+*libnotmuch* uses locks to prevent multiple read-write sessions to a
 single database.  `notmuch_database_open` blocks if the lock is
-held.  In the event of *accidental* multiple open this isn't a
-problem, because GC will eventually occur, finalizers will run and
+already held.  In the case of *accidental* multiple open this isn't
+a problem because GC will eventually occur, finalizers will run and
 the lock will be released.
 
 **Except it won't, because GHC prevents garbage collection during
