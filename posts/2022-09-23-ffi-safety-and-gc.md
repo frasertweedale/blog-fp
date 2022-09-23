@@ -67,7 +67,7 @@ on success or a nonzero error code (`CInt`).
 
 Haskell is a garbage collected language.  It is possible to use the
 garbage collector to clean up objects that were allocated in foreign
-calls, when the are no longer referenced.  The clean up functions
+calls, when they are no longer referenced.  The clean up functions
 are called *finalizers*.  Often, finalizers themselves are imported
 from the foreign library:
 
