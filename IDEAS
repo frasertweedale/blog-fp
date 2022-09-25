@@ -1,6 +1,14 @@
-- boyer-moore in attoparsec
+- forkOS server (purebred storage server)
+  - forcing computation to a particular thread
+  - existentials
 
-- better getExecutablePath API
+- Hakyll social metadata / json-ld / opengraph
+
+- optimising the sell picker computation
+  - group abstraction
+  - benchmarking
+
+- boyer-moore in attoparsec
 
 - owning haskell via compiler
 
