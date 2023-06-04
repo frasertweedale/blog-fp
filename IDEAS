@@ -4,6 +4,8 @@
 
 - Hakyll social metadata / json-ld / opengraph
 
+- breaking import loops via hs-boot files
+
 - optimising the sell picker computation
   - group abstraction
   - benchmarking
