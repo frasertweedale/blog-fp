@@ -6,10 +6,382 @@
     <id>https://frasertweedale.github.io/blog-fp/atom.xml</id>
     <author>
         <name>Fraser Tweedale</name>
+        
         <email>frase@frase.id.au</email>
+        
     </author>
-    <updated>2022-09-23T00:00:00Z</updated>
+    <updated>2023-06-04T00:00:00Z</updated>
     <entry>
+    <title>haskell-ci how-to: caching and using your program executable</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2023-06-04-haskell-ci-use-executable.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2023-06-04-haskell-ci-use-executable.html</id>
+    <published>2023-06-04T00:00:00Z</published>
+    <updated>2023-06-04T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="haskell-ci-how-to-caching-and-using-your-program-executable"><code>haskell-ci</code> how-to: caching and using your program executable</h1>
+<p>In this article I show how to extend the <code>haskell-ci</code> GitHub Actions
+workflow to pass the built executable to subsequent jobs.</p>
+<h2 id="background">Background <a href="#background" class="section">§</a></h2>
+<p>The Haskell <em>Security Response Team</em> has recently bootstrapped the
+[<em>haskell/security-advisories</em>] database. This repository contains:</p>
+<ul>
+<li>The security advisories themselves. These are freeform Markdown
+files with a TOML header. The header contains various required or
+optional fields encoding information about the security issue, the
+package it affects and the affected versions.</li>
+<li>Tools for maintaining the database and exporting the data in
+various formats. The <em>hsec-tools</em> Cabal package contains a
+library that defines the advisory data format and parsers, and the
+<code>hsec-tools</code> executable which is a front-end to advisory
+processing behaviours.</li>
+</ul>
+<p>With both tool sources and advisory data in the repository, our
+<em>continuous integration (CI)</em> pipelines have to do several things:</p>
+<ul>
+<li><strong>Build and test the tools.</strong> We want to test against several
+recent GHC versions (to avoid inconvenience for contributors). We
+also perform a Nix build.</li>
+<li><strong>Check the validity of the advisory data.</strong> Advisories have to
+conform to our schema. We can use <code>hsec-tools</code> to check each
+advisory file. We <em>should</em> use the version of <code>hsec-tools</code> from
+the same commit, to allow the advisory format and tooling to
+evolve in lockstep.</li>
+<li><strong>Publish advisories.</strong> We will likely want to set up automation
+to publish <a href="https://osv.dev/">OSV</a> streams, a web site, and other relevant
+artifacts.</li>
+</ul>
+<p>The remainder of this post explains how we use <code>haskell-ci</code> and
+GitHub Actions reusable workflows to achieve the first two
+objectives. The Security Response Team has not yet tackled
+<em>publishing</em>, but the same techniques should be applicable.</p>
+<h2 id="introduction-to-haskell-ci">Introduction to <code>haskell-ci</code> <a href="#introduction-to-haskell-ci" class="section">§</a></h2>
+<p><a href="https://github.com/haskell-CI/haskell-ci"><code>haskell-ci</code></a> is a tool for generating CI
+workflows for Haskell projects. It supports GitHub Actions
+(actively maintained) and Travis-CI (unmaintained). You can install
+<code>haskell-ci</code> via <code>cabal</code>:</p>
+<pre class="shell"><code>% cabal install haskell-ci</code></pre>
+<p>Alternatively, you can clone the Git repository and build from
+there:</p>
+<pre class="shell"><code>% git clone https://github.com/haskell-CI/haskell-ci
+% cd haskell-ci
+% cabal install</code></pre>
+<p>Now that <code>haskell-ci</code> is on the <code>PATH</code>, you can generate the GitHub
+actions workflow in a couple of steps. First, add the GHC versions
+you want to test with to the <a href="https://cabal.readthedocs.io/en/3.6/cabal-package.html#pkg-field-tested-with"><code>tested-with</code></a>
+field in your package’s <code>.cabal</code> file:</p>
+<pre><code>cabal-version:      2.4
+name:               hsec-tools
+version:            0.1.0.0
+tested-with:
+  GHC ==8.10.7 || ==9.0.2 || ==9.2.7 || ==9.4.5 || ==9.6.2
+…</code></pre>
+<div class="note">
+<p>Run <code>haskell-ci list-ghc</code> to see the list of GHC versions it knows
+about. <code>haskell-ci</code> updates usually follow soon after GHC releases,
+especially major versions.</p>
+</div>
+<p>Next, run <code>haskell-ci github path/to/package.cabal</code>. It will
+inspect the <code>.cabal</code> file to see what GHC versions to include in the
+build matrix, and write <code>.github/workflows/haskell-ci.yml</code>. Then
+commit the changes and push (or create a pull request). For
+example:</p>
+<pre class="shell"><code>% haskell-ci github code/hsec-tools/hsec-tools.cabal
+*INFO* Generating GitHub config for testing for GHC versions: 8.10.7 9.0.2 9.2.7 9.4.5 9.6.2
+% git add code .github
+% git commit -m &#39;ci: add haskell-ci workflow&#39; --quiet
+% git push
+…</code></pre>
+<h3 id="what-does-the-haskell-ci-workflow-do">What does the <code>haskell-ci</code> workflow do? <a href="#what-does-the-haskell-ci-workflow-do" class="section">§</a></h3>
+<p>This post is not the place to belabour the details of GitHub Actions
+<a href="https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions">workflow syntax</a>. But I will make a few
+observations about the steps in the <code>haskell-ci</code> workflow.</p>
+<ul>
+<li>The build runs on Ubuntu (version 20.04 at time of writing). You
+can tell <code>haskell-ci</code> to install extra APT packages via option
+<code>--apt "space separated list"</code>.</li>
+<li>There is a job <em>matrix</em> with a different job for each of the GHC
+versions mentioned in the <code>tested-with</code> field.</li>
+<li>Each job downloads GHC via <a href="https://www.haskell.org/ghcup/">GHCUp</a>, a popular, multi-platform
+installation tool for Haskell.</li>
+<li>The package under test is not built <em>in situ</em>. Instead, a source
+distribution is built using <code>cabal sdist</code>. It is then unpacked in
+a different location, and built and tested there. This helps
+<strong>detect packaging errors</strong> (e.g. missing extra source or data
+files).</li>
+<li>The job caches build tools and Haskell dependencies using the
+GitHub Actions cache mechanism (discussed later in the post).
+This saves time on subsequent test runs.</li>
+<li>There is a step that runs <code>cabal check</code>, which checks for issues
+that Hackage may complain about if you try to publish your package
+there. This could be a mild annoyance for private or toy
+projects.</li>
+</ul>
+<h3 id="adding-haddock-and-hlint-jobs">Adding Haddock and HLint jobs <a href="#adding-haddock-and-hlint-jobs" class="section">§</a></h3>
+<p><code>haskell-ci</code> makes it easy to add <a href="https://haskell-haddock.readthedocs.io/en/latest/">Haddock</a> (build documentation) and
+<a href="https://hackage.haskell.org/package/hlint">HLint</a> (source code suggestions) jobs to your workflow. Just use the
+<code>--haddock</code> and <code>--hlint</code> options when creating the workflow:</p>
+<pre class="shell"><code>% haskell-ci github --haddock --hlint path/to/package.cabal</code></pre>
+<p>The Haddock step (if enabled) runs on every job in the build matrix.
+Haddock is part of the GHC toolchain so there are no extra
+dependencies.</p>
+<p>HLint <em>is</em> an extra dependency, so if the HLint step is enabled, it
+will install it via <code>cabal v2-install</code>. The HLint step is skipped
+for all but one of the jobs in the matrix—by default, the most
+recent version of GHC.</p>
+<div class="note">
+<p><code>haskell-ci</code> prefers a particular version of <code>HLint</code>. Sometimes,
+that version of HLint doesn’t build against the latest version of
+GHC. Use the <code>--hlint-job</code> option to override the job:</p>
+<pre class="shell"><code>% haskell-ci github --hlint --hlint-job 9.4.5 foo.cabal</code></pre>
+</div>
+<h3 id="updating-the-build-matrix">Updating the build matrix <a href="#updating-the-build-matrix" class="section">§</a></h3>
+<p>When a new release of GHC comes along, updating the <code>haskell-ci</code>
+workflow is as simple as adding it to the <code>tested-with</code> list, then
+running:</p>
+<pre class="shell"><code>% haskell-ci regenerate
+No haskell-ci.sh, skipping bash regeneration
+*INFO* Generating GitHub config for testing for GHC versions: 8.10.7 9.0.2 9.2.7 9.4.5 9.6.2
+No .travis.yml, skipping travis regeneration</code></pre>
+<p><code>haskell-ci regenerate</code> reuses the options from the original
+invocation of <code>haskell-ci github</code>. These were recorded in a comment
+starting with <code># REGENDATA</code> in <code>haskell-ci.yml</code>. After running
+<code>haskell-ci regenerate</code>, all that’s left is to commit and push the
+changes.</p>
+<h2 id="github-actions-passing-the-executable-between-jobs">GitHub Actions: passing the executable between jobs <a href="#github-actions-passing-the-executable-between-jobs" class="section">§</a></h2>
+<p>Now the <code>haskell-ci</code> job is set up, it will build and test the
+package on every push or pull request. We have a further CI use
+case: using the built executable to perform additional action. So
+we now turn to the problem of <strong>how to use data produced by the
+<code>haskell-ci</code> workflow in other jobs</strong>.</p>
+<p>GitHub Actions provides (at least) 3 mechanisms for passing data
+between jobs.</p>
+<ul>
+<li>Jobs can define <a href="https://docs.github.com/en/actions/using-jobs/defining-outputs-for-jobs"><strong><em>outputs</em></strong></a>. They must be unicode
+strings and the size limit is 50MB. Both limitations make this
+mechanism unsuitable for passing the built executable to dependent
+jobs.</li>
+<li>Jobs can <a href="https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows"><strong><em>cache</em></strong></a> dependencies to speed up the
+build. But we want to cache the <em>result</em> of the build, which will
+often be different from previous build. It seems to me that we
+<em>could</em> use the caching mechanism, but it doesn’t feel like a good
+fit.</li>
+<li>Jobs can upload build <a href="https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts"><strong><em>artifacts</em></strong></a>. This makes
+them available to subsequent jobs in the workflow. Unlike caches,
+they can also be downloaded by anyone with access to the
+repository. This is the appropriate mechanism for our use case.</li>
+</ul>
+<div class="note">
+<p>By default, GitHub retains artifacts for 90 days. The <a href="https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts#configuring-a-custom-artifact-retention-period">duration can
+be customised</a>.</p>
+</div>
+<p>We need to add two steps to the <code>linux</code> job. First, we install the
+<code>hsec-tools</code> executable. It was already built—this just copies it
+to a known location. <code>--install-method=copy</code> ensures the executable
+is copied to that location, not symlinked.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> install executable</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.1&#39;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>          $CABAL v2-install $ARG_COMPILER \</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>            --install-method=copy exe:hsec-tools</span></code></pre></div>
+<p>The second step uses the <code>upload-artifact</code> action to archive the
+executable. The artifact <em>bundle name</em> includes the commit hash.
+The file <em>within the bundle</em> keeps the name <code>hsec-tools</code>.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> upload executable</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/upload-artifact@v3</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.1&#39;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.cabal/bin/hsec-tools</span></span></code></pre></div>
+<div class="note">
+<p>All <em>Haskell</em> dependencies are statically linked in the binary. It
+does need some system libraries including <em>libgmp</em> and <em>libffi</em>.
+But we do not need to preserve the Cabal store or provide the GHC
+toolchain when we use the artifact.</p>
+</div>
+<p>Notice that each of the new steps has the condition:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.1&#39;</span></span></code></pre></div>
+<p>The build matrix produces jobs for several different GHC versions.
+But we only need one copy of the <code>hsec-tools</code> executable. I’m not
+totally happy with this approach because the patch will need
+updating as the matrix evolves. But I can live with it for now.</p>
+<h2 id="github-actions-workflows-and-jobs">GitHub Actions: workflows and jobs <a href="#github-actions-workflows-and-jobs" class="section">§</a></h2>
+<p>A repository can define one or more CI <em>workflows</em>, written as YAML
+files in the <code>.github/workflows/</code> directory.</p>
+<p>Each <em>workflow</em> is comprised of one or more <em>jobs</em>. It is
+straightforward to declare dependencies between jobs <em>within a
+workflow</em>. But workflows themselves are independent. There is no
+reasonable way to specify that a particular workflow depends on the
+result or outputs of another workflow.</p>
+<p>This means that for our use case, we have to create a new <em>job</em>
+within the <code>Haskell-CI</code> workflow. Because <code>haskell-ci.yml</code> is
+generated by the <code>haskell-ci</code> tool, we have to patch this file.
+Fortunately, <code>haskell-ci</code> provides a mechanism to apply specified
+patches when generating <code>haskell-ci.yml</code> (covered in the next
+section). Unfortunately, defining and maintaining our additional
+job(s) as <em>patches</em> to YAML files is more unpleasant than dealing
+with them as plain YAML.</p>
+<h2 id="github-actions-reusable-workflows">GitHub Actions: reusable workflows <a href="#github-actions-reusable-workflows" class="section">§</a></h2>
+<p><a href="https://docs.github.com/en/actions/using-workflows/reusing-workflows"><em>Reusable workflows</em></a> provide a neat
+solution. A reusable workflow is defined as a separate YAML file,
+just like ordinary workflows. The main differences are:</p>
+<ul>
+<li>Reusable workflows use the trigger condition <code>workflow_call</code>,
+instead of the usual triggers like <code>push</code> or <code>pull_request</code>.</li>
+<li>Reusable workflows can be parameterised by <em>inputs</em>. The calling
+job provides the values. An input can be required or optional.</li>
+</ul>
+<p>The main use case for reusable workflows is to enable reuse, like
+subroutines in programming. Our use case is a bit different. We
+will define the <em>check-advisories</em> behaviour as a reusable workflow.
+Although we will not be using it from multiple places, it still gives us several advantages:</p>
+<ul>
+<li>Separation of concerns: checking the advisories uses an artifact
+from the <code>haskell-ci</code> build/test job, but it’s a distinct task.</li>
+<li>Maintainability: the behaviour is specified in an ordinary
+workflow YAML file. We do not need to edit patch files to modify
+the workflow.</li>
+<li>We minimise the size and complexity of the patch to be applied to
+<code>haskell-ci.yml</code>. The patch itself should rarely change, even if
+the workflow definition changes.</li>
+</ul>
+<h2 id="defining-the-check-advisories-workflow">Defining the <em>check-advisories</em> workflow <a href="#defining-the-check-advisories-workflow" class="section">§</a></h2>
+<p>The <em>check-advisories</em> workflow is defined in
+<code>.github/workflows/check-advisories.yml</code>. The full content is
+below, with commentary.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Check security advisories</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">workflow_call</span><span class="kw">:</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">inputs</span><span class="kw">:</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span></span></code></pre></div>
+<p>The <code>workflow_call</code> trigger condition establishes it as a reusable
+workflow. We also define the <code>artifact-name</code> input. The caller is
+<code>required</code> to provide it.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-20.04</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v3</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> source</span></span></code></pre></div>
+<p>The workflow has a single job called <code>check-advisories</code>. As usual,
+the first step is to check out the repository.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> mkdir -p .local/bin</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> download</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/download-artifact@v3</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> ${{ inputs.artifact-name }}</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.local/bin</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> chmod +x ~/.local/bin/hsec-tools</span></span></code></pre></div>
+<p>Next we download the <code>hsec-tools</code> artifact to <code>~/.local/bin</code>, which
+is in the <code>PATH</code>. Then we <code>chmod</code> it to make it executable.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> run checks</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>          cd source</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>          RESULT=0</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>          find advisories EXAMPLE_ADVISORY.md -type f -name &quot;*.md&quot; \</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>              | while read FILE ; do</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>            echo -n &quot;$FILE: &quot;</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>            hsec-tools check &lt; &quot;$FILE&quot; || RESULT=1</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>          done</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>          exit $RESULT</span></code></pre></div>
+<p>Finally, we <code>find</code> all the advisory files and run <code>hsec-tools check</code>
+on each one. If any of the checks fail, the job will fail (after
+checking each file—we don’t want to short-circuit).</p>
+<h2 id="calling-the-check-advisories-workflow">Calling the <em>check-advisories</em> workflow <a href="#calling-the-check-advisories-workflow" class="section">§</a></h2>
+<p>Add a new job to the <code>haskell-ci.yml</code> workflow. It must be a
+<strong>separate job</strong>, not a <em>step</em> of the existing <code>linux</code> job.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Invoke check-advisories workflow</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">needs</span><span class="kw">:</span><span class="at"> linux</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> ./.github/workflows/check-advisories.yml</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span></code></pre></div>
+<p>The meaning of the fields is as follows:</p>
+<ul>
+<li><code>uses</code>: <em>calls</em> the <code>check-advisories.yml</code> workflow.</li>
+<li><code>with</code>: specifies values for the inputs, which in our
+case is the <code>artifact-name</code>.</li>
+<li><code>needs</code>: expresses the dependency on the <code>linux</code> job.</li>
+</ul>
+<div class="note">
+<p>You can call workflows defined in other repositories. For example:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">uses</span><span class="kw">:</span><span class="at"> user-or-org/repo/.github/workflows/workflow.yml@v1</span></span></code></pre></div>
+</div>
+<h2 id="patching-haskell-ci.yml">Patching <code>haskell-ci.yml</code> <a href="#patching-haskell-ci.yml" class="section">§</a></h2>
+<p>At this stage, I have committed the <code>check-advisories.yml</code> reusable
+workflow. I also have <em>uncommitted changes</em> to <code>haskell-ci.yml</code>:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">diff --git a/.github/workflows/haskell-ci.yml b/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>index d51bb64..7ff8684 100644</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="dt">--- a/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="dt">+++ b/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="dt">@@ -224,3 +224,19 @@ jobs:</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>         with:</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>           path: ~/.cabal/store</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: install executable</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.1&#39;</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="va">+        run: |</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="va">+          $CABAL v2-install $ARG_COMPILER \</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="va">+            --install-method=copy exe:hsec-tools</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: upload executable</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="va">+        uses: actions/upload-artifact@v3</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.1&#39;</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="va">+        with:</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="va">+          name: hsec-tools-${{ github.sha }}</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="va">+          path: ~/.cabal/bin/hsec-tools</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="va">+  check-advisories:</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="va">+    name: Invoke check-advisories workflow</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="va">+    needs: linux</span></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="va">+    uses: ./.github/workflows/check-advisories.yml</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="va">+    with:</span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a><span class="va">+      artifact-name: hsec-tools-${{ github.sha }}</span></span></code></pre></div>
+<p>We could commit these changes <em>as is</em>, but they will be lost the
+next time we run <code>haskell-ci regenerate</code>. Instead, create a <em>patch</em>
+file:</p>
+<pre class="shell"><code>% git diff &gt; .github/haskell-ci.patch</code></pre>
+<p>Then tell <code>haskell-ci</code> to apply the patch when (re)generating
+<code>haskell-ci.yml</code>. What I would <em>like to do</em> is run:</p>
+<pre class="shell"><code>% haskell-ci regenerate \
+    --github-patches .github/haskell-ci.patch</code></pre>
+<p>The above command regenerates the <code>haskell-ci.yml</code> and correctly
+applies our patch. But it <strong>does not add the new arguments to the
+<code>REGENDATA</code> line</strong>. As a consequence, subsequent executions of
+<code>haskell-ci regenerate</code> will not apply the patch unless you use the
+<code>--github-patches</code> option every time. This is not what we want, and
+possibly a bug (I will investigate further, but not today).</p>
+<p><strong>The workaround</strong>: manually edit <code>haskell-ci.yml</code>, inserting
+<code>"--github-patches",".github/haskell-ci.patch"</code> in the <code>REGENDATA</code>
+line. As a result of that change, running <code>haskell-ci regenerate</code>
+without extra arguments applies the patch.</p>
+<p>The final step is to <strong>commit the patch file</strong> together with the
+updated <code>haskell-ci.yml</code>.</p>
+<h2 id="final-words">Final words <a href="#final-words" class="section">§</a></h2>
+<p>In this article I showed how to use <code>haskell-ci</code> to generate a
+GitHub Actions workflow for testing Haskell projects. I also
+demonstrated how to extend the <code>haskell-ci</code> workflow to save a built
+executable as an artifact, which can then be used by other CI jobs.</p>
+<p>I hope it has been a useful article, both for people starting out
+and wondering how to test Haskell projects, as well as for projects
+with more advanced CI workflows.</p>
+<p>One area I would like to investigate further is how to skip the
+<code>haskell-ci</code> workflow when the tool code did not change. For
+example, if someone submits a pull request that adds or updates an
+advisory but does touch the <code>hsec-tools</code> code. Artifacts and cache
+entries have a name or key. Right now we use the Git <em>commit</em> hash
+in the artifact name. Perhaps we could use the Git <em>tree</em> hash of
+the <code>code/hsec-tools</code> directory instead:</p>
+<pre class="shell"><code>% git rev-parse HEAD:code/hsec-tools 
+a08aa5a2ee93ed09ec0025809226571969e24e3d</code></pre>
+<p>Uploading the artifact with a name based on the tree hash seems
+straightforward. The bigger challenge is how to skip the <code>linux</code>
+jobs when the artifact for the current <code>hsec-tools</code> tree already
+exists. And how to <em>not</em> skip the <code>check-advisories</code> job, even
+though it depends on the <code>linux</code> jobs. I think it’s probably
+possible. But it’s a <em>nice-to-have</em>; this yak’s haircut will have
+to wait for another day.</p>]]></summary>
+</entry>
+<entry>
     <title>Haskell FFI call safety and garbage collection</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2022-09-23-ffi-safety-and-gc.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2022-09-23-ffi-safety-and-gc.html</id>
@@ -1551,148 +1923,6 @@ literals would avoid this. (<code>IsIntegral</code> and <code>IsRational</code> 
 sensible names, following the pattern of <code>IsString</code> and <code>IsList</code>).
 Ultimately this is a minor inconvenience, but does add friction to
 using <em>dollaridoos</em>, <em>tax</em>, and programs that use these libraries.</p>]]></summary>
-</entry>
-<entry>
-    <title>Type-guided development and garden paths</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-05-12-types-garden-path.html</id>
-    <published>2021-05-12T00:00:00Z</published>
-    <updated>2021-05-12T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="type-guided-development-and-garden-paths">Type-guided development and garden paths</h1>
-<p><em>“Types help you reason about effects”</em>, we declare. And they do!
-Except when they don’t. <em>“Just follow the types!”</em> we insist. But
-sometimes the types take you down a garden path.</p>
-<p>When the type checker is happy but the behaviour is all wrong, it
-can be hard to find where you took the wrong turn. In this post
-I’ll share real-world examples of this phenomenon, and offer some
-tips on how to avoid it.</p>
-<h2 id="random-generation-of-applicatives">Random generation of applicatives <a href="#random-generation-of-applicatives" class="section">§</a></h2>
-<p>The <code>Applicative</code> type class provides a function for lifting a
-“pure” value into the applicative data type:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Applicative</span> (<span class="ot">k ::</span> <span class="op">*</span> <span class="ot">-&gt;</span> <span class="op">*</span>) <span class="kw">where</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  pure ::</span> a <span class="ot">-&gt;</span> k a</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  (&lt;*&gt;) ::</span> k (a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> k a <span class="ot">-&gt;</span> k b</span></code></pre></div>
-<p>Assume we have a random generator of values of type <code>a</code>, and wish to
-generate random applicatives. The shape of this problem is:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">genAp ::</span> (<span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> <span class="dt">Gen</span> a <span class="ot">-&gt;</span> <span class="dt">Gen</span> (t a)</span></code></pre></div>
-<p>We can generalise <code>Gen</code> to any effect <code>f</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">effAp ::</span> (<span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span></code></pre></div>
-<p>How can implement this? <em>Follow the types!</em> <code>t</code> has an
-<code>Applicative</code> instance, so if we introduce a <code>Functor</code> constraint on
-<code>f</code> we can write:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">effAp ::</span> (<span class="dt">Functor</span> f, <span class="dt">Applicative</span> t) <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>effAp <span class="ot">=</span> <span class="fu">fmap</span> <span class="fu">pure</span></span></code></pre></div>
-<p>Now we have a nice, general function that runs an effect and lifts
-the result into an applicative. Let’s test it by generating
-single-value lists of <code>Word8</code>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> [<span class="dt">Word8</span>]</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>[<span class="dv">120</span>]</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> [<span class="dt">Word8</span>]</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>[<span class="dv">33</span>]</span></code></pre></div>
-<p>OK! Now let’s use it for the following vector type:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">V3</span> a <span class="ot">=</span> <span class="dt">V3</span> a a a</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- boring</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Functor</span> <span class="dt">V3</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Applicative</span> <span class="dt">V3</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Foldable</span> <span class="dt">V3</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Traversable</span> <span class="dt">V3</span></span></code></pre></div>
-<div class="note">
-<p>This type is similar to <a href="https://hackage.haskell.org/package/linear-1.21.5/docs/Linear-V3.html#t:V3"><code>Linear.V3.V3</code></a> from
-<a href="https://hackage.haskell.org/package/linear"><em>linear</em></a>, a popular linear algebra package.</p>
-</div>
-<p>The random <code>V3</code> values generated are:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> (<span class="dt">V3</span> <span class="dt">Word8</span>)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">V3</span> <span class="dv">186</span> <span class="dv">186</span> <span class="dv">186</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> effAp<span class="ot"> randomIO ::</span> <span class="dt">IO</span> (<span class="dt">V3</span> <span class="dt">Word8</span>)</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="dt">V3</span> <span class="dv">215</span> <span class="dv">215</span> <span class="dv">215</span></span></code></pre></div>
-<p>Oh dear. We followed the types to implement <code>effAp</code>, but the
-implementation is not correct! Instead of running the effect 3
-times to generate 3 random vector components, it ran the effect once
-and used the result 3 times.</p>
-<p><code>effAp</code> should first lift the <em>effect</em> into the applicative type
-using <code>pure</code>, giving a value of the type <code>(Applicative t) =&gt; t (f a)</code>. The shape of the hole is now <code>t (f a) -&gt; f (t a)</code>. That is
-exactly the shape of <code>sequenceA</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sequenceA</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Traversable</span> t, <span class="dt">Applicative</span> f)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> t (f a) <span class="ot">-&gt;</span> f (t a)</span></code></pre></div>
-<p>Accepting the tighter constraints, the implementation of <code>effAp</code>
-becomes:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>effAp</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Traversable</span> t, <span class="dt">Applicative</span> f, <span class="dt">Applicative</span> t)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> f a <span class="ot">-&gt;</span> f (t a)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>effAp <span class="ot">=</span> <span class="fu">sequenceA</span> <span class="op">.</span> <span class="fu">pure</span></span></code></pre></div>
-<p>Now <code>effAp</code> has the expected behaviour:</p>
-<pre><code>λ&gt; effAp randomIO :: IO (V3 Word8)
-V3 251 198 213</code></pre>
-<div class="note">
-<p><code>V3</code> is one of many types for which <code>fmap pure</code> and <code>sequenceA . pure</code> behave differently. Other examples include <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,)</code></a> and <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy</code></a>.</p>
-</div>
-<h2 id="composing-effects-by-ignoring-them">Composing effects (by ignoring them) <a href="#composing-effects-by-ignoring-them" class="section">§</a></h2>
-<p>In <a href="https://github.com/purebred-mua/purebred">Purebred</a> we have an input validation system that checks
-inputs as the user types. It dispatches the validation work to a
-background thread, so the UI stays responsive. Each time the user
-edits the input, the program kills the outstanding validation thread
-(if any) and spawns a new one. The program code (simplified for
-this article) is:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>dispatchValidation <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> spawn <span class="ot">=</span> forkIO doValidation</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  oldId <span class="ot">&lt;-</span> getValidationThread</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  newId <span class="ot">&lt;-</span> <span class="fu">maybe</span> spawn (killThread <span class="op">$&gt;</span> spawn) oldId</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  _ <span class="ot">&lt;-</span> setValidationThread (<span class="dt">Just</span> newId)</span></code></pre></div>
-<p>The outstanding validation thread is stored in a <code>Maybe ThreadId</code>.
-In the <code>Just</code> case the program kills the old thread, spawns a new
-thread and returns the new <code>ThreadId</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>(killThread <span class="op">$&gt;</span> spawn)<span class="ot"> ::</span> <span class="dt">ThreadId</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> <span class="dt">ThreadId</span></span></code></pre></div>
-<p>Except, it does not. At a glance, we see the actions occurring in
-the correct order. But there was a bug. Input validation had
-unexpected and nondeterministic results. For example, a valid input
-might (or might not) result in an error being shown.</p>
-<p>We can apprehend the error by equational reasoning:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>  killThread <span class="op">$&gt;</span> spawn</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> <span class="fu">const</span> spawn <span class="op">&lt;$&gt;</span> killThread       <span class="co">-- definition of ($&gt;)</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> <span class="fu">const</span> spawn <span class="op">.</span> killThread         <span class="co">-- fmap for ((-&gt;) r)</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> \x <span class="ot">-&gt;</span> <span class="fu">const</span> spawn (killThread x) <span class="co">-- definition of (.)</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ot">=</span> \x <span class="ot">-&gt;</span> spawn                      <span class="co">-- definition of const</span></span></code></pre></div>
-<p>The expression discards the old <code>ThreadId</code> and never executes
-<code>killThread</code>. As a consequence, validation threads run wild,
-finishing their work in a nondeterminstic order.</p>
-<p>When we finally understood the problem, <a href="https://github.com/purebred-mua/purebred/pull/413/commits/4eefd939d4bb201c37e5fe2956e8777e85a6b930">the fix</a> was
-straightforward. We replaced the expression:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>killThread <span class="op">$&gt;</span> spawn  <span class="co">-- broken</span></span></code></pre></div>
-<p>with:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>\t <span class="ot">-&gt;</span> killThread t <span class="op">*&gt;</span> spawn  <span class="co">-- fixed</span></span></code></pre></div>
-<h2 id="lessons-learned">Lessons learned <a href="#lessons-learned" class="section">§</a></h2>
-<p>I discussed two bugs where the type checker was happy and the code
-seemed <em>superficially</em> reasonable. Both had implementations guided
-by “type tetris” (<em>what fits here?</em>) that turned out to be
-fundamentally wrong. What strategies can help avoid such traps?</p>
-<p>The first bug involved use of the wrong abstraction; <code>Functor</code>
-instead of <code>Applicative</code>. Making an effort to test generic
-functions with a greater diversity of instances might have helped
-discover this bug sooner. In the case of applicatives, don’t just
-test with <code>[]</code>, <code>Maybe</code> and other “common” types where <code>pure</code>
-constructs a “singleton” value. Test with <a href="https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Proxy.html#t:Proxy"><code>Proxy a</code></a>
-(which has zero <code>a</code> values), <a href="https://hackage.haskell.org/package/bifunctors-5.5.11/docs/Data-Bifunctor-Join.html#t:Join"><code>Join (,) a</code></a> (two <code>a</code>
-values), and so on.</p>
-<p>As for the second bug, my advice is don’t try to be clever when
-writing effectful code. <code>do</code> notation and explicit binds are fine.
-Using underscore binds to ignore values may result in more readable
-code than <code>const</code> and related functions. If you have a hole with a
-function type, start by writing the lambda, and work step by step to
-complete the definition. Make sure it’s correct first, and only
-then tidy it up (if you want to).</p>
-<p>In the case of the Purebred bug, we had a hole with the type
-<code>ThreadId -&gt; IO ThreadId</code>, and filled it with an expression that
-<strong>subtly</strong> ignored the <code>ThreadId</code> argument. Our next step, when
-faced with this hole, should have been to write the expression
-<code>(\threadId -&gt; _)</code>. Critically, this binds the <code>ThreadId</code> argument,
-making it hard to ignore.</p>
-<p>The final takeaway is: don’t be smug about the power of the type
-system. Type-guided development is indeed wonderful and powerful,
-but let’s be honest that in many cases, reasoning from the types
-alone won’t get you all the way to a correct solution. On the
-contrary, you may find yourself at the end of a garden path!</p>]]></summary>
 </entry>
 
 </feed>
