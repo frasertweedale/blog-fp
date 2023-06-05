@@ -238,7 +238,7 @@ is copied to that location, not symlinked.
 
 ```yaml
       - name: install executable
-        if: matrix.compiler == 'ghc-9.6.1'
+        if: matrix.compiler == 'ghc-9.6.2'
         run: |
           $CABAL v2-install $ARG_COMPILER \
             --install-method=copy exe:hsec-tools
@@ -251,7 +251,7 @@ The file *within the bundle* keeps the name `hsec-tools`.
 ```yaml
       - name: upload executable
         uses: actions/upload-artifact@v3
-        if: matrix.compiler == 'ghc-9.6.1'
+        if: matrix.compiler == 'ghc-9.6.2'
         with:
           name: hsec-tools-${{ github.sha }}
           path: ~/.cabal/bin/hsec-tools
@@ -269,7 +269,7 @@ toolchain when we use the artifact.
 Notice that each of the new steps has the condition:
 
 ```yaml
-        if: matrix.compiler == 'ghc-9.6.1'
+        if: matrix.compiler == 'ghc-9.6.2'
 ```
 
 The build matrix produces jobs for several different GHC versions.
@@ -435,13 +435,13 @@ index d51bb64..7ff8684 100644
            key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
            path: ~/.cabal/store
 +      - name: install executable
-+        if: matrix.compiler == 'ghc-9.6.1'
++        if: matrix.compiler == 'ghc-9.6.2'
 +        run: |
 +          $CABAL v2-install $ARG_COMPILER \
 +            --install-method=copy exe:hsec-tools
 +      - name: upload executable
 +        uses: actions/upload-artifact@v3
-+        if: matrix.compiler == 'ghc-9.6.1'
++        if: matrix.compiler == 'ghc-9.6.2'
 +        with:
 +          name: hsec-tools-${{ github.sha }}
 +          path: ~/.cabal/bin/hsec-tools
