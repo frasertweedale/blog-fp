@@ -9,20 +9,21 @@ workflow to pass the built executable to subsequent jobs.
 
 ## Background
 
-The Haskell *Security Response Team* has recently bootstrapped the
-[*haskell/security-advisories*] database.  This repository contains:
+The Haskell *Security Response Team* recently bootstrapped the
+[*haskell/security-advisories*][repo-security-advisories] database.
+This repository contains:
 
 - The security advisories themselves.  These are freeform Markdown
   files with a TOML header.  The header contains various required or
   optional fields encoding information about the security issue, the
-  package it affects and the affected versions.
+  package it affects, and the affected package versions.
 - Tools for maintaining the database and exporting the data in
   various formats.  The *hsec-tools* Cabal package contains a
   library that defines the advisory data format and parsers, and the
-  `hsec-tools` executable which is a front-end to advisory
-  processing behaviours.
+  `hsec-tools` executable which is a CLI front-end for processing
+  advisories.
 
-With both tool sources and advisory data in the repository, our
+With both tool sources and advisory data in the repository our
 *continuous integration (CI)* pipelines have to do several things:
 
 - **Build and test the tools.**  We want to test against several
@@ -43,13 +44,14 @@ With both tool sources and advisory data in the repository, our
 The remainder of this post explains how we use `haskell-ci` and
 GitHub Actions reusable workflows to achieve the first two
 objectives.  The Security Response Team has not yet tackled
-*publishing*, but the same techniques should be applicable.
+*publishing* but the same techniques should be applicable.
 
 ## Introduction to `haskell-ci`
 
-[`haskell-ci`][repo-haskell-ci] is a tool for generating CI
+[`haskell-ci`][repo-haskell-ci] is a tool that generates CI
 workflows for Haskell projects.  It supports GitHub Actions
-(actively maintained) and Travis-CI (unmaintained).  You can install
+(actively maintained) and Travis-CI (unmaintained), and can also
+generate shell scripts for local testing.  You can install
 `haskell-ci` via `cabal`:
 
 ```shell
@@ -65,7 +67,7 @@ there:
 % cabal install
 ```
 
-Now that `haskell-ci` is on the `PATH`, you can generate the GitHub
+Now that `haskell-ci` is on the `PATH` you can generate the GitHub
 actions workflow in a couple of steps.  First, add the GHC versions
 you want to test with to the [`tested-with`][doc-cabal-tested-with]
 field in your package's `.cabal` file:
@@ -87,7 +89,7 @@ especially major versions.
 
 :::
 
-Next, run `haskell-ci github path/to/package.cabal`.  It will
+Next run `haskell-ci github path/to/package.cabal`.  It will
 inspect the `.cabal` file to see what GHC versions to include in the
 build matrix, and write `.github/workflows/haskell-ci.yml`.  Then
 commit the changes and push (or create a pull request).  For
@@ -153,14 +155,14 @@ The Haddock step (if enabled) runs on every job in the build matrix.
 Haddock is part of the GHC toolchain so there are no extra
 dependencies.
 
-HLint *is* an extra dependency, so if the HLint step is enabled, it
+HLint *is* an extra dependency; if the HLint step is enabled, it
 will install it via `cabal v2-install`.  The HLint step is skipped
 for all but one of the jobs in the matrix—by default, the most
 recent version of GHC.
 
 ::: note
 
-`haskell-ci` prefers a particular version of `HLint`.  Sometimes,
+`haskell-ci` prefers a particular version of `HLint`.  Sometimes
 that version of HLint doesn't build against the latest version of
 GHC.  Use the `--hlint-job` option to override the job:
 
@@ -193,7 +195,7 @@ changes.
 
 ## GitHub Actions: passing the executable between jobs
 
-Now the `haskell-ci` job is set up, it will build and test the
+Now the `haskell-ci` job is set up it will build and test the
 package on every push or pull request.  We have a further CI use
 case: using the built executable to perform additional action.  So
 we now turn to the problem of **how to use data produced by the
@@ -222,14 +224,14 @@ between jobs.
 
 ::: note
 
-By default, GitHub retains artifacts for 90 days.  The [duration can
+By default GitHub retains artifacts for 90 days.  The [duration can
 be customised][gh-artifact-retention-period].
 
 :::
 
 [gh-artifact-retention-period]: https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts#configuring-a-custom-artifact-retention-period
 
-We need to add two steps to the `linux` job.  First, we install the
+We need to add two steps to the `linux` job.  First we install the
 `hsec-tools` executable.  It was already built—this just copies it
 to a known location.  `--install-method=copy` ensures the executable
 is copied to that location, not symlinked.
@@ -277,8 +279,8 @@ updating as the matrix evolves.  But I can live with it for now.
 
 ## GitHub Actions: workflows and jobs
 
-A repository can define one or more CI *workflows*, written as YAML
-files in the `.github/workflows/` directory.
+A repository can define one or more CI *workflows*.  They are
+written as YAML files in the `.github/workflows/` directory.
 
 Each *workflow* is comprised of one or more *jobs*.  It is
 straightforward to declare dependencies between jobs *within a
@@ -286,14 +288,14 @@ workflow*.  But workflows themselves are independent.  There is no
 reasonable way to specify that a particular workflow depends on the
 result or outputs of another workflow.
 
-This means that for our use case, we have to create a new *job*
+This means that for our use case we have to create a new *job*
 within the `Haskell-CI` workflow.  Because `haskell-ci.yml` is
-generated by the `haskell-ci` tool, we have to patch this file.
-Fortunately, `haskell-ci` provides a mechanism to apply specified
-patches when generating `haskell-ci.yml` (covered in the next
-section).  Unfortunately, defining and maintaining our additional
-job(s) as *patches* to YAML files is more unpleasant than dealing
-with them as plain YAML.
+generated by the `haskell-ci` tool we have to patch this file.
+Fortunately `haskell-ci` provides a mechanism to apply specified
+patches when generating `haskell-ci.yml` (shown later in this
+article).  Unfortunately, defining and maintaining our additional
+job(s) as *patches* to YAML files is even more unpleasant than
+dealing with them as plain YAML.
 
 ## GitHub Actions: reusable workflows
 
@@ -308,10 +310,11 @@ just like ordinary workflows.  The main differences are:
 
 [gh-reusable-workflows]: https://docs.github.com/en/actions/using-workflows/reusing-workflows
 
-The main use case for reusable workflows is to enable reuse, like
+The main goal of reusable workflows is to enable reuse, like
 subroutines in programming.  Our use case is a bit different.  We
 will define the *check-advisories* behaviour as a reusable workflow.
-Although we will not be using it from multiple places, it still gives us several advantages:
+Although we will not be using it from multiple places, it still
+gives us several advantages:
 
 - Separation of concerns: checking the advisories uses an artifact
   from the `haskell-ci` build/test job, but it's a distinct task.
@@ -352,7 +355,7 @@ jobs:
           path: source
 ```
 
-The workflow has a single job called `check-advisories`.  As usual,
+The workflow has a single job called `check-advisories`.  As usual
 the first step is to check out the repository.
 
 ```yaml
@@ -381,8 +384,8 @@ is in the `PATH`.  Then we `chmod` it to make it executable.
           exit $RESULT
 ```
 
-Finally, we `find` all the advisory files and run `hsec-tools check`
-on each one.  If any of the checks fail, the job will fail (after
+Finally we `find` all the advisory files and run `hsec-tools check`
+on each one.  If any of the checks fail the whole job fails (after
 checking each file—we don't want to short-circuit).
 
 ## Calling the *check-advisories* workflow
@@ -401,10 +404,10 @@ Add a new job to the `haskell-ci.yml` workflow.  It must be a
 
 The meaning of the fields is as follows:
 
-- `uses`: *calls* the `check-advisories.yml` workflow.
-- `with`: specifies values for the inputs, which in our
+- **`uses`**: *calls* the `check-advisories.yml` workflow.
+- **`with`**: specifies values for the inputs, which in our
   case is the `artifact-name`.
-- `needs`: expresses the dependency on the `linux` job.
+- **`needs`**: expresses the dependency on the `linux` job.
 
 ::: note
 
@@ -419,7 +422,7 @@ uses: user-or-org/repo/.github/workflows/workflow.yml@v1
 
 ## Patching `haskell-ci.yml`
 
-At this stage, I have committed the `check-advisories.yml` reusable
+At this stage I have committed the `check-advisories.yml` reusable
 workflow.  I also have *uncommitted changes* to `haskell-ci.yml`:
 
 ```diff
@@ -451,7 +454,7 @@ index d51bb64..7ff8684 100644
 ```
 
 We could commit these changes *as is*, but they will be lost the
-next time we run `haskell-ci regenerate`.  Instead, create a *patch*
+next time we run `haskell-ci regenerate`.  Instead create a *patch*
 file:
 
 ```shell
@@ -489,8 +492,8 @@ demonstrated how to extend the `haskell-ci` workflow to save a built
 executable as an artifact, which can then be used by other CI jobs.
 
 I hope it has been a useful article, both for people starting out
-and wondering how to test Haskell projects, as well as for projects
-with more advanced CI workflows.
+and wondering how to test their Haskell projects, as well as for
+projects with more advanced CI workflows.
 
 One area I would like to investigate further is how to skip the
 `haskell-ci` workflow when the tool code did not change.  For
