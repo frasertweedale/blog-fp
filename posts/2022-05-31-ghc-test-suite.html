@@ -46,18 +46,18 @@ includes:</p>
 <p>The test suite should test all the functional parts of GHC. There
 are different kinds of tests:</p>
 <ul>
-<li><p><strong>Testing the compiler.</strong> The test suite includes Haskell program
+<li><strong>Testing the compiler.</strong> The test suite includes Haskell program
 sources. A test can assert that the program compiles, or that
-compilation failure is expected.</p></li>
-<li><p><strong>Testing the resulting programs.</strong> Does the behaviour of a
-program match expectations?</p></li>
-<li><p><strong>Testing the bundled libraries.</strong> This is conceptually distinct
+compilation failure is expected.</li>
+<li><strong>Testing the resulting programs.</strong> Does the behaviour of a
+program match expectations?</li>
+<li><strong>Testing the bundled libraries.</strong> This is conceptually distinct
 from the preceding point. In practice it can be achieved in
-the same way.</p></li>
-<li><p><strong>Performance tests</strong> ensure that the performance of the
+the same way.</li>
+<li><strong>Performance tests</strong> ensure that the performance of the
 compiler, and of compiled programs, does not regress. This is a
 complex topic and I won’t discuss it further in this post. The
-GHC wiki has <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">a good introduction</a>.</p></li>
+GHC wiki has <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/performance-tests">a good introduction</a>.</li>
 </ul>
 <p>The GHC GitLab instances runs a <strong>continuous integration (CI)</strong>
 pipeline for all merge requests. It builds GHC and runs the test
@@ -79,24 +79,24 @@ each test lives alongside the <code>.T</code> file.</p>
 function:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>test(<span class="op">&lt;</span>name<span class="op">&gt;</span>, <span class="op">&lt;</span>setup<span class="op">&gt;</span>, <span class="op">&lt;</span>test<span class="op">-</span>fn<span class="op">&gt;</span>, <span class="op">&lt;</span>args<span class="op">&gt;</span>)</span></code></pre></div>
 <ul>
-<li><p><code>&lt;name&gt;</code> is the <strong>name of the test</strong> source file (without file
+<li><code>&lt;name&gt;</code> is the <strong>name of the test</strong> source file (without file
 extension), or the directory containing the source code (for
 multi-module builds). Often, the name is based on an issue
-number.</p></li>
-<li><p><code>&lt;setup&gt;</code> is a function or list of functions that affect <strong>when or
+number.</li>
+<li><code>&lt;setup&gt;</code> is a function or list of functions that affect <strong>when or
 how to run the test program</strong>. For example, you can set extra
 program arguments, declare the expected exit status, or supply a
 predicate for skipping the test. The GHC wiki gives a <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-setup-field">full
-list</a> with descriptions.</p></li>
-<li><p><code>&lt;test-fn&gt;</code> specifies <strong>how to compile</strong> the test program, and
+list</a> with descriptions.</li>
+<li><code>&lt;test-fn&gt;</code> specifies <strong>how to compile</strong> the test program, and
 <strong>whether to run</strong> the resulting program. Common values include
 <code>compile</code>, <code>compile_fail</code> (compilation failure expected) and
 <code>compile_and_run</code> (run the resulting program). There are <a href="https://gitlab.haskell.org/ghc/ghc/-/wikis/building/running-tests/adding#the-test-fn-field">several
 other options</a> such as for multi-module builds, and
-GHCi sessions.</p></li>
-<li><p><code>&lt;args&gt;</code> specifies extra <strong>arguments for GHC</strong> when compiling the
+GHCi sessions.</li>
+<li><code>&lt;args&gt;</code> specifies extra <strong>arguments for GHC</strong> when compiling the
 test program. It also has other use patterns depending on the
-value of <code>&lt;test-fn&gt;</code>.</p></li>
+value of <code>&lt;test-fn&gt;</code>.</li>
 </ul>
 <p>Alongside the source file (<code>&lt;name&gt;.hs</code>) are optional files for
 specifying the input and output of the test program:</p>
