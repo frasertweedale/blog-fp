@@ -28,14 +28,11 @@ are different kinds of tests:
 - **Testing the compiler.**  The test suite includes Haskell program
   sources.  A test can assert that the program compiles, or that
   compilation failure is expected.
-
 - **Testing the resulting programs.**  Does the behaviour of a
   program match expectations?
-
 - **Testing the bundled libraries.**  This is conceptually distinct
   from the preceding point.  In practice it can be achieved in
   the same way.
-
 - **Performance tests** ensure that the performance of the
   compiler, and of compiled programs, does not regress.  This is a
   complex topic and I won't discuss it further in this post.  The
@@ -77,20 +74,17 @@ test(<name>, <setup>, <test-fn>, <args>)
   extension), or the directory containing the source code (for
   multi-module builds).  Often, the name is based on an issue
   number.
-
 - `<setup>` is a function or list of functions that affect **when or
   how to run the test program**.  For example, you can set extra
   program arguments, declare the expected exit status, or supply a
   predicate for skipping the test.  The GHC wiki gives a [full
   list][setup-field] with descriptions.
-
 - `<test-fn>` specifies **how to compile** the test program, and
   **whether to run** the resulting program.  Common values include
   `compile`, `compile_fail` (compilation failure expected) and
   `compile_and_run` (run the resulting program).  There are [several
   other options][test-fn-field] such as for multi-module builds, and
   GHCi sessions.
-
 - `<args>` specifies extra **arguments for GHC** when compiling the
   test program.  It also has other use patterns depending on the
   value of `<test-fn>`.
