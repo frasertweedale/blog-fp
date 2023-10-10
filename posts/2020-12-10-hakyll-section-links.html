@@ -48,7 +48,7 @@ text. I will use a section sign (§).</p>
 value derived from the heading text. For example, one of my
 previous posts had a section headed <a href="2020-03-31-quickcheck-hedgehog.html#probabilities">Probabilities</a>. The
 resulting HTML for the heading is:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h2</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span>Probabilities<span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">h2</span><span class="ot"> id</span><span class="op">=</span><span class="st">&quot;probabilities&quot;</span><span class="dt">&gt;</span>Probabilities<span class="dt">&lt;/</span><span class="kw">h2</span><span class="dt">&gt;</span></span></code></pre></div>
 <p>The value of the <code>id</code> attribute will be the <code>href</code> target of the
 <code>&lt;a&gt;</code> element we create (with <code>#</code> prepended to make it a URI
 fragment).</p>
@@ -122,13 +122,13 @@ of:</p>
 <p>I want to hide the heading link unless the cursor is hovering over
 the heading. I would like to accomplish it with this small dose of
 CSS:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="in">:is(h2, h3, h4, h5, h6)</span> a {</span>
+<div class="sourceCode" id="cb11"><pre class="sourceCode css"><code class="sourceCode css"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="in">:is(</span>h2<span class="op">,</span> h3<span class="op">,</span> h4<span class="op">,</span> h5<span class="op">,</span> h6<span class="in">)</span> a {</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">text-decoration</span>: <span class="dv">none</span><span class="op">;</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">color</span>: <span class="cn">grey</span><span class="op">;</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">visibility</span>: <span class="dv">hidden</span><span class="op">;</span></span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="in">:is(h2, h3, h4, h5, h6):hover</span> a {</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="in">:is(</span>h2<span class="op">,</span> h3<span class="op">,</span> h4<span class="op">,</span> h5<span class="op">,</span> h6<span class="in">):hover</span> a {</span>
 <span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">visibility</span>: <span class="dv">visible</span><span class="op">;</span></span>
 <span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <p>The <code>is()</code> pseudo-class function matches anything that matches the
@@ -150,9 +150,9 @@ appearance clean and understated.</p>
 <h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
 <p>As a result of this change, the HTML emitted for section headers (of
 depth &gt; 1) looks like:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;h2</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;probabilities&quot;</span><span class="kw">&gt;</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  Probabilities <span class="kw">&lt;a</span> <span class="er">href</span><span class="ot">=</span><span class="st">&quot;#probabilities&quot;</span><span class="kw">&gt;</span>§<span class="kw">&lt;/a&gt;</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/h2&gt;</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">h2</span><span class="ot"> id</span><span class="op">=</span><span class="st">&quot;probabilities&quot;</span><span class="dt">&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  Probabilities <span class="dt">&lt;</span><span class="kw">a</span><span class="ot"> href</span><span class="op">=</span><span class="st">&quot;#probabilities&quot;</span><span class="dt">&gt;</span>§<span class="dt">&lt;/</span><span class="kw">a</span><span class="dt">&gt;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">h2</span><span class="dt">&gt;</span></span></code></pre></div>
 <p>You can experience the results for yourself, right here on this page
 (and in my other posts). You can also <a href="https://github.com/frasertweedale/blog-fp/commit/fe72af9144fea3ece5295ac5446f647560119088">view the commit</a> that
 implements this feature.</p>

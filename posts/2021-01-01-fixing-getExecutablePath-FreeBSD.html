@@ -124,15 +124,15 @@ kern.maxproc: 3828</code></pre>
 <div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">/*</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Top-level identifiers</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_UNSPEC  0  </span><span class="co">/* unused */</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_KERN    1  </span><span class="co">/* &quot;high kernel&quot;: proc, limits */</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_UNSPEC  </span><span class="dv">0</span><span class="pp">  </span><span class="co">/* unused */</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#define CTL_KERN    </span><span class="dv">1</span><span class="pp">  </span><span class="co">/* &quot;high kernel&quot;: proc, limits */</span></span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">/*</span></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"> * CTL_KERN identifiers</span></span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="pp">#define KERN_MAXPROC  6  </span><span class="co">/* int: max processes */</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="pp">#define KERN_MAXPROC  </span><span class="dv">6</span><span class="pp">  </span><span class="co">/* int: max processes */</span></span>
 <span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="op">...</span></span></code></pre></div>
 <p>The OID containing a process’ executable pathname is <code>[1, 14, 12, $PID]</code> where <code>PID</code> is the process ID, or <code>-1</code> to refer to the
 current process. The C <code>#define</code>s for the first three components
