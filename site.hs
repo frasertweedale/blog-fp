@@ -62,24 +62,6 @@ main = hakyll $ do
         >>= loadAndApplyTemplate "templates/default.html" archiveContext
         >>= relativizeUrls
 
-  -- a version of the posts to use for "recent posts" list
-  match "posts/*" $ version "recent" $ do
-    route $ setExtension "html"
-    compile $
-      pandocCompilerWithTransformM
-        defaultHakyllReaderOptions
-        defaultHakyllWriterOptions
-        (\pandoc -> do
-          let
-            h1 = maybe [Str "no title"] id . firstHeader $ pandoc
-            render = fmap writePandoc . makeItem . Pandoc mempty . pure . Plain
-          _ <- render (removeFormatting h1) >>= saveSnapshot "title"
-          _ <- render h1 >>= saveSnapshot "fancyTitle"
-          maybe (pure ()) (void . (saveSnapshot "abstract" <=< render)) (abstract pandoc)
-          pure $ addSectionLinks pandoc
-        )
-      >>= saveSnapshot "content"
-
   tagsRules tags $ \tag pattern -> do
     route idRoute
     compile $ do
@@ -94,6 +76,22 @@ main = hakyll $ do
         >>= loadAndApplyTemplate "templates/default.html" ctx
         >>= relativizeUrls
 
+  -- a version of the posts to use for "recent posts" list
+  match "posts/*" $ version "recent" $ do
+    compile $
+      pandocCompilerWithTransformM
+        defaultHakyllReaderOptions
+        defaultHakyllWriterOptions
+        (\pandoc -> do
+          let
+            h1 = maybe [Str "no title"] id . firstHeader $ pandoc
+            render = fmap writePandoc . makeItem . Pandoc mempty . pure . Plain
+          _ <- render (removeFormatting h1) >>= saveSnapshot "title"
+          _ <- render h1 >>= saveSnapshot "fancyTitle"
+          maybe (pure ()) (void . (saveSnapshot "abstract" <=< render)) (abstract pandoc)
+          pure $ addSectionLinks pandoc
+        )
+
   match "posts/*" $ do
     route $ setExtension "html"
     compile $ do
@@ -107,8 +105,11 @@ main = hakyll $ do
             <> context
 
       ident <- getUnderlying
-      loadSnapshotBody (setVersion (Just "recent") ident) "content"
+      loadBody (setVersion (Just "recent") ident)
         >>= makeItem
+        -- Re-save the content under this identifier (no version).
+        -- This is required because atom templates use $url$.
+        >>= saveSnapshot "content"  -- re-save the content under this ident
         >>= loadAndApplyTemplate "templates/post.html" postContext
         >>= loadAndApplyTemplate "templates/default.html" postContext
         >>= relativizeUrls
@@ -121,7 +122,7 @@ main = hakyll $ do
       let feedContext =
             bodyField "description"
             <> context
-      posts <- loadAllSnapshots ("posts/*" .&&. hasVersion "recent") "content"
+      posts <- loadAllSnapshots ("posts/*" .&&. hasNoVersion) "content"
         >>= fmap (take 10) . recentFirst
       renderAtom feedConfiguration feedContext posts
 
@@ -143,6 +144,7 @@ context =
   <> constField "twitter-creator" "@hackuador"
   <> bodyField "body"
   <> urlField "url"
+  <> urlFieldNoVersion "url0"
   <> pathField "path"
   <> constField "root" blogRoot
 
@@ -154,6 +156,14 @@ snapshotField
   -> Context String   -- ^ Resulting context
 snapshotField key snap = field key $ \item ->
   loadSnapshotBody (setVersion (Just "recent") (itemIdentifier item)) snap
+
+-- | Set a url field that looks for url of non-versioned identifier
+urlFieldNoVersion :: String -> Context a
+urlFieldNoVersion key = field key $ \i -> do
+  let ident = setVersion Nothing (itemIdentifier i)
+      empty' = fail $ "No route url found for item " <> show ident
+  fmap (maybe empty' toUrl) $ getRoute ident
+
 
 firstHeader :: Pandoc -> Maybe [Inline]
 firstHeader (Pandoc _ xs) = go xs
