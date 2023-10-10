@@ -10,8 +10,307 @@
         <email>frase@frase.id.au</email>
         
     </author>
-    <updated>2023-06-04T00:00:00Z</updated>
+    <updated>2023-10-10T00:00:00Z</updated>
     <entry>
+    <title>Education fund modelling with Haskell</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2023-10-10-education-fund-modelling.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2023-10-10-education-fund-modelling.html</id>
+    <published>2023-10-10T00:00:00Z</published>
+    <updated>2023-10-10T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="education-fund-modelling-with-haskell">Education fund modelling with Haskell</h1>
+<p>Like most people, I don’t like big financial surprises or sudden,
+substantial changes to cashflow. Although we can’t control all
+circumstances, we can plan for projected future expenses, like your
+kids’ education. <span class="abstract">In this post I share a basic model built in
+Haskell to help plan for education expenses (or other large, future,
+time-bounded expenses).</span></p>
+<p>This <strong>beginner-friendly post</strong> demonstrates many simple Haskell
+functions, especially for working with lists. It also shows how to
+build and execute stateful computations using <code>State</code> from <em>mtl</em>. I
+(mostly) avoid type signatures and just focus on defining the terms,
+but there are plenty of links to API documentation. At the end of
+the post I suggest some enhancements to the model that would be good
+<strong>exercises for learners</strong> (and might be fun even for more
+experienced Haskell programmers).</p>
+<h2 id="scenario-and-simplifying-assumptions">Scenario and simplifying assumptions <a href="#scenario-and-simplifying-assumptions" class="section">§</a></h2>
+<p>The general scenario I built the model for is to save for private
+secondary <strong>school fees for two children</strong>. They are 3 years apart
+with the older child commencing in 4 years. Costs of primary
+(elementary) schooling are not considered in this scenario, although
+the model would accommodate that.</p>
+<p>Given the time span (&gt; 10 years) we have to consider <strong>inflation</strong>.
+The model uses a constant rate of inflation of 5% per annum, which
+is less than the rate of inflation in Australia at time of writing,
+but more than the our RBA’s long term target of 2–3%.</p>
+<p>We also model an annual <strong>investment return</strong> of 8%. Short-term
+volatility is inevitable but this is less than the <em>long-term
+average</em> for the Australian stock market.</p>
+<p><strong>Contributions</strong> to the fund will be annual. In real life, for
+stable cashflow and to achieve <a href="https://en.wikipedia.org/wiki/Dollar_cost_averaging"><em>dollar cost averaging</em></a>,
+contributions could be made more regularly (e.g. each pay day). The
+model is therefore slightly pessimistic in this regard, but simpler
+to implement.</p>
+<h2 id="general-description-of-the-model">General description of the model <a href="#general-description-of-the-model" class="section">§</a></h2>
+<p>The inputs to the model are a <strong>fee structure</strong>, and an annual
+contribution amount which is fixed (does not grow with inflation or
+income).</p>
+<p>The model projects the costs of education in future years, and works
+backwards to determine how much money needs to be in the fund at the
+start of each year. The output of the model is a list of these
+required balances, the first of which is the required <strong>initial
+starting balance</strong> for the education fund. If the starting balance
+is too high, increase the yearly contribution and evaluate the model
+again. Continue until you find a balance between starting value and
+contribution amount that works for you.</p>
+<h2 id="modelling-the-costs">Modelling the costs <a href="#modelling-the-costs" class="section">§</a></h2>
+<p>A school’s <em>current</em> fee structure, for the six years of secondary
+education, is the ordered list of these numbers:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>feesBase <span class="ot">=</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  [ <span class="dv">12000</span>, <span class="dv">12000</span>, <span class="dv">12000</span>     <span class="co">-- grade  7,  8,  9</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  , <span class="dv">13500</span>, <span class="dv">13500</span>, <span class="dv">13500</span> ]   <span class="co">-- grade 10, 11, 12</span></span></code></pre></div>
+<p>Child 1 will be starting high school in 4 years; Child 2 in 7 years.
+We consider the intervening years to have nil cost, which we
+represent by using <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:replicate"><code>replicate</code></a> to make lists of
+<code>0</code> of the required lengths. We append these sublists using
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:-60--62-"><code>&lt;&gt;</code></a>. We also extend the <em>shorter</em> list with
+additional zeroes (<em>only</em> the shorter list, because
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:repeat"><code>repeat</code></a> makes an <strong>infinite list</strong>).</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>feesChild1Base <span class="ot">=</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">replicate</span> <span class="dv">4</span> <span class="dv">0</span> <span class="op">&lt;&gt;</span> feesBase <span class="op">&lt;&gt;</span> <span class="fu">repeat</span> <span class="dv">0</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>feesChild2Base <span class="ot">=</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">replicate</span> <span class="dv">7</span> <span class="dv">0</span> <span class="op">&lt;&gt;</span> feesBase</span></code></pre></div>
+<div class="note">
+<p>The <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:-60--62-"><code>&lt;&gt;</code></a> function appends many types, where the
+operation is associative and the result is always defined. You can
+also append lists with <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:-43--43-"><code>++</code></a>, which is
+specific to the list type.</p>
+</div>
+<p>We could add the yearly fees using <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:zipWith"><code>zipWith</code></a>,
+whose arguments are a binary combining function and two lists:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>feesCombinedBase <span class="ot">=</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">zipWith</span> (<span class="op">+</span>) feesChild1Base feesChild2Base</span></code></pre></div>
+<p>However, many schools offer discounts when you have multiple
+children enrolled. In this scenario, the school gives a 10%
+discount for the younger (cheaper) child, when both are enrolled.
+We define the combining function using <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:min"><code>min</code></a>,
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:max"><code>max</code></a>, addition and multiplication:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- define our custom combining function...</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>sumWithDiscount a b <span class="ot">=</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">max</span> a b <span class="op">+</span> <span class="fu">min</span> a b <span class="op">*</span> <span class="fl">0.9</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- ... and update feesCombinedBase to use it</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>feesCombinedBase <span class="ot">=</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">zipWith</span> sumWithDiscount feesChild1Base feesChild2Base</span></code></pre></div>
+<p>Let’s evaluate <code>feesCombinedBase</code> and <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:print"><code>print</code></a> the
+values. <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:traverse"><code>traverse_</code></a> applies an action to each
+element of a list (or other container), then discards the result.</p>
+<pre><code>λ&gt; traverse_ print feesCombinedBase
+0.0
+0.0
+0.0
+0.0
+12000.0
+12000.0
+12000.0
+24300.0
+24300.0
+24300.0
+13500.0
+13500.0
+13500.0</code></pre>
+<p>Now <strong>inflation</strong> must have its way with these numbers. Use
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:iterate"><code>iterate</code></a> to generate the inflation factor for
+successive years (<em>ad infinitum</em>) by iteratively apply our inflation
+rate, starting at <code>1</code>. To make the numbers presentable we’ll also
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:round"><code>round</code></a> to 4 decimal places.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>round4    <span class="ot">=</span> (<span class="op">/</span> <span class="dv">10000</span>) <span class="op">.</span> <span class="fu">fromIntegral</span> <span class="op">.</span> <span class="fu">round</span> <span class="op">.</span> (<span class="op">*</span> <span class="dv">10000</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>inflation <span class="ot">=</span> <span class="fu">fmap</span> round4 (<span class="fu">iterate</span> (<span class="op">*</span> <span class="fl">1.05</span>) <span class="dv">1</span>)</span></code></pre></div>
+<div class="note">
+<p><a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:fmap"><code>fmap</code></a> applies a function (the first argument) to
+every element of a container or producer (the second argument).</p>
+</div>
+<p>Then we can apply the inflation to our uninflated costs by year.
+One thing I did not yet mention is that the fees above are nearly a
+year old and will be going up soon, so we’ll use
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:drop"><code>drop</code></a> to “shift left” the inflation figures by one
+year. Once more we use <code>zipWith</code> for a very neat expression:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>feesCombinedInflated <span class="ot">=</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">zipWith</span> (<span class="op">*</span>) feesCombinedBase (<span class="fu">drop</span> <span class="dv">1</span> inflation)</span></code></pre></div>
+<p>Let’s <code>print</code> the projected fees:</p>
+<pre><code>λ&gt; traverse_ print feesCombinedInflated
+0.0
+0.0
+0.0
+0.0
+15315.6
+16081.2
+16885.2
+35903.25
+37696.59
+39582.27
+23089.05
+24244.65
+25455.6</code></pre>
+<p>This looks right. The highest costs are in the three “overlap”
+years where both children are enrolled, and the impact of inflation
+is evident.</p>
+<h2 id="modelling-the-fund-balance">Modelling the fund balance <a href="#modelling-the-fund-balance" class="section">§</a></h2>
+<p>A <strong>stateful computation</strong> will work out how much money we need in
+the fund at the start of each year. Specifically, we use the
+<a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#t:State"><code>State</code></a> type from the <a href="https://hackage.haskell.org/package/mtl"><em>mtl</em></a> library
+to define the computation.</p>
+<p>The model takes into account the contribution amount and the growth
+factor. To do this is has to work backwards in time. Each <code>step</code>
+of the computation takes the schooling fee for that year, and the
+state value tracks the required balance of the fund.</p>
+<p>We define the <code>step</code> function, which considers what happens to the
+fund over one year. It must first <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:subtract"><code>subtract</code></a>
+the contribution from the required balance. This excludes the
+contribution from the (presumed) growth over the year; a simplifying
+assumption that is reasonable <em>over the long-term</em>. We also ensure
+the balance will not be negative. We intend to <strong>exhaust the fund</strong>
+when fees are paid in the final year, and a negative balance will
+spoil the subsequent calculations. The <a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#v:modify"><code>modify</code></a>
+function applies its argument (the subtraction) to <strong>modify the
+state value</strong>.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>step contrib fee <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  modify (<span class="fu">max</span> <span class="dv">0</span> <span class="op">.</span> <span class="fu">subtract</span> contrib)</span></code></pre></div>
+<p>Next we <em>divide</em> the balance (state value) by the <strong>growth rate</strong>,
+to obtain a nominal value of the fund at the start of the year:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>  modify (<span class="op">/</span> <span class="fl">1.08</span>)</span></code></pre></div>
+<p>Finally, we have to <strong>pay the fees</strong> at (or near) the start of the
+year. So we must <em>increase</em> the required balance by that amount.
+Some schools offer a discount for full year payment up-front. This
+model applies a discount of 5%, but this is another area where the
+model could be parameterised.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>  modify (<span class="op">+</span> (fee <span class="op">*</span> <span class="fl">0.95</span>))</span></code></pre></div>
+<p>All together the <code>step</code> function contains a few simple operations.
+At the end it returns the state value via the <a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#v:get"><code>get</code></a>
+function. This will enable us to see how the value of the fund
+changes year by year.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>step contrib fee <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  modify (<span class="fu">max</span> <span class="dv">0</span> <span class="op">.</span> <span class="fu">subtract</span> contrib)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  modify (<span class="op">/</span> <span class="fl">1.08</span>)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  modify (<span class="op">+</span> (fee <span class="op">*</span> <span class="fl">0.95</span>))</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  get</span></code></pre></div>
+<p>Now that we have the <code>step</code> function, we can
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:traverse"><code>traverse</code></a> the list of year costs and apply the
+<code>step</code> to each element. Like <code>traverse_</code>, <code>traverse</code> applies an
+action to each element of a container, but instead of discarding the
+results it replaces each element of the container with the “return
+value” of the action.</p>
+<p>We have to start at the final year and work backwards, so first
+<a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:reverse"><code>reverse</code></a> the list, then <code>traverse</code> it:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ot">go ::</span> <span class="dt">Double</span> <span class="ot">-&gt;</span> <span class="dt">State</span> <span class="dt">Double</span> [<span class="dt">Double</span>]</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>go contrib <span class="ot">=</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">traverse</span> (step contrib) (<span class="fu">reverse</span> feesCombinedInflated)</span></code></pre></div>
+<p>This is the first time I have shown a <strong>type signature</strong> in this
+whole post! The <code>go</code> function takes the contribution amount and
+returns a <em>state computation</em> whose <em>state variable</em> (the required
+balance) is a real number (<code>Double</code>) and whose <em>output</em> is a list of
+numbers (the required balance at the start of each year).</p>
+<p>To actually <strong>run the state computation</strong> we use
+<a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#v:evalState"><code>evalState</code></a>, whose arguments are the state
+computation and an <em>initial state</em>. Our initial state is <em>$0</em>,
+because we intend to exhaust the fund when we pay for the final year
+of schooling.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>model contrib <span class="ot">=</span> <span class="fu">fmap</span> <span class="fu">round</span> (<span class="fu">reverse</span> (evalState go <span class="dv">0</span>))</span></code></pre></div>
+<div class="note">
+<p><code>evalState</code> yields the final <em>output</em> of the state computation,
+discarding the state variable. If you instead want the final value
+of the <em>state variable</em>, use <a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#v:execState"><code>execState</code></a>.
+<a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#v:runState"><code>runState</code></a> yields the <em>(state var, output)</em>
+pair.</p>
+</div>
+<p>The result of <code>model</code> is a list of the required fund balance at the
+start of each year, in order. The first value is the initial
+balance required for the given yearly contribution amount.</p>
+<h2 id="running-the-model">Running the model <a href="#running-the-model" class="section">§</a></h2>
+<p>Let’s see what the model tells us for various contribution amounts.
+First, let’s just pick a number, say <em>$10,000</em>.</p>
+<pre><code>λ&gt; traverse_ print (model 10000)
+43542
+57025
+71587
+87314
+104299
+106929
+108984
+110379
+92373
+71086
+46161
+36165
+24183</code></pre>
+<p>The final year’s value is <code>24183</code>. That will <em>always</em> be the final
+value, regardless of contribution amount, because that is what the
+final fee payment will be.</p>
+<p>As for the required starting value, for a <em>$10,000</em> yearly
+contribution we would need to start the fund with <em>$43,542</em>. But
+what if you don’t have any money to start the fund? With a bit of
+trial and error I found that a yearly contribution of <em>$15,778</em> is
+enough (note the start value for the <em>second</em> year):</p>
+<pre><code>λ&gt; traverse_ print (model 15778)
+0
+15776
+32816
+51220
+71095
+76847
+82273
+87309
+73235
+56195
+35857
+30815
+24183</code></pre>
+<p>Finally, how much would you need if you wanted the fund to be
+completely passive—no further contributions after the initial
+amount?</p>
+<pre><code>λ&gt; traverse_ print (model 0)
+118903
+128415
+138688
+149783
+161766
+158993
+155213
+150306
+125494
+96857
+63994
+45424
+24183</code></pre>
+<p><em>$118,903</em>. Not many people have that kind of money at their
+immediate disposal. But if you do, or if you get a big windfall,
+you could “set and forget” an investment for your children’s
+schooling, or other long-term financial objective.</p>
+<h2 id="possible-model-enhancements-or-variations">Possible model enhancements or variations <a href="#possible-model-enhancements-or-variations" class="section">§</a></h2>
+<p>There are several ways the model could be improved, or tweaked to
+suit the circumstances or preferences of the investor.</p>
+<p>You could consider <strong>increasing the contribution over time</strong> to
+adjust for expected income growth. There are a several ways to do
+it. One way is to pass the inflation factor to the step function
+and apply it to the base contribution amount there. Another way is
+to precompute the annual inflated contribution, <code>zip</code> it with the
+inflated fee list, and <code>traverse</code> the <code>step</code> function over the
+<em>(contribution, fee)</em> pairs. I leave it to the reader to play
+around, if interested.</p>
+<p>Another obvious area for improvement is that the model is hardcoded
+for exactly two children. Enhancing it to <strong>handle different
+numbers of children</strong> would be a good exercise. <code>zipWith</code> will no
+longer cut it for combining fees. Furthermore, schools can have
+diverse discount structures for multiple children (e.g. second child
+10% off, 25% for third child, and so on). So the discount structure
+should be parameterised. If you want to improve your skill working
+with lists in Haskell, this would be a good exercise.</p>
+<p>Other areas for improvement include dollar-cost averaging the yearly
+contribution amount, or step functions for different payment
+frequencies (e.g. quarterly / per term). Both of these tasks would
+be good <strong>practice with <code>State</code> computations</strong>.</p>]]></summary>
+</entry>
+<entry>
     <title>haskell-ci how-to: caching and using your program executable</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2023-06-04-haskell-ci-use-executable.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2023-06-04-haskell-ci-use-executable.html</id>
@@ -1718,215 +2017,6 @@ come before the <code>snapshotField</code> (if that’s the priority you want):<
 <span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
 <p>Now I have a nice way to generate abstracts for my articles. I will
 explore an interesting use case in an upcoming post.</p>]]></summary>
-</entry>
-<entry>
-    <title>A combinator library for taxes</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-05-23-tax-combinators.html</id>
-    <published>2021-05-23T00:00:00Z</published>
-    <updated>2021-05-23T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="a-combinator-library-for-taxes">A combinator library for taxes</h1>
-<p>Doing your taxes is no fun. But functional programming can ease the
-pain. In this post I describe and demonstrate the Haskell
-<a href="https://hackage.haskell.org/package/tax"><em>tax</em></a> library, which provides data types and
-combinators for defining taxes.</p>
-<h2 id="what-is-a-tax">What is a tax? <a href="#what-is-a-tax" class="section">§</a></h2>
-<p>Wikipedia <a href="https://en.wikipedia.org/wiki/Tax">defines</a> a tax as <em>a compulsory financial
-charge or some other type of levy imposed on a taxpayer</em>. Most
-taxes have monetary “inputs and outputs” but other kinds of taxation
-exist, such as the <a href="https://en.wikipedia.org/wiki/Corv%C3%A9e#Modern_instances"><em>corvée</em></a>. Therefore <em>tax</em>
-defines a type that is abstracted over its inputs and outputs:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">newtype</span> <span class="dt">Tax</span> b a <span class="ot">=</span> <span class="dt">Tax</span> {<span class="ot"> getTax ::</span> b <span class="ot">-&gt;</span> a }</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">deriving</span> (<span class="dt">Semigroup</span>, <span class="dt">Monoid</span>, <span class="dt">Functor</span>, <span class="dt">Profunctor</span>)</span></code></pre></div>
-<p>The <code>Tax b a</code> type is a wrapper around the function type <code>(b -&gt; a)</code>.
-Although <code>(-&gt;)</code> has all the instances we need, I found it more
-ergonomic to define a new type that communicates the <em>intent</em> of the
-values. The <code>GeneralizedNewtypeDeriving</code> extension enables
-automatic derivation of the following type class instances:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Semigroup</span> a <span class="ot">=&gt;</span> <span class="dt">Semigroup</span> (<span class="dt">Tax</span> b a)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span>    <span class="dt">Monoid</span> a <span class="ot">=&gt;</span>    <span class="dt">Monoid</span> (<span class="dt">Tax</span> b a)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Functor</span> (<span class="dt">Tax</span> b)</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Profunctor</span> <span class="dt">Tax</span></span></code></pre></div>
-<p>The <code>Semigroup</code> operation sums outputs. The <code>Monoid</code> identity
-is a 0% tax.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>λ<span class="op">&gt;</span> getTax (flat <span class="fl">0.1</span> <span class="op">&lt;&gt;</span> flat <span class="fl">0.2</span> <span class="op">&lt;&gt;</span> <span class="fu">mempty</span>) (<span class="dt">Money</span> <span class="dv">10</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="op">$</span><span class="fl">3.0</span></span></code></pre></div>
-<p>For convenience, <em>tax</em> exports a type synonym for taxes whose inputs
-and outputs are money (of the same type). The input is an amount
-subject to taxation (often income), and the output is the tax due:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">MoneyTax</span> a <span class="ot">=</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span></code></pre></div>
-<p>The <a href="https://hackage.haskell.org/package/dollaridoos-0.1.0.0/docs/Data-Money.html#t:Money"><code>Money</code></a> type comes from the
-<a href="https://hackage.haskell.org/package/dollaridoos"><em>dollaridoos</em></a> package.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">newtype</span> <span class="dt">Money</span> a <span class="ot">=</span> <span class="dt">Money</span> a</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">deriving</span> (<span class="dt">Eq</span>, <span class="dt">Ord</span>)</span></code></pre></div>
-<p><code>Money</code> restricts the operations that can be performed by omitting a
-<code>Num</code> instance. Dedicated functions provide the operations that
-make sense for money, like <em>scalar</em> multiplication:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">($*) ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span>       a <span class="ot">-&gt;</span> <span class="dt">Money</span> a</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ot">(*$) ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span>       a <span class="ot">-&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> <span class="dt">Money</span> a</span></code></pre></div>
-<p><code>Money a</code> also has instances for <code>Semigroup</code> and <code>Monoid</code> when the
-wrapped type has an instance of <code>Num</code>:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> <span class="dt">Semigroup</span> (<span class="dt">Money</span> a)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span>    <span class="dt">Monoid</span> (<span class="dt">Money</span> a)</span></code></pre></div>
-<p>All types in <em>tax</em> are abstracted over the numeric representation.
-Different applications can have different requirements for
-precision. Users may want to use a type that carries additional
-context, such as a currency. Therefore <em>tax</em> lets the user choose
-the numeric representation to use.</p>
-<h2 id="constructing-taxes">Constructing taxes <a href="#constructing-taxes" class="section">§</a></h2>
-<p>The most basic taxes are <strong>lump</strong> sums, and <strong>flat</strong>-rate taxes:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">lump ::</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>lump <span class="ot">=</span> <span class="dt">Tax</span> <span class="op">.</span> <span class="fu">const</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ot">flat ::</span> (<span class="dt">Num</span> a) <span class="ot">=&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>flat <span class="ot">=</span> <span class="dt">Tax</span> <span class="op">.</span> (<span class="op">*$</span>)</span></code></pre></div>
-<p>Some other common taxation constructions include taxing the amount
-<strong>above</strong> some threshold at a flat rate, or taxing the <em>whole</em>
-amount at a flat rate when it exceeds the <strong>threshold</strong>. These
-functions have the same type signature (I’ll show the implementation
-later):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>above, threshold</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span></code></pre></div>
-<h2 id="combinators">Combinators <a href="#combinators" class="section">§</a></h2>
-<p>More complex taxes can be built using a handful of
-<a href="https://wiki.haskell.org/Combinator_pattern"><em>combinators</em></a> (functions that assemble smaller
-components into more complicated structures). This section
-describes the combinators provided by the <em>tax</em> package.</p>
-<p>Levy the <strong>lesser</strong> or <strong>greater</strong> of two taxes:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>lesserOf, greaterOf</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>lesserOf  t1 t2 <span class="ot">=</span> <span class="dt">Tax</span> (<span class="fu">min</span> <span class="op">&lt;$&gt;</span> getTax t1 <span class="op">&lt;*&gt;</span> getTax t2)</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>greaterOf t1 t2 <span class="ot">=</span> <span class="dt">Tax</span> (<span class="fu">max</span> <span class="op">&lt;$&gt;</span> getTax t1 <span class="op">&lt;*&gt;</span> getTax t2)</span></code></pre></div>
-<p><strong>Limit</strong> the tax payable to a given amount:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ot">limit ::</span> (<span class="dt">Ord</span> a) <span class="ot">=&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>limit <span class="ot">=</span> lesserOf <span class="op">.</span> lump</span></code></pre></div>
-<p>Whereas <code>above</code> and <code>threshold</code> use flat rates, <code>above'</code> and
-<code>threshold'</code> subject the taxable portion of the input to arbitrary
-<code>Tax</code> computations:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ot">above&#39; ::</span> (<span class="dt">Num</span> b, <span class="dt">Ord</span> b)</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>       <span class="ot">=&gt;</span> <span class="dt">Money</span> b <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> b) a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> b) a</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>above&#39; l <span class="ot">=</span> lmap (\x <span class="ot">-&gt;</span> <span class="fu">max</span> (x <span class="op">$-$</span> l) <span class="fu">mempty</span>)</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="ot">threshold&#39; ::</span> (<span class="dt">Ord</span> b, <span class="dt">Monoid</span> a) <span class="ot">=&gt;</span> b <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a <span class="ot">-&gt;</span> <span class="dt">Tax</span> b a</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>threshold&#39; l tax <span class="ot">=</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Tax</span> (\x <span class="ot">-&gt;</span> <span class="kw">if</span> x <span class="op">&gt;=</span> l <span class="kw">then</span> getTax tax x <span class="kw">else</span> <span class="fu">mempty</span>)</span></code></pre></div>
-<p>In <code>above'</code>, note the use of <code>lmap</code> to reduce (via the <code>Money</code>
-subtraction function <code>($-$)</code>) the amount the tax is levied upon.
-This is the first usage of the <code>Profunctor</code> instance, but it will
-not be the last.</p>
-<p>With <code>above'</code> and <code>threshold'</code> in hand, we now see that the
-implementations of <code>above</code> and <code>threshold</code> (which apply flat-rate
-taxes) are trivial:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>above, threshold</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>above     l <span class="ot">=</span> above&#39;     l <span class="op">.</span> flat</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>threshold l <span class="ot">=</span> threshold&#39; l <span class="op">.</span> flat</span></code></pre></div>
-<p>In real world use, I have not (so far) used <code>above'</code> or
-<code>threshold'</code>; the flat rate variants sufficed. Nevertheless, for
-completeness <em>tax</em> exports the general variants.</p>
-<h2 id="examples">Examples <a href="#examples" class="section">§</a></h2>
-<h3 id="progressive-tax">Progressive tax <a href="#progressive-tax" class="section">§</a></h3>
-<p>Many countries use <a href="https://en.wikipedia.org/wiki/Progressive_tax"><em>progressive taxes</em></a>, where
-different bands of income are taxed at increasing flat rates. For
-example, in Australia for the 2020–21 financial year the first
-$18,200 is tax free, with income between $18,200 and $45,000 taxed
-at 19%, then 32.5% up to $120,000, 37% up to $180,000, and 45% above
-$180,000.</p>
-<p>Observe that the <code>Monoid</code> instance for <code>Tax</code> sums the outputs of
-constituent taxes applied to the same input. We can define a
-function that takes a list of thresholds and rates, and constructs a
-progressive tax:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ot">marginal ::</span> (<span class="dt">Num</span> a, <span class="dt">Ord</span> a)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>         <span class="ot">=&gt;</span> [(<span class="dt">Money</span> a, a)] <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>marginal <span class="ot">=</span> <span class="fu">foldMap</span> (<span class="fu">uncurry</span> above)</span></code></pre></div>
-<p>Because of the accumulative behaviour, the rate for each band must
-be the <strong>difference</strong> to the previous band. The rate for the first
-band is implicitly the delta to 0%. The Australian regime can be
-expressed as:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ot">ausTax ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>ausTax <span class="ot">=</span> marginal</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  [ ( <span class="dt">Money</span> <span class="dv">18200</span>,  <span class="fl">0.19</span>  <span class="op">-</span> <span class="dv">0</span>     )</span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  , ( <span class="dt">Money</span> <span class="dv">45000</span>,  <span class="fl">0.325</span> <span class="op">-</span> <span class="fl">0.19</span>  )</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  , ( <span class="dt">Money</span> <span class="dv">120000</span>, <span class="fl">0.37</span>  <span class="op">-</span> <span class="fl">0.325</span> )</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  , ( <span class="dt">Money</span> <span class="dv">180000</span>, <span class="fl">0.45</span>  <span class="op">-</span> <span class="fl">0.37</span>  ) ]</span></code></pre></div>
-<p>The <code>marginal</code> function is useful enough that the <em>tax</em> package
-provides it.</p>
-<h3 id="shade-in">Shade in <a href="#shade-in" class="section">§</a></h3>
-<p>Australia’s public health system is funded by the <em>Medicare Levy</em>.
-It is currently 2% of income, but people below a certain threshold
-are exempt (the threshold changes each year). The amount above the
-threshold is taxed at 10% until it reaches 2% of the input. This
-prevents a sudden jump in tax owed and eliminates a perverse
-incentive to earn less than the threshold (if your income is around
-that number). The Australian Taxation Office calls this
-construction a <em>shade in</em>.</p>
-<p>Using the functions defined above and taking the lower shade in
-threshold as a parameter, this tax is an elegant one-liner:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>medicareLevy</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a)</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">Money</span> a <span class="ot">-&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>medicareLevy l <span class="ot">=</span> lesserOf (above l <span class="fl">0.1</span>) (flat <span class="fl">0.02</span>)</span></code></pre></div>
-<h3 id="tax-offsets">Tax offsets <a href="#tax-offsets" class="section">§</a></h3>
-<p>A tax doesn’t have to result in an amount owed. Maybe your
-government will <em>give</em> you some money based on your income. Indeed
-Australia has some <em>tax offsets</em> that reduce the tax paid by people
-on lower incomes.</p>
-<p>An example is the <em>Low Income Tax Offset</em>, which was previously
-defined as: <em>$445, reduced by 1.5c for every dollar earned over
-$37,000</em> (the current definition is more complex). We can implement
-it like so:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ot">lito ::</span> (<span class="dt">Fractional</span> a, <span class="dt">Ord</span> a) <span class="ot">=&gt;</span> <span class="dt">Tax</span> (<span class="dt">Money</span> a) (<span class="dt">Money</span> a)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>lito <span class="ot">=</span> limit <span class="fu">mempty</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  (lump (<span class="dt">Money</span> (<span class="op">-</span><span class="dv">445</span>)) <span class="op">&lt;&gt;</span> above (<span class="dt">Money</span> <span class="dv">37000</span>) <span class="fl">0.015</span>)</span></code></pre></div>
-<p><code>limit mempty</code> ensures that the result does not exceed $0.</p>
-<h3 id="withholding-tax">Withholding tax <a href="#withholding-tax" class="section">§</a></h3>
-<p>Many jurisdictions collect income taxes by requiring employers to
-remit a portion of employees’ wages directly to the tax authority.
-In Australia, the amount to <em>withhold</em> from a payment can be
-determined by extrapolating the amount to an annual income,
-computing the tax due, then dividing it back down to the pay period.</p>
-<p>We can use the <code>Profunctor</code> instance to compute the amount to
-withhold for different pay periods. Think of <code>dimap f g</code> as an
-adapter that modifies that data flowing in (via <code>f</code>) and out (via
-<code>g</code>) of the target computation.</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>allTaxes <span class="ot">=</span> ausTax <span class="op">&lt;&gt;</span> medicareLevy (<span class="dt">Money</span> <span class="dv">23226</span>) <span class="op">&lt;&gt;</span> lito</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>weeklyWithholding      <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">52</span>) (<span class="op">$/</span> <span class="dv">52</span>) allTaxes</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>fortnightlyWithholding <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">26</span>) (<span class="op">$/</span> <span class="dv">26</span>) allTaxes</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>monthlyWithholding     <span class="ot">=</span> dimap (<span class="op">$*</span> <span class="dv">12</span>) (<span class="op">$/</span> <span class="dv">12</span>) allTaxes</span></code></pre></div>
-<div class="note">
-<p>The examples above are not correct when there are 53 weekly or 27
-fortnightly payments in a financial year. Can you see how to define
-the correct computation?</p>
-<p>In the example I ignored some <strong>rounding</strong> rules. I also omitted
-several other tax components. It is an example, not a complete
-solution!</p>
-</div>
-<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
-<p>I hope you have enjoyed this tour of the <em>tax</em> library. Of course,
-most real tax systems are much more complex than the handful of
-examples in this article. But <em>tax</em> provides building blocks for
-defining many kinds of taxes.</p>
-<p>My <a href="https://github.com/frasertweedale/hs-tax-ato"><em>tax-ato</em></a> package builds upon <em>tax</em> to provide
-types and behaviour for tax in Australia. In addition to the
-kinds of taxes described in this article it also handles capital
-gains tax, <a href="https://en.wikipedia.org/wiki/Dividend_imputation">franking credits</a>, student loan repayments,
-deductions, and other concepts. I use it to predict and record my
-own tax obligations. If you need to perform calculations related to
-tax in Australia, you might find it useful too. It is definitely
-not complete and comes with no guarantee of correctness.</p>
-<p>One final note: oh how I wish Haskell would decouple numeric
-literals from the <code>Num</code> and <code>Fractional</code> type classes. <code>Money</code>
-cannot have instances of these type classes because like other
-dimensional types, it is is not <a href="https://en.wikipedia.org/wiki/Closure_(mathematics)">closed</a> under multiplication and
-division. As a consequence, we have to lift bare numeric values
-into <code>Money</code> in several places. Separate type classes for numeric
-literals would avoid this. (<code>IsIntegral</code> and <code>IsRational</code> might be
-sensible names, following the pattern of <code>IsString</code> and <code>IsList</code>).
-Ultimately this is a minor inconvenience, but does add friction to
-using <em>dollaridoos</em>, <em>tax</em>, and programs that use these libraries.</p>]]></summary>
 </entry>
 
 </feed>
