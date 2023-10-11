@@ -141,9 +141,9 @@ rate, starting at <code>1</code>. To make the numbers presentable we’ll also
 <p><a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:fmap"><code>fmap</code></a> applies a function (the first argument) to
 every element of a container or producer (the second argument).</p>
 </div>
-<p>Then we can apply the inflation to our uninflated costs by year.
-One thing I did not yet mention is that the fees above are nearly a
-year old and will be going up soon, so we’ll use
+<p>Then we can apply the inflation to our uninflated costs, year by
+year. One thing I did not yet mention is that the fees above are
+nearly a year old and will be going up soon, so we’ll use
 <a href="https://hackage.haskell.org/package/base-4.19.0.0/docs/Prelude.html#v:drop"><code>drop</code></a> to “shift left” the inflation figures by one
 year. Once more we use <code>zipWith</code> for a very neat expression:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>feesCombinedInflated <span class="ot">=</span></span>
@@ -172,7 +172,7 @@ the fund at the start of each year. Specifically, we use the
 <a href="https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#t:State"><code>State</code></a> type from the <a href="https://hackage.haskell.org/package/mtl"><em>mtl</em></a> library
 to define the computation.</p>
 <p>The model takes into account the contribution amount and the growth
-factor. To do this is has to work backwards in time. Each <code>step</code>
+factor. To do this it has to work backwards in time. Each <code>step</code>
 of the computation takes the schooling fee for that year, and the
 state value tracks the required balance of the fund.</p>
 <p>We define the <code>step</code> function, which considers what happens to the
