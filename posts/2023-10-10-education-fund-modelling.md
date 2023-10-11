@@ -160,9 +160,9 @@ every element of a container or producer (the second argument).
 
 :::
 
-Then we can apply the inflation to our uninflated costs by year.
-One thing I did not yet mention is that the fees above are nearly a
-year old and will be going up soon, so we'll use
+Then we can apply the inflation to our uninflated costs, year by
+year.  One thing I did not yet mention is that the fees above are
+nearly a year old and will be going up soon, so we'll use
 [`drop`][haddock-drop] to "shift left" the inflation figures by one
 year.  Once more we use `zipWith` for a very neat expression:
 
@@ -220,7 +220,7 @@ to define the computation.
 [haddock-State]: https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-State-Lazy.html#t:State
 
 The model takes into account the contribution amount and the growth
-factor.  To do this is has to work backwards in time.  Each `step`
+factor.  To do this it has to work backwards in time.  Each `step`
 of the computation takes the schooling fee for that year, and the
 state value tracks the required balance of the fund.
 
