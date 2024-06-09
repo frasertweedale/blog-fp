@@ -47,6 +47,27 @@ main = hakyll $ do
 
   tags <- buildTags "posts/*" (fromCapture "tags/*.html")
 
+  create ["whee.html"] $ do
+    let datums = [("Outer A", ["Inner A.1", "Inner A.2"]), ("Outer B", ["Inner B.1", "Inner B.2"])]
+    route idRoute
+    compile $ do
+      let
+        innerContext =
+          -- create String field "v" from the body of the item
+          bodyField "v"
+        outerContext =
+          -- create List field "inner" from the second level values (snd of pair);
+          -- render them with the innerContext
+          listFieldWith "inner" innerContext (traverse makeItem . snd . itemBody)
+          -- create String field "k" with the first-level value (fst of pair)
+          <> field "k" (pure . fst . itemBody)
+        pageContext =
+          -- create List field "outer" from the first-level values;
+          -- render them with outerContext
+          listField "outer" outerContext (traverse makeItem datums)
+      makeItem ()
+        >>= loadAndApplyTemplate "templates/whee.html" pageContext
+
   create ["archive.html"] $ do
     route idRoute
     compile $ do
