@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>pureblog - Type-level programming for safer resource management</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Type-level programming for safer resource management","datePublished":"2025-07-19T00:00:00"}</script>
+        <meta property="og:type" content="article" /><meta property="og:url" content="https://frasertweedale.github.io/blog-fp/posts/2025-07-19-type-nats-and-constraints.html" /><meta property="og:title" content="Type-level programming for safer resource management" /><meta property="og:description" content="I find type-level naturals useful for enforcing proper usage of APIs or protocols that involve transactions, locking, memory (de)allocation, and similar concerns. In this post I demonstrate the main idea and discuss some of the shortcomings when using this technique with Haskell." /><meta property="og:image" content="https://frase.id.au/photo_crikey_large.jpg" />
+        <meta name="twitter:card" content="summary" /><meta name="twitter:creator" content="@hackuador" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">pureblog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    
+    Tags: <a title="All pages tagged 'beginner-friendly'." href="../tags/beginner-friendly.html" rel="tag">beginner-friendly</a>, <a title="All pages tagged 'ghc'." href="../tags/ghc.html" rel="tag">ghc</a>
+    
+</div>
+
+<div id="postContent">
+    <h1 id="type-level-programming-for-safer-resource-management">Type-level programming for safer resource management</h1>
+<p>I find type-level naturals useful for enforcing proper usage of APIs
+or protocols that involve transactions, locking, memory
+(de)allocation, and similar concerns. In this post I demonstrate
+the main idea and discuss some of the shortcomings when using this
+technique with Haskell.</p>
+<h2 id="overview-of-the-technique">Overview of the technique <a href="#overview-of-the-technique" class="section">§</a></h2>
+<p>Consider the following API.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- provides type-level numeric literals</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE DataKinds #-}</span>  <span class="co">-- </span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">-- provides type-level numeric operations</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">GHC.TypeLits</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">openDatabase      ::</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> <span class="dv">0</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ot">startTransaction  ::</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">+</span> <span class="dv">1</span>))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ot">commitTransaction ::</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">-</span> <span class="dv">1</span>))</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ot">closeDatabase     ::</span> <span class="dt">DbHandle</span> <span class="dv">0</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
+<p>The phantom type parameter <code>n</code> in <code>DbHandle n</code> tracks the
+level of nested transactions. The database is initially opened at
+level <code>0</code> and can only be closed when the level is <code>0</code>. The API
+enforces that transactions must be committed. (Error handling and
+rollback is left as an exercise for the reader.)</p>
+<p>Here’s a trivial example of using this API:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> startTransaction <span class="op">=&lt;&lt;</span> openDatabase</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  commitTransaction db <span class="op">&gt;&gt;=</span> closeDatabase</span></code></pre></div>
+<p>All happy. But if we fail to commit the transaction…</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> startTransaction <span class="op">=&lt;&lt;</span> openDatabase</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>…then we get a type error:</p>
+<pre><code>ExampleX.hs:21:9: error: [GHC-83865]
+    • Couldn't match type ‘1’ with ‘0’
+      Expected: DbHandle 0 -&gt; IO (DbHandle 0)
+        Actual: DbHandle 0 -&gt; IO (DbHandle (0 + 1))
+    • In the first argument of ‘(=&lt;&lt;)’, namely ‘startTransaction’
+      In a stmt of a 'do' block: db &lt;- startTransaction =&lt;&lt; openDatabase
+      In the expression:
+        do db &lt;- startTransaction =&lt;&lt; openDatabase
+           closeDatabase db
+   |
+21 |   db &lt;- startTransaction =&lt;&lt; openDatabase
+   |         .hs:21:9: error: [GHC-83865]
+    • Couldn't match type ‘1’ with ‘0’
+      Expected: DbHandle 0 -&gt; IO (DbHandle 0)
+        Actual: DbHandle 0 -&gt; IO (DbHandle (0 + 1))
+    • In the first argument of ‘(=&lt;&lt;)’, namely ‘startTransaction’
+      In a stmt of a 'do' block: db &lt;- startTransaction =&lt;&lt; openDatabase
+      In the expression:
+        do db &lt;- startTransaction =&lt;&lt; openDatabase
+           closeDatabase db
+   |
+21 |   db &lt;- startTransaction =&lt;&lt; openDatabase
+   |</code></pre>
+<p>Very well.</p>
+<h2 id="unnatural-inhabitants">Unnatural inhabitants <a href="#unnatural-inhabitants" class="section">§</a></h2>
+<p>Because GHC’s type-level naturals are not a true inductive type,
+subtraction is allowed even when the result with be less than zero.
+In this case, the value just appears as an un-normalised <code>(0 - 1)</code>.
+We can see this in the type error when we attempt to compile the
+following program:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase  <span class="co">-- we didn't start a transaction</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  commitTransaction db <span class="op">&gt;&gt;=</span> closeDatabase</span></code></pre></div>
+<pre><code>X.hs:23:3: error: [GHC-83865]
+    • Couldn't match type ‘0 - 1’ with ‘0’
+      Expected: IO (DbHandle 0)
+        Actual: IO (DbHandle (0 - 1))</code></pre>
+<p>Unfortunately, the compiler could accept a program that commits a
+transaction when no transaction is in progress. The following
+program compiles without error:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  commitTransaction db  <span class="co">-- we didn't start a transaction</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pure</span> ()               <span class="co">-- we didn't close the database</span></span></code></pre></div>
+<h2 id="constraints-to-the-rescue">Constraints to the rescue <a href="#constraints-to-the-rescue" class="section">§</a></h2>
+<p>We can add a constraint to <code>commitTransaction</code> to ensure that it can
+only be applied to handles that are in a (possibly nested)
+transaction:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>commitTransaction</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">-</span> <span class="dv">1</span>))</span></code></pre></div>
+<p>Compiling the previous program now results in an error:</p>
+<pre><code>X.hs:25:3: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= 0
+    • In a stmt of a 'do' block: commitTransaction db
+      In the expression:
+        do db &lt;- openDatabase
+           commitTransaction db
+           pure ()
+</code></pre>
+<p>And the original (correct) program continues still compiles. But
+now it emits a <em>redundant constraint</em> warning:</p>
+<pre><code>X.hs:15:6: warning: [GHC-30606] [-Wredundant-constraints]
+    Redundant constraint: 1 &lt;= n
+    In the type signature for:
+         commitTransaction :: forall (n :: Natural).
+                              (1 &lt;= n) =&gt;
+                              DbHandle n -&gt; IO (DbHandle (n - 1))
+   |
+15 |   :: (1 &lt;= n)</code></pre>
+<p>This is a bit annoying. I don’t know how to dispel this error
+except to disable <code>-Wredundant-constraints</code>, and I don’t want to do
+that. But in the end, these few spurious warnings are a small price
+to pay for a safer API that prevents incorrect use at compile time.</p>
+<h2 id="ergonomics">Ergonomics <a href="#ergonomics" class="section">§</a></h2>
+<p>User code typically use locks, transactions or allocation in a
+<em>symmetric</em> way. In other words, they initialise a context, perform
+some actions, then tidy up. It makes sense to wrap this pattern up
+in a function that handles the bookkeeping:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">DbHandle</span> (<span class="ot">n ::</span> <span class="dt">Natural</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">DbHandle</span> (<span class="ot">m ::</span> <span class="dt">Natural</span>) <span class="ot">-&gt;</span> <span class="dt">IO</span> a)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>withTransaction db k <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  db' <span class="ot">&lt;-</span> startTransaction db</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  r <span class="ot">&lt;-</span> k db</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  commitTransaction db'</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pure</span> r</span></code></pre></div>
+<p>The <code>forall m.</code> (universal quantification) prevents improper use of
+the database handle (e.g. premature commit) by requiring the action
+function to work with database handles with any transaction level
+(including <code>0</code>).</p>
+<p>Unfortunately this code does not compile:</p>
+<pre><code>X.hs:28:3: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= n + 1
+    • In a stmt of a 'do' block: commitTransaction db'
+      In the expression:
+        do db' &lt;- startTransaction db
+           r &lt;- k db
+           commitTransaction db'
+           pure r</code></pre>
+<p>The proposition to be satisfied is obviously true. But again the
+lack of inductive reasoning in GHC’s type-level naturals bites us.
+Sprinkling this constraint into the type signature solves the
+problem (and also lets us avoid the explicit kind signatures):</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> (<span class="dv">1</span> <span class="op">&lt;=</span> m <span class="op">+</span> <span class="dv">1</span>) <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> m <span class="ot">-&gt;</span> <span class="dt">IO</span> a)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span></code></pre></div>
+<p>Now we can write a program that uses transactions like so:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db (<span class="fu">const</span> <span class="op">$</span> <span class="fu">pure</span> ())</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>Nested transactions also work:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    ( \db' <span class="ot">-&gt;</span> withTransaction db' (<span class="fu">const</span> <span class="op">$</span> <span class="fu">pure</span> ()) )</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>But operations that rely on knowing the transaction level—like
+committing—are excluded. This program:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db (\db' <span class="ot">-&gt;</span> commitTransaction db')</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>…results in a type error:</p>
+<pre><code>X.hs:38:31: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= m
+    • In the expression: commitTransaction db'
+      In the second argument of ‘withTransaction’, namely
+        ‘(\ db' -&gt; commitTransaction db')’
+      In a stmt of a 'do' block:
+        withTransaction db (\ db' -&gt; commitTransaction db')
+   |
+38 |   withTransaction db (\db' -&gt; commitTransaction db')
+   |                               ^^^^^^^^^^^^^^^^^</code></pre>
+<p>Which is exactly what we want.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>I have demonstrated a technique that enables safer APIs for
+resource-related operations such as locking/unlocking, transactions,
+and memory management. Some type-level boilerplate is needed to
+work around shortcomings in Haskell’s type-level naturals.</p>
+<p>We also discussed an idea to make the the API more ergonomic by
+providing a “wrapper” function that handles the initialisation and
+cleanup. You would need additional functionality to safely handle
+special operations that <em>should</em> be callable by user code, such as
+rollbacks. One idea is to use a sum type that allows
+user code to request special operations. For example:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">TransactionResult</span> a <span class="ot">=</span> <span class="dt">Rollback</span> <span class="op">|</span> <span class="dt">Commit</span> a</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> (<span class="dv">1</span> <span class="op">&lt;=</span> m <span class="op">+</span> <span class="dv">1</span>) <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> m <span class="ot">-&gt;</span> <span class="dt">TransactionResult</span> a)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">TransactionResult</span> a)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>withTransaction db k <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  db' <span class="ot">&lt;-</span> startTransaction db</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  r <span class="ot">&lt;-</span> k db</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>  <span class="kw">case</span> r <span class="kw">of</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Rollback</span> <span class="ot">-&gt;</span> rollback db' <span class="op">$&gt;</span> r</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Commit</span> _ <span class="ot">-&gt;</span> <span class="fu">pure</span> r</span></code></pre></div>
+<p>This is just a sketch of the idea (I haven’t tried it myself yet).
+I encourage interested readers to explore further and share their
+results.</p>
+</div>
+<div id="postFooter">
+    <div id="recent">
+Recent posts:
+<ul>
+    
+        <li>
+            <a href="../posts/2025-07-19-type-nats-and-constraints.html">Type-level programming for safer resource management</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2023-10-10-education-fund-modelling.html">Education fund modelling with Haskell</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2023-06-04-haskell-ci-use-executable.html"><code>haskell-ci</code> how-to: caching and using your program executable</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2022-09-23-ffi-safety-and-gc.html">Haskell FFI call safety and garbage collection</a>
+        </li>
+    
+        <li>
+            <a href="../posts/2022-05-31-ghc-test-suite.html">Writing tests for GHC</a>
+        </li>
+    
+</ul>
+
+<div id="recentLinks">
+    <a type="application/atom+xml" href="../atom.xml">Atom feed</a>
+     <!-- em space -->
+    <a href="../archive.html">All posts…</a>
+</div>
+
+</div>
+
+    <div id="license">
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        <img alt="Creative Commons License" style="border-width:0" src="https://licensebuttons.net/l/by/4.0/88x31.png">
+    </a>
+    <br />
+    Except where otherwise noted, this work is licensed under a
+    <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+        Creative Commons Attribution 4.0 International License
+    </a>.
+</div>
+
+</div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="footer">
+            Generated by
+            <a href="https://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>

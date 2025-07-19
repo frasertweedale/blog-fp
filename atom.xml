@@ -10,8 +10,220 @@
         <email>frase@frase.id.au</email>
         
     </author>
-    <updated>2023-10-10T00:00:00Z</updated>
+    <updated>2025-07-19T00:00:00Z</updated>
     <entry>
+    <title>Type-level programming for safer resource management</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2025-07-19-type-nats-and-constraints.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2025-07-19-type-nats-and-constraints.html</id>
+    <published>2025-07-19T00:00:00Z</published>
+    <updated>2025-07-19T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="type-level-programming-for-safer-resource-management">Type-level programming for safer resource management</h1>
+<p>I find type-level naturals useful for enforcing proper usage of APIs
+or protocols that involve transactions, locking, memory
+(de)allocation, and similar concerns. In this post I demonstrate
+the main idea and discuss some of the shortcomings when using this
+technique with Haskell.</p>
+<h2 id="overview-of-the-technique">Overview of the technique <a href="#overview-of-the-technique" class="section">§</a></h2>
+<p>Consider the following API.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- provides type-level numeric literals</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE DataKinds #-}</span>  <span class="co">-- </span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">-- provides type-level numeric operations</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">GHC.TypeLits</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">openDatabase      ::</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> <span class="dv">0</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ot">startTransaction  ::</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">+</span> <span class="dv">1</span>))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ot">commitTransaction ::</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">-</span> <span class="dv">1</span>))</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ot">closeDatabase     ::</span> <span class="dt">DbHandle</span> <span class="dv">0</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span></code></pre></div>
+<p>The phantom type parameter <code>n</code> in <code>DbHandle n</code> tracks the
+level of nested transactions. The database is initially opened at
+level <code>0</code> and can only be closed when the level is <code>0</code>. The API
+enforces that transactions must be committed. (Error handling and
+rollback is left as an exercise for the reader.)</p>
+<p>Here’s a trivial example of using this API:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> startTransaction <span class="op">=&lt;&lt;</span> openDatabase</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  commitTransaction db <span class="op">&gt;&gt;=</span> closeDatabase</span></code></pre></div>
+<p>All happy. But if we fail to commit the transaction…</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> startTransaction <span class="op">=&lt;&lt;</span> openDatabase</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>…then we get a type error:</p>
+<pre><code>ExampleX.hs:21:9: error: [GHC-83865]
+    • Couldn&#39;t match type ‘1’ with ‘0’
+      Expected: DbHandle 0 -&gt; IO (DbHandle 0)
+        Actual: DbHandle 0 -&gt; IO (DbHandle (0 + 1))
+    • In the first argument of ‘(=&lt;&lt;)’, namely ‘startTransaction’
+      In a stmt of a &#39;do&#39; block: db &lt;- startTransaction =&lt;&lt; openDatabase
+      In the expression:
+        do db &lt;- startTransaction =&lt;&lt; openDatabase
+           closeDatabase db
+   |
+21 |   db &lt;- startTransaction =&lt;&lt; openDatabase
+   |         .hs:21:9: error: [GHC-83865]
+    • Couldn&#39;t match type ‘1’ with ‘0’
+      Expected: DbHandle 0 -&gt; IO (DbHandle 0)
+        Actual: DbHandle 0 -&gt; IO (DbHandle (0 + 1))
+    • In the first argument of ‘(=&lt;&lt;)’, namely ‘startTransaction’
+      In a stmt of a &#39;do&#39; block: db &lt;- startTransaction =&lt;&lt; openDatabase
+      In the expression:
+        do db &lt;- startTransaction =&lt;&lt; openDatabase
+           closeDatabase db
+   |
+21 |   db &lt;- startTransaction =&lt;&lt; openDatabase
+   |</code></pre>
+<p>Very well.</p>
+<h2 id="unnatural-inhabitants">Unnatural inhabitants <a href="#unnatural-inhabitants" class="section">§</a></h2>
+<p>Because GHC’s type-level naturals are not a true inductive type,
+subtraction is allowed even when the result with be less than zero.
+In this case, the value just appears as an un-normalised <code>(0 - 1)</code>.
+We can see this in the type error when we attempt to compile the
+following program:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase  <span class="co">-- we didn&#39;t start a transaction</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  commitTransaction db <span class="op">&gt;&gt;=</span> closeDatabase</span></code></pre></div>
+<pre><code>X.hs:23:3: error: [GHC-83865]
+    • Couldn&#39;t match type ‘0 - 1’ with ‘0’
+      Expected: IO (DbHandle 0)
+        Actual: IO (DbHandle (0 - 1))</code></pre>
+<p>Unfortunately, the compiler could accept a program that commits a
+transaction when no transaction is in progress. The following
+program compiles without error:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- do stuff</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  commitTransaction db  <span class="co">-- we didn&#39;t start a transaction</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pure</span> ()               <span class="co">-- we didn&#39;t close the database</span></span></code></pre></div>
+<h2 id="constraints-to-the-rescue">Constraints to the rescue <a href="#constraints-to-the-rescue" class="section">§</a></h2>
+<p>We can add a constraint to <code>commitTransaction</code> to ensure that it can
+only be applied to handles that are in a (possibly nested)
+transaction:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>commitTransaction</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">DbHandle</span> (n <span class="op">-</span> <span class="dv">1</span>))</span></code></pre></div>
+<p>Compiling the previous program now results in an error:</p>
+<pre><code>X.hs:25:3: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= 0
+    • In a stmt of a &#39;do&#39; block: commitTransaction db
+      In the expression:
+        do db &lt;- openDatabase
+           commitTransaction db
+           pure ()
+</code></pre>
+<p>And the original (correct) program continues still compiles. But
+now it emits a <em>redundant constraint</em> warning:</p>
+<pre><code>X.hs:15:6: warning: [GHC-30606] [-Wredundant-constraints]
+    Redundant constraint: 1 &lt;= n
+    In the type signature for:
+         commitTransaction :: forall (n :: Natural).
+                              (1 &lt;= n) =&gt;
+                              DbHandle n -&gt; IO (DbHandle (n - 1))
+   |
+15 |   :: (1 &lt;= n)</code></pre>
+<p>This is a bit annoying. I don’t know how to dispel this error
+except to disable <code>-Wredundant-constraints</code>, and I don’t want to do
+that. But in the end, these few spurious warnings are a small price
+to pay for a safer API that prevents incorrect use at compile time.</p>
+<h2 id="ergonomics">Ergonomics <a href="#ergonomics" class="section">§</a></h2>
+<p>User code typically use locks, transactions or allocation in a
+<em>symmetric</em> way. In other words, they initialise a context, perform
+some actions, then tidy up. It makes sense to wrap this pattern up
+in a function that handles the bookkeeping:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">DbHandle</span> (<span class="ot">n ::</span> <span class="dt">Natural</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> <span class="dt">DbHandle</span> (<span class="ot">m ::</span> <span class="dt">Natural</span>) <span class="ot">-&gt;</span> <span class="dt">IO</span> a)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>withTransaction db k <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  db&#39; <span class="ot">&lt;-</span> startTransaction db</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  r <span class="ot">&lt;-</span> k db</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  commitTransaction db&#39;</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pure</span> r</span></code></pre></div>
+<p>The <code>forall m.</code> (universal quantification) prevents improper use of
+the database handle (e.g. premature commit) by requiring the action
+function to work with database handles with any transaction level
+(including <code>0</code>).</p>
+<p>Unfortunately this code does not compile:</p>
+<pre><code>X.hs:28:3: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= n + 1
+    • In a stmt of a &#39;do&#39; block: commitTransaction db&#39;
+      In the expression:
+        do db&#39; &lt;- startTransaction db
+           r &lt;- k db
+           commitTransaction db&#39;
+           pure r</code></pre>
+<p>The proposition to be satisfied is obviously true. But again the
+lack of inductive reasoning in GHC’s type-level naturals bites us.
+Sprinkling this constraint into the type signature solves the
+problem (and also lets us avoid the explicit kind signatures):</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> (<span class="dv">1</span> <span class="op">&lt;=</span> m <span class="op">+</span> <span class="dv">1</span>) <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> m <span class="ot">-&gt;</span> <span class="dt">IO</span> a)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> a</span></code></pre></div>
+<p>Now we can write a program that uses transactions like so:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db (<span class="fu">const</span> <span class="op">$</span> <span class="fu">pure</span> ())</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>Nested transactions also work:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    ( \db&#39; <span class="ot">-&gt;</span> withTransaction db&#39; (<span class="fu">const</span> <span class="op">$</span> <span class="fu">pure</span> ()) )</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>But operations that rely on knowing the transaction level—like
+committing—are excluded. This program:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  db <span class="ot">&lt;-</span> openDatabase</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  withTransaction db (\db&#39; <span class="ot">-&gt;</span> commitTransaction db&#39;)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  closeDatabase db</span></code></pre></div>
+<p>…results in a type error:</p>
+<pre><code>X.hs:38:31: error: [GHC-64725]
+    • Cannot satisfy: 1 &lt;= m
+    • In the expression: commitTransaction db&#39;
+      In the second argument of ‘withTransaction’, namely
+        ‘(\ db&#39; -&gt; commitTransaction db&#39;)’
+      In a stmt of a &#39;do&#39; block:
+        withTransaction db (\ db&#39; -&gt; commitTransaction db&#39;)
+   |
+38 |   withTransaction db (\db&#39; -&gt; commitTransaction db&#39;)
+   |                               ^^^^^^^^^^^^^^^^^</code></pre>
+<p>Which is exactly what we want.</p>
+<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
+<p>I have demonstrated a technique that enables safer APIs for
+resource-related operations such as locking/unlocking, transactions,
+and memory management. Some type-level boilerplate is needed to
+work around shortcomings in Haskell’s type-level naturals.</p>
+<p>We also discussed an idea to make the the API more ergonomic by
+providing a “wrapper” function that handles the initialisation and
+cleanup. You would need additional functionality to safely handle
+special operations that <em>should</em> be callable by user code, such as
+rollbacks. One idea is to use a sum type that allows
+user code to request special operations. For example:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">TransactionResult</span> a <span class="ot">=</span> <span class="dt">Rollback</span> <span class="op">|</span> <span class="dt">Commit</span> a</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>withTransaction</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> (<span class="dv">1</span> <span class="op">&lt;=</span> n <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> n</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> (<span class="kw">forall</span> m<span class="op">.</span> (<span class="dv">1</span> <span class="op">&lt;=</span> m <span class="op">+</span> <span class="dv">1</span>) <span class="ot">=&gt;</span> <span class="dt">DbHandle</span> m <span class="ot">-&gt;</span> <span class="dt">TransactionResult</span> a)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">TransactionResult</span> a)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>withTransaction db k <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  db&#39; <span class="ot">&lt;-</span> startTransaction db</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  r <span class="ot">&lt;-</span> k db</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>  <span class="kw">case</span> r <span class="kw">of</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Rollback</span> <span class="ot">-&gt;</span> rollback db&#39; <span class="op">$&gt;</span> r</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Commit</span> _ <span class="ot">-&gt;</span> <span class="fu">pure</span> r</span></code></pre></div>
+<p>This is just a sketch of the idea (I haven’t tried it myself yet).
+I encourage interested readers to explore further and share their
+results.</p>]]></summary>
+</entry>
+<entry>
     <title>Education fund modelling with Haskell</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2023-10-10-education-fund-modelling.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2023-10-10-education-fund-modelling.html</id>
@@ -418,24 +630,15 @@ that Hackage may complain about if you try to publish your package
 there. This could be a mild annoyance for private or toy
 projects.</li>
 </ul>
-<h3 id="adding-haddock-and-hlint-jobs">Adding Haddock and HLint jobs <a href="#adding-haddock-and-hlint-jobs" class="section">§</a></h3>
-<p><code>haskell-ci</code> makes it easy to add <a href="https://haskell-haddock.readthedocs.io/en/latest/">Haddock</a> (build documentation) and
-<a href="https://hackage.haskell.org/package/hlint">HLint</a> (source code suggestions) jobs to your workflow. Just use the
-<code>--haddock</code> and <code>--hlint</code> options when creating the workflow:</p>
-<pre class="shell"><code>% haskell-ci github --haddock --hlint path/to/package.cabal</code></pre>
+<h3 id="building-documentation">Building documentation <a href="#building-documentation" class="section">§</a></h3>
+<p><code>haskell-ci</code> makes it easy to build package documentation during
+your CI jobs. All you need to do is use the <code>--haddock</code> option when
+creating the workflow, and it will add a step that runs the
+<a href="https://haskell-haddock.readthedocs.io/en/latest/">Haddock</a> tool.</p>
+<pre class="shell"><code>% haskell-ci github --haddock path/to/package.cabal</code></pre>
 <p>The Haddock step (if enabled) runs on every job in the build matrix.
 Haddock is part of the GHC toolchain so there are no extra
 dependencies.</p>
-<p>HLint <em>is</em> an extra dependency; if the HLint step is enabled, it
-will install it via <code>cabal v2-install</code>. The HLint step is skipped
-for all but one of the jobs in the matrix—by default, the most
-recent version of GHC.</p>
-<div class="note">
-<p><code>haskell-ci</code> prefers a particular version of <code>HLint</code>. Sometimes
-that version of HLint doesn’t build against the latest version of
-GHC. Use the <code>--hlint-job</code> option to override the job:</p>
-<pre class="shell"><code>% haskell-ci github --hlint --hlint-job 9.4.5 foo.cabal</code></pre>
-</div>
 <h3 id="updating-the-build-matrix">Updating the build matrix <a href="#updating-the-build-matrix" class="section">§</a></h3>
 <p>When a new release of GHC comes along, updating the <code>haskell-ci</code>
 workflow is as simple as adding it to the <code>tested-with</code> list, then
@@ -473,27 +676,27 @@ they can also be downloaded by anyone with access to the
 repository. This is the appropriate mechanism for our use case.</li>
 </ul>
 <div class="note">
-<p>By default GitHub retains artifacts for 90 days. The <a href="https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts#configuring-a-custom-artifact-retention-period">duration can
-be customised</a>.</p>
+<p>By default GitHub retains artifacts for 90 days. If this is not
+suitable you can <a href="https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts#configuring-a-custom-artifact-retention-period">customise the duration</a>.</p>
 </div>
 <p>We need to add two steps to the <code>linux</code> job. First we install the
 <code>hsec-tools</code> executable. It was already built—this just copies it
 to a known location. <code>--install-method=copy</code> ensures the executable
 is copied to that location, not symlinked.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> install executable</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>          $CABAL v2-install $ARG_COMPILER \</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>            --install-method=copy exe:hsec-tools</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> install executable</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>          $CABAL v2-install $ARG_COMPILER \</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>            --install-method=copy exe:hsec-tools</span></code></pre></div>
 <p>The second step uses the <code>upload-artifact</code> action to archive the
 executable. The artifact <em>bundle name</em> includes the commit hash.
 The file <em>within the bundle</em> keeps the name <code>hsec-tools</code>.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> upload executable</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/upload-artifact@v3</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.cabal/bin/hsec-tools</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> upload executable</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/upload-artifact@v3</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.cabal/bin/hsec-tools</span></span></code></pre></div>
 <div class="note">
 <p>All <em>Haskell</em> dependencies are statically linked in the binary. It
 does need some system libraries including <em>libgmp</em> and <em>libffi</em>.
@@ -501,7 +704,7 @@ But we do not need to preserve the Cabal store or provide the GHC
 toolchain when we use the artifact.</p>
 </div>
 <p>Notice that each of the new steps has the condition:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> matrix.compiler == &#39;ghc-9.6.2&#39;</span></span></code></pre></div>
 <p>The build matrix produces jobs for several different GHC versions.
 But we only need one copy of the <code>hsec-tools</code> executable. I’m not
 totally happy with this approach because the patch will need
@@ -551,55 +754,55 @@ the reusable workflow definition changes.</li>
 <p>The <em>check-advisories</em> workflow is defined in
 <code>.github/workflows/check-advisories.yml</code>. The full content is
 below, with commentary.</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Check security advisories</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">workflow_call</span><span class="kw">:</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">inputs</span><span class="kw">:</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Check security advisories</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">workflow_call</span><span class="kw">:</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">inputs</span><span class="kw">:</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span></span></code></pre></div>
 <p>The <code>workflow_call</code> trigger condition establishes it as a reusable
 workflow. We also define the <code>artifact-name</code> input. The caller is
 <code>required</code> to provide it.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-20.04</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v3</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> source</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-20.04</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v3</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> source</span></span></code></pre></div>
 <p>The workflow has a single job called <code>check-advisories</code>. As usual
 the first step is to check out the repository.</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> mkdir -p .local/bin</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> download</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/download-artifact@v3</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> ${{ inputs.artifact-name }}</span></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.local/bin</span></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> chmod +x ~/.local/bin/hsec-tools</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> mkdir -p .local/bin</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> download</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/download-artifact@v3</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> ${{ inputs.artifact-name }}</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> ~/.local/bin</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> chmod +x ~/.local/bin/hsec-tools</span></span></code></pre></div>
 <p>Next we download the <code>hsec-tools</code> artifact to <code>~/.local/bin</code>, which
 is in the <code>PATH</code>. Then we <code>chmod</code> it to make it executable.</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> run checks</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>          cd source</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>          RESULT=0</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>          while read FILE ; do</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>            echo -n &quot;$FILE: &quot;</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>            hsec-tools check &lt; &quot;$FILE&quot; || RESULT=1</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>          done &lt; &lt;(find advisories EXAMPLE_ADVISORY.md -name &quot;*.md&quot;)</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>          exit $RESULT</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> run checks</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>          cd source</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>          RESULT=0</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>          while read FILE ; do</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>            echo -n &quot;$FILE: &quot;</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>            hsec-tools check &lt; &quot;$FILE&quot; || RESULT=1</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>          done &lt; &lt;(find advisories EXAMPLE_ADVISORY.md -name &quot;*.md&quot;)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>          exit $RESULT</span></code></pre></div>
 <p>Finally we <code>find</code> all the advisory files and run <code>hsec-tools check</code>
 on each one. If any of the checks fail the whole job fails (after
 checking each file—we don’t want to short-circuit).</p>
 <h2 id="calling-the-check-advisories-workflow">Calling the <em>check-advisories</em> workflow <a href="#calling-the-check-advisories-workflow" class="section">§</a></h2>
 <p>Add a new job to the <code>haskell-ci.yml</code> workflow. It must be a
 <strong>separate job</strong>, not a <em>step</em> of the existing <code>linux</code> job.</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Invoke check-advisories workflow</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">needs</span><span class="kw">:</span><span class="at"> linux</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> ./.github/workflows/check-advisories.yml</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">with</span><span class="kw">:</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">check-advisories</span><span class="kw">:</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Invoke check-advisories workflow</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">needs</span><span class="kw">:</span><span class="at"> linux</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> ./.github/workflows/check-advisories.yml</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">artifact-name</span><span class="kw">:</span><span class="at"> hsec-tools-${{ github.sha }}</span></span></code></pre></div>
 <p>The meaning of the fields is as follows:</p>
 <ul>
 <li><strong><code>uses</code></strong>: <em>calls</em> the <code>check-advisories.yml</code> workflow.</li>
@@ -609,36 +812,36 @@ case is the <code>artifact-name</code>.</li>
 </ul>
 <div class="note">
 <p>You can call workflows defined in other repositories. For example:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">uses</span><span class="kw">:</span><span class="at"> user-or-org/repo/.github/workflows/workflow.yml@v1</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">uses</span><span class="kw">:</span><span class="at"> user-or-org/repo/.github/workflows/workflow.yml@v1</span></span></code></pre></div>
 </div>
 <h2 id="patching-haskell-ci.yml">Patching <code>haskell-ci.yml</code> <a href="#patching-haskell-ci.yml" class="section">§</a></h2>
 <p>At this stage I have committed the <code>check-advisories.yml</code> reusable
 workflow. I also have <em>uncommitted changes</em> to <code>haskell-ci.yml</code>:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">diff --git a/.github/workflows/haskell-ci.yml b/.github/workflows/haskell-ci.yml</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>index d51bb64..7ff8684 100644</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="dt">--- a/.github/workflows/haskell-ci.yml</span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="dt">+++ b/.github/workflows/haskell-ci.yml</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="dt">@@ -224,3 +224,19 @@ jobs:</span></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>         with:</span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}</span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>           path: ~/.cabal/store</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: install executable</span></span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="va">+        run: |</span></span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="va">+          $CABAL v2-install $ARG_COMPILER \</span></span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="va">+            --install-method=copy exe:hsec-tools</span></span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: upload executable</span></span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="va">+        uses: actions/upload-artifact@v3</span></span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
-<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="va">+        with:</span></span>
-<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="va">+          name: hsec-tools-${{ github.sha }}</span></span>
-<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="va">+          path: ~/.cabal/bin/hsec-tools</span></span>
-<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="va">+  check-advisories:</span></span>
-<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="va">+    name: Invoke check-advisories workflow</span></span>
-<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="va">+    needs: linux</span></span>
-<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="va">+    uses: ./.github/workflows/check-advisories.yml</span></span>
-<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="va">+    with:</span></span>
-<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a><span class="va">+      artifact-name: hsec-tools-${{ github.sha }}</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">diff --git a/.github/workflows/haskell-ci.yml b/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>index d51bb64..7ff8684 100644</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="dt">--- a/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="dt">+++ b/.github/workflows/haskell-ci.yml</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="dt">@@ -224,3 +224,19 @@ jobs:</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>         with:</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>           path: ~/.cabal/store</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: install executable</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="va">+        run: |</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="va">+          $CABAL v2-install $ARG_COMPILER \</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="va">+            --install-method=copy exe:hsec-tools</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="va">+      - name: upload executable</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a><span class="va">+        uses: actions/upload-artifact@v3</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="va">+        if: matrix.compiler == &#39;ghc-9.6.2&#39;</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a><span class="va">+        with:</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="va">+          name: hsec-tools-${{ github.sha }}</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="va">+          path: ~/.cabal/bin/hsec-tools</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="va">+  check-advisories:</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="va">+    name: Invoke check-advisories workflow</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="va">+    needs: linux</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="va">+    uses: ./.github/workflows/check-advisories.yml</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="va">+    with:</span></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="va">+      artifact-name: hsec-tools-${{ github.sha }}</span></span></code></pre></div>
 <p>We could commit these changes <em>as is</em>, but they will be lost the
 next time we run <code>haskell-ci regenerate</code>. Instead create a <em>patch</em>
 file:</p>
@@ -1869,154 +2072,6 @@ helper function. Example usage:</p>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  compile <span class="op">$</span> unsafeCompiler <span class="op">$</span> doStuff</span></code></pre></div>
 <p>This feature was accepted and will appear in a future release of
 Hakyll.</p>]]></summary>
-</entry>
-<entry>
-    <title>Generating abstracts for Hakyll articles</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-06-11-hakyll-abstracts.html</id>
-    <published>2021-06-11T00:00:00Z</published>
-    <updated>2021-06-11T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="generating-abstracts-for-hakyll-articles">Generating abstracts for Hakyll articles</h1>
-<p>Suppose you have a list of recent posts and want to include an
-abstract for each one. Or maybe you want to include brief article
-summaries in metadata about your content. <span class="abstract">In this post I
-demonstrate several ways to declare or generate abstracts for
-content on your <a href="https://jaspervdj.be/hakyll/">Hakyll</a> site.</span></p>
-<h2 id="objective">Objective <a href="#objective" class="section">§</a></h2>
-<p>The goal is to include an <code>$abstract$</code> field in each article’s
-context. The field value should be a brief abstract or description
-of the article. What to actually <em>do</em> with the value is outside the
-scope of this post. But it is fair to include an example, so here’s
-how you could use it in a “recent posts” list:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">ul</span><span class="dt">&gt;</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  $for(posts)$</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;</span><span class="kw">li</span><span class="dt">&gt;&lt;</span><span class="kw">a</span><span class="ot"> href</span><span class="op">=</span><span class="st">&quot;$url$&quot;</span><span class="dt">&gt;</span>$title$<span class="dt">&lt;/</span><span class="kw">a</span><span class="dt">&gt;</span>: $abstract$<span class="dt">&lt;/</span><span class="kw">li</span><span class="dt">&gt;</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  $endfor$</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">ul</span><span class="dt">&gt;</span></span></code></pre></div>
-<p>I will discuss a more interesting use case in a future post.</p>
-<h2 id="metadata">Metadata <a href="#metadata" class="section">§</a></h2>
-<p>Hakyll processes optional metadata at the top of the article source.
-The format is YAML. Fields in the YAML map are available via
-<a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:metadataField"><code>metadataField</code></a>, which is also part of the
-<a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Template-Context.html#v:defaultContext"><code>defaultContext</code></a>.</p>
-<p>So you can define an abstract in the metadata, like so:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">tags</span><span class="kw">:</span><span class="at"> hakyll, pandoc</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">abstract</span><span class="kw">: </span><span class="ch">&gt;</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  In this post I demonstrate several ways to generate</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  abstracts for articles in your Hakyll site.</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Generating abstracts for Hakyll articles</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="at">…</span></span></code></pre></div>
-<div class="note">
-<p>Be careful of including HTML special characters (<code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>,
-<code>'</code>) in the metadata. These will <em>not</em> be escaped automatically,
-and could break the page. I avoid this pitfall by escaping all
-values that come from <code>metadataField</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>context <span class="ot">=</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  mapContext escapeHtml metadataField </span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
-</div>
-<h2 id="markup">Markup <a href="#markup" class="section">§</a></h2>
-<p>I don’t like repeating myself. If I were to use <code>metadataField</code>,
-the abstract I write would often be a repeat the article’s
-introduction or some part thereof. Wouldn’t it be nice if I could
-just indicate—<em>inline</em>—a portion of the article to use as the
-abstract? For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Generating abstracts for Hakyll articles</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Suppose you have … [In this post I demonstrate several</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>ways to generate abstracts for articles in your Hakyll</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>site.]{.abstract}</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>…</span></code></pre></div>
-<p>The example above uses Pandoc’s <code>bracketed_spans</code> extension. You
-could achieve the same with explicit <code>&lt;span&gt;</code> tags. Other input
-formats may or may not provide a way to do it.</p>
-<p>On the Hakyll side, we first need a function to locate a span with
-the <code>abstract</code> class in the <code>Pandoc</code> AST:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  removeFormatting <span class="op">&lt;$&gt;</span> findSpan blocks</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  findSpan <span class="ot">=</span> <span class="fu">fmap</span> getFirst <span class="op">.</span> query <span class="op">$</span> \inl <span class="ot">-&gt;</span> <span class="kw">case</span> inl <span class="kw">of</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Span</span> (_id, cls, _attrs) inls</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="st">&quot;abstract&quot;</span> <span class="ot">`elem`</span> cls <span class="ot">-&gt;</span> <span class="dt">First</span> (<span class="dt">Just</span> inls)</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    _                           <span class="ot">-&gt;</span> <span class="fu">mempty</span></span></code></pre></div>
-<p>In the unlikely event that there are multiple spans with class
-<code>abstract</code>, the <code>First [Inline]</code> monoid keeps only the first. I
-strip all formatting via <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting"><code>removeFormatting</code></a>,
-which I <a href="2021-01-11-hakyll-title-formatting.html#removeFormatting">described</a> in a previous post.</p>
-<p>The next step is to update the compiler to save a
-snapshot of the abstract.
-<a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Web-Pandoc.html#v:pandocCompilerWithTransformM"><code>pandocCompilerWithTransformM</code></a>
-gives access to the <code>Pandoc</code> AST, and allows arbitrary
-<code>Compiler</code> actions including <code>saveSnapshot</code>.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>match <span class="st">&quot;posts/*&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  compile <span class="op">$</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    pandocCompilerWithTransformM</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>      defaultHakyllReaderOptions</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      defaultHakyllWriterOptions</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>      (\pandoc <span class="ot">-&gt;</span> <span class="kw">do</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> render <span class="ot">=</span> <span class="fu">fmap</span> writePandoc <span class="op">.</span> makeItem</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>                     <span class="op">.</span> <span class="dt">Pandoc</span> <span class="fu">mempty</span> <span class="op">.</span> <span class="fu">pure</span> <span class="op">.</span> <span class="dt">Plain</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="fu">maybe</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>            (<span class="fu">pure</span> ())</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            (void <span class="op">.</span> (saveSnapshot <span class="st">&quot;abstract&quot;</span> <span class="op">&lt;=&lt;</span> render))</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>            (abstract pandoc)</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="fu">pure</span> pandoc</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">&gt;&gt;=</span> loadAndApplyTemplate <span class="st">&quot;templates/post.html&quot;</span> context</span></code></pre></div>
-<p>Finally we define a new kind of context field that can read
-snapshots:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">snapshotField ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Snapshot</span> <span class="ot">-&gt;</span> <span class="dt">Context</span> <span class="dt">String</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>snapshotField key snap <span class="ot">=</span> field key <span class="op">$</span> \item <span class="ot">-&gt;</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  loadSnapshotBody item snap</span></code></pre></div>
-<p>and add the field to the context:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>context <span class="ot">=</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
-<h2 id="autogeneration">Autogeneration <a href="#autogeneration" class="section">§</a></h2>
-<p>Consider the following heuristic for autogenerating an abstract:
-Take the first paragraph that immediately precedes a heading; that
-is the abstract.</p>
-<p>This is a very basic heuristic. But absent other data it’s probably
-better than nothing. So let’s implement it:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">abstract ::</span> <span class="dt">Pandoc</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Inline</span>]</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>abstract (<span class="dt">Pandoc</span> _ blocks) <span class="ot">=</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  removeFormatting <span class="op">&lt;$&gt;</span> fallback</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  fallback (<span class="dt">Para</span> inlines <span class="op">:</span> <span class="dt">Header</span> _ _ _ <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Just</span> inlines</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  fallback (_h <span class="op">:</span> t) <span class="ot">=</span> fallback t</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  fallback [] <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
-<p>This version of <code>abstract</code> scans the list of block elements at the
-top level of the <code>Pandoc</code> AST. The first time it sees a <code>Para</code>
-preceding a <code>Header</code>, it returns the paragraph content.</p>
-<h2 id="putting-it-all-together">Putting it all together <a href="#putting-it-all-together" class="section">§</a></h2>
-<p>For my sites, I want to use all three methods described above. An
-abstract specified in the <em>metadata</em> is preferred. Explicit
-<em>markup</em> is my second preference and the <em>autogeneration</em> heuristic
-is a last resort. This will provide a good user experience for me.
-With a tiny bit of markup I can avoid repeating myself most of the
-time. But if it is warranted, I can use the metadata to write
-something different. Sometimes I’ll get a fair result without doing
-anything.</p>
-<p>Combining the two versions of <code>abstract</code> is left as an exercise for
-the reader (hint: <code>Control.Applicative.&lt;|&gt;</code>).</p>
-<p>Take care when composing the context. The <code>metadataField</code> has to
-come before the <code>snapshotField</code> (if that’s the priority you want):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">context ::</span> <span class="dt">Context</span> <span class="dt">String</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>context <span class="ot">=</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  mapContext escapeHtml metadataField</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> snapshotField <span class="st">&quot;abstract&quot;</span> <span class="st">&quot;abstract&quot;</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> …</span></code></pre></div>
-<p>Now I have a nice way to generate abstracts for my articles. I will
-explore an interesting use case in an upcoming post.</p>]]></summary>
 </entry>
 
 </feed>
