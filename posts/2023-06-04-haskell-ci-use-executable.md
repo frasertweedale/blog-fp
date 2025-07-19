@@ -140,39 +140,22 @@ observations about the steps in the `haskell-ci` workflow.
 [GHCUp]: https://www.haskell.org/ghcup/
 
 
-### Adding Haddock and HLint jobs
+### Building documentation
 
-`haskell-ci` makes it easy to add [Haddock][] (build documentation) and
-[HLint][] (source code suggestions) jobs to your workflow.  Just use the
-`--haddock` and `--hlint` options when creating the workflow:
+`haskell-ci` makes it easy to build package documentation during
+your CI jobs.  All you need to do is use the `--haddock` option when
+creating the workflow, and it will add a step that runs the
+[Haddock][] tool.
 
 ```shell
-% haskell-ci github --haddock --hlint path/to/package.cabal
+% haskell-ci github --haddock path/to/package.cabal
 ```
 
-[HLint]: https://hackage.haskell.org/package/hlint
 [Haddock]: https://haskell-haddock.readthedocs.io/en/latest/
 
 The Haddock step (if enabled) runs on every job in the build matrix.
 Haddock is part of the GHC toolchain so there are no extra
 dependencies.
-
-HLint *is* an extra dependency; if the HLint step is enabled, it
-will install it via `cabal v2-install`.  The HLint step is skipped
-for all but one of the jobs in the matrix—by default, the most
-recent version of GHC.
-
-::: note
-
-`haskell-ci` prefers a particular version of `HLint`.  Sometimes
-that version of HLint doesn't build against the latest version of
-GHC.  Use the `--hlint-job` option to override the job:
-
-```shell
-% haskell-ci github --hlint --hlint-job 9.4.5 foo.cabal
-```
-
-:::
 
 
 ### Updating the build matrix
@@ -226,8 +209,8 @@ between jobs.
 
 ::: note
 
-By default GitHub retains artifacts for 90 days.  The [duration can
-be customised][gh-artifact-retention-period].
+By default GitHub retains artifacts for 90 days.  If this is not
+suitable you can [customise the duration][gh-artifact-retention-period].
 
 :::
 
