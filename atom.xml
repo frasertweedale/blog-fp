@@ -10,8 +10,119 @@
         <email>frase@frase.id.au</email>
         
     </author>
-    <updated>2025-07-19T00:00:00Z</updated>
+    <updated>2026-03-28T00:00:00Z</updated>
     <entry>
+    <title>Generating Hakyll pages from Haskell source</title>
+    <link href="https://frasertweedale.github.io/blog-fp/posts/2026-03-28-hakyll-pages-from-haskell-source.html" />
+    <id>https://frasertweedale.github.io/blog-fp/posts/2026-03-28-hakyll-pages-from-haskell-source.html</id>
+    <published>2026-03-28T00:00:00Z</published>
+    <updated>2026-03-28T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<h1 id="generating-hakyll-pages-from-haskell-source">Generating Hakyll pages from Haskell source</h1>
+<p>In typical use, Hakyll programs convert external content files into
+HTML pages. But what if your content is defined in Haskell source
+files that are part of the Hakyll program? That can work—but you
+need a trick or two. In this post I’ll show you how.</p>
+<h2 id="the-scenario">The scenario <a href="#the-scenario" class="section">§</a></h2>
+<p>For whatever reason, you’ve got some Haskell data structure you want
+to present somehow. A typical example would be a list or table or
+tree of data. My use case was a list of objects describing some
+files, to be presented as a table. A file may or may not be
+available for download (<code>Maybe FilePath</code>).</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Files</span> <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">File</span> <span class="ot">=</span> <span class="dt">File</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> fileDate ::</span> <span class="dt">String</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> fileName ::</span> <span class="dt">Maybe</span> <span class="dt">FilePath</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> fileDesc ::</span> <span class="dt">String</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">fileList ::</span> [<span class="dt">File</span>]</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>fileList <span class="ot">=</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  [ <span class="dt">File</span> <span class="st">&quot;2026-01-15&quot;</span> (<span class="dt">Just</span> <span class="st">&quot;alice-to-tribunal.pdf&quot;</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Alice&#39;s submissions to the Tribunal&quot;</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  , <span class="dt">File</span> <span class="st">&quot;2025-12-23&quot;</span> <span class="dt">Nothing</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Bob&#39;s submissions to the Tribunal (confidential)&quot;</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  , <span class="dt">File</span> <span class="st">&quot;2025-12-17&quot;</span> (<span class="dt">Just</span> <span class="st">&quot;tribunal-directions.pdf&quot;</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Orders made at the directions hearing&quot;</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  ]</span></code></pre></div>
+<p>I want Hakyll to generate an HTML page that formats this list as a
+<code>&lt;table&gt;</code>. Importantly, I also want Hakyll to notice when
+<code>Files.hs</code> changes and update the output, <em>even when nothing else
+changed</em>.</p>
+<h2 id="context-and-template">Context and template <a href="#context-and-template" class="section">§</a></h2>
+<p>We first define how to process a <code>File</code> into a <code>Context File</code> that
+can be fed to a template.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">fileContext ::</span> <span class="dt">Context</span> <span class="dt">File</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>fileContext <span class="ot">=</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  field <span class="st">&quot;filename&quot;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    ( <span class="fu">maybe</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        (noResult <span class="st">&quot;unavailable&quot;</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        (<span class="fu">pure</span> <span class="op">.</span> toUrl <span class="op">.</span> (<span class="st">&quot;files/&quot;</span> <span class="op">&lt;&gt;</span>))</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span> fileName <span class="op">.</span> itemBody )</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> field <span class="st">&quot;date&quot;</span> (<span class="fu">pure</span> <span class="op">.</span> fileDate <span class="op">.</span> itemBody)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;&gt;</span> field <span class="st">&quot;desc&quot;</span> (<span class="fu">pure</span> <span class="op">.</span> fileDesc <span class="op">.</span> itemBody)</span></code></pre></div>
+<p>The Hakyll compiler for the HTML page populates a <code>listField</code> with
+contents of <code>fileList</code>. <code>fileContext</code> generates the context for the
+individual items.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Hakyll</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Files</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> hakyll <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  create [<span class="st">&quot;files.html&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    route idRoute</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    compile <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> filesContext <span class="ot">=</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>            listField <span class="st">&quot;files&quot;</span> fileContext</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>              (<span class="fu">traverse</span> makeItem fileList)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>      makeItem <span class="st">&quot;&quot;</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="op">&gt;&gt;=</span> loadAndApplyTemplate</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;templates/files.html&quot;</span> filesContext</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        <span class="op">&gt;&gt;=</span> loadAndApplyTemplate</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;templates/default.html&quot;</span> defaultContext</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        <span class="op">&gt;&gt;=</span> relativizeUrls</span></code></pre></div>
+<p>The template content follows:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">table</span><span class="ot"> id</span><span class="op">=</span><span class="st">&quot;files&quot;</span><span class="dt">&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;</span><span class="kw">tr</span><span class="dt">&gt;&lt;</span><span class="kw">th</span><span class="ot"> colspan</span><span class="op">=</span><span class="st">&quot;3&quot;</span><span class="dt">&gt;</span>Tribunal proceeding files<span class="dt">&lt;/</span><span class="kw">th</span><span class="dt">&gt;&lt;/</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    $for(files)$</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span>$date$<span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        $if(filename)$</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;&lt;</span><span class="kw">a</span><span class="ot"> href</span><span class="op">=</span><span class="st">&quot;$filename$&quot;</span><span class="dt">&gt;</span>download<span class="dt">&lt;/</span><span class="kw">a</span><span class="dt">&gt;&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        $else$</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;&lt;</span><span class="kw">em</span><span class="dt">&gt;</span>N/A<span class="dt">&lt;/</span><span class="kw">em</span><span class="dt">&gt;&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        $endif$</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span>$desc$<span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;/</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    $endfor$</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">table</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>The <code>noResult</code> in the <code>Nothing</code> case for the <code>fileName</code> field is
+what makes the <code>$if(filename)$</code> / <code>$else$</code> conditional work. Apart
+from that, the template is trivial.</p>
+<h2 id="recompiling-on-change">Recompiling on change <a href="#recompiling-on-change" class="section">§</a></h2>
+<p>One more thing. Because the source of the data is not a markdown
+(or whatever) file, Hakyll won’t automatically notice if the data
+changed and regenerate the HTML. We have to set up an explicit
+dependency on the Haskell source file.</p>
+<p>Add a <code>match</code> rule for the relevant <code>.hs</code> file, so that Hakyll will
+monitor it. Also update the compiler for <code>files.html</code> load the
+<code>Files.hs</code> “item”, to establish the dependency:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> hakyll <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  match <span class="st">&quot;Files.hs&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    compile <span class="op">$</span> makeItem ()</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  create [<span class="st">&quot;files.html&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    route idRoute</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    compile <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>      _ <span class="ot">&lt;-</span> load <span class="st">&quot;Files.hs&quot;</span><span class="ot"> ::</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> ())</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> filesContext <span class="ot">=</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        …</span></code></pre></div>
+<p>And that’s all there is to it!</p>]]></summary>
+</entry>
+<entry>
     <title>Type-level programming for safer resource management</title>
     <link href="https://frasertweedale.github.io/blog-fp/posts/2025-07-19-type-nats-and-constraints.html" />
     <id>https://frasertweedale.github.io/blog-fp/posts/2025-07-19-type-nats-and-constraints.html</id>
@@ -1898,180 +2009,6 @@ that you don’t get automatic shrinking, and you are restricted to
 whatever values the generator produces.</p>
 <p>Alternative approaches include exposing the constructor via an
 “internal” (but actually public) module, or using <code>unsafeCoerce</code>.</p>]]></summary>
-</entry>
-<entry>
-    <title>Hakyll how-to: pages without source files</title>
-    <link href="https://frasertweedale.github.io/blog-fp/posts/2021-07-26-hakyll-without-sources.html" />
-    <id>https://frasertweedale.github.io/blog-fp/posts/2021-07-26-hakyll-without-sources.html</id>
-    <published>2021-07-26T00:00:00Z</published>
-    <updated>2021-07-26T00:00:00Z</updated>
-    <summary type="html"><![CDATA[<h1 id="hakyll-how-to-pages-without-source-files">Hakyll how-to: pages without source files</h1>
-<p><a href="https://jaspervdj.be/hakyll/">Hakyll</a> is a static website builder. The typical use case is to
-take some files written in lightweight markup and compile them into
-static HTML. Besides the sources for the main content, there are
-also HTML templates, CSS, perhaps some JavaScript, images and so on.</p>
-<p>But perhaps you need to build a site from sources other than local
-files. Possible scenarios include:</p>
-<ul>
-<li>Crawl and mirror another site</li>
-<li>Generate and publish calendars files for a conference</li>
-<li>Create a directory of content from some other source</li>
-</ul>
-<p>As a static site builder, Hakyll can be a good choice for publishing
-data that change infrequently. <span class="abstract">In this post I demonstrate how to
-generate Hakyll site content without corresponding source
-files.</span></p>
-<h2 id="use-case-web-key-directory">Use case: Web Key Directory <a href="#use-case-web-key-directory" class="section">§</a></h2>
-<p>My use case was to generate a <a href="https://wiki.gnupg.org/WKD"><em>Web Key Directory (WKD)</em></a> for
-my personal OpenPGP keys. OpenPGP clients can use WKD for key
-discovery. WKD is an alternative to the older keyserver system, which
-<a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">has some problems</a>. It works as follows:</p>
-<ol type="1">
-<li><p>The client seeks a key for identity <code>Joe.Doe@example.org</code>.</p></li>
-<li><p>Lower-case, digest (SHA-1) and <a href="https://philzimmermann.com/docs/human-oriented-base-32-encoding.txt">z-base-32</a> encode the address
-local part (<code>Joe.Doe</code> → <code>iy9q119eutrkn8s1mk4r39qejnbu3n5q</code>).</p></li>
-<li><p>The client performs HTTP GET request for:</p>
-<pre><code>https://openpgpkey.example.org
-  /.well-known/openpgpkey/example.org
-  /hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe</code></pre>
-<p>This is called the <em>advanced method</em>.</p></li>
-<li><p>The server responds with the binary encoding of the key (or a
-<code>404</code>).</p></li>
-<li><p>As a fallback, the client tries:</p>
-<pre><code>https://example.org
-  /.well-known/openpgpkey
-  /hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe</code></pre>
-<p>This is called the <em>direct method</em>.</p></li>
-</ol>
-<p>Observe that, up to case-sensitivity of the email local part, the
-server does not necessarily need to use the <code>?l=Joe.Doe</code> query
-parameter. If the local part is case-<strong><em>in</em></strong>sensitive (it usually is)
-then the digest, which is part of the URI path, is enough.
-Therefore an HTTP server serving static files can be a functional
-WKD server. You just need to build the directory.</p>
-<div class="note">
-<p>The <em>advanced method</em> has several advantages over the <em>direct
-method</em>. Users or organisations with multiple domains can maintain
-a single unified WKD, or delegate to an external service. The
-advanced method does not interfere with existing sites. On the down
-side, the <code>openpgpkey</code> DNS subdomain must be configured for each
-domain. The TLS requirement is hardly a disadvantage, because of
-<a href="https://en.wikipedia.org/wiki/Automated_Certificate_Management_Environment">ACME</a>.</p>
-</div>
-<h2 id="building-a-web-key-directory-with-hakyll">Building a Web Key Directory with Hakyll <a href="#building-a-web-key-directory-with-hakyll" class="section">§</a></h2>
-<h3 id="reading-keys-from-gnupg">Reading keys from GnuPG <a href="#reading-keys-from-gnupg" class="section">§</a></h3>
-<p><a href="https://gnupg.org/">GnuPG</a> is my OpenPGP client. My Hakyll program invokes <code>gpg</code> to
-list and extract keys. Here are the types of the functions involved
-(I will not detail their implementations):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">KeyId</span> <span class="ot">=</span> <span class="dt">String</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Uid</span> <span class="ot">=</span> (<span class="dt">String</span>, <span class="dt">String</span>) <span class="co">-- ^ local-part, domain</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ot">listKeys ::</span> <span class="dt">IO</span> (<span class="dt">L8.ByteString</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ot">exportKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L8.ByteString</span>)</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ot">hashLocalPart ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">String</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ot">extractUserIds ::</span> <span class="dt">L8.ByteString</span> <span class="ot">-&gt;</span> [<span class="dt">Uid</span>]</span></code></pre></div>
-<div class="note">
-<p>I used the <a href="https://hackage.haskell.org/package/typed-process"><em>typed-process</em></a> package to
-execute GnuPG. The <code>--with-colons</code> option is helpful for inspecting
-keys and their user IDs. You can use an <code>--export-filter</code> to select
-the user ID(s) to export. The man pages and <a href="https://github.com/gpg/gnupg/blob/master/doc/DETAILS"><code>DETAILS</code></a>
-file contain all the information you need for programmatic
-interaction with GnuPG.</p>
-</div>
-<h3 id="creating-resources">Creating resources <a href="#creating-resources" class="section">§</a></h3>
-<p>Hakyll sites use <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:match"><code>match</code></a> to generate compilation rules
-for local resources. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>match <span class="st">&quot;posts/*.md&quot;</span> <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  route <span class="op">$</span> setExtension <span class="st">&quot;html&quot;</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  compile pandocCompiler</span></code></pre></div>
-<p>But there are no local files to <code>match</code>. Instead, we use
-<a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:create"><code>create</code></a> to declare new resources. These resources can be
-routed to like any other, but we must synthesise the content. The
-following function, given a key ID and an email address, exports the
-key from GnuPG and establishes the route.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">wkdUid ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Uid</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>wkdUid keyId uid<span class="op">@</span>(localPart, domain) <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> path <span class="ot">=</span> <span class="st">&quot;.well-known/openpgpkey/&quot;</span> <span class="op">&lt;&gt;</span> domain <span class="op">&lt;&gt;</span> <span class="st">&quot;/hu/&quot;</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>             <span class="op">&lt;&gt;</span> hashLocalPart localPart</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  create [fromFilePath path] <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    route <span class="op">$</span> idRoute</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    compile <span class="op">$</span> exportKey keyId uid</span></code></pre></div>
-<p><code>create</code> is applied to a list of resource identifiers, and a <code>Rules ()</code> for compiling and routing the resource. I am not showing the
-implementation of <code>exportKey</code>; it’s enough to know that it uses
-<code>IO</code>. Hakyll provides <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Compiler.html#v:unsafeCompiler"><code class="sourceCode haskell"><span class="ot">unsafeCompiler ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Compiler</span> a</code></a> for executing I/O actions in compiler
-context.</p>
-<p><code>wkdUid</code> creates the key resource for a single user ID. A key can
-have multiple user IDs. <code>wkUIDs on a specified KeydKey</code> creates the
-Hakyll <code>Rules ()</code> for all user IDs on a given key:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">wkdKey ::</span> <span class="dt">KeyId</span> <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>wkdKey keyId <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  out <span class="ot">&lt;-</span> preprocess listKeys</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> uids <span class="ot">=</span> extractUserIds out</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  traverse_ (wkdUid keyId) uids</span></code></pre></div>
-<p><code class="sourceCode haskell"><span class="ot">preprocess ::</span> <span class="dt">IO</span> a <span class="ot">-&gt;</span> <span class="dt">Rules</span> a</code> embeds an I/O action in
-the <code>Rules</code> context. Hakyll executes the action eagerly, unlike
-<code>unsafeCompiler</code> which is run on demand. This makes sense—we need
-to <code>listKeys</code> first to work out what resources to create.</p>
-<p>Having extracted the user IDs, we <code>traverse_</code> them to create the WKD
-resources. We also use <code>traverse_</code> at the outmost layer of the
-program to invoke <code>wkdKey</code> for each key ID given on standard input:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  keys <span class="ot">&lt;-</span> <span class="fu">words</span> <span class="op">&lt;$&gt;</span> <span class="fu">getContents</span> <span class="co">-- read stdin</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  hakyll <span class="op">$</span> traverse_ wkdKey keys</span></code></pre></div>
-<h2 id="how-hakyll-compiling-works">How Hakyll compiling works <a href="#how-hakyll-compiling-works" class="section">§</a></h2>
-<p>Let’s dive a bit deeper into how compiling works. The
-<a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Rules.html#v:compile"><code>compile</code></a> function adds a content compiler to the <code>Rules</code>
-for resources. It’s type is:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>compile</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    ::</span> (<span class="dt">Binary</span> a, <span class="dt">Typeable</span> a, <span class="dt">Writable</span> a)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> a)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Rules</span> ()</span></code></pre></div>
-<p>The compiler argument has to return an <code>Item a</code>, where <code>a</code> has
-several type class constraints. <code>Binary</code> and <code>Typeable</code> are used by
-Hakyll’s caching mechanism. <a href="https://hackage.haskell.org/package/hakyll-4.14.0.0/docs/Hakyll-Core-Writable.html#t:Writable"><code>Writable</code></a> is what Hakyll
-uses to write the compiled resource to the site output. There are
-several instances, including for <code>String</code>, <code>ByteString</code> (lazy and
-strict), and <code>Html</code>. Hakyll provides <code>makeItem :: a -&gt; Compiler (Item a)</code> for returning an <code>Item a</code>.</p>
-<p>As an example, here is a compiler that executes a subprocess and
-returns the standard output:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>processCompiler</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> [<span class="dt">String</span>] <span class="ot">-&gt;</span> <span class="dt">Compiler</span> (<span class="dt">Item</span> <span class="dt">L.ByteString</span>)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>processCompiler exe args <span class="ot">=</span> <span class="kw">do</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  (_status, out, _err) <span class="ot">&lt;-</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    unsafeCompiler <span class="op">.</span> readProcess <span class="op">$</span> proc exe args</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  makeItem out</span></code></pre></div>
-<h2 id="conclusion">Conclusion <a href="#conclusion" class="section">§</a></h2>
-<p>I have demonstrated how to use Hakyll to create content derived not
-from local files, but other sources (GnuPG in my case). Is this
-actually a good idea? For one-shot applications and data that don’t
-change frequently, I think it is fine. Hakyll takes care of all the
-filesystem I/O, relieving me of some tedium and avoiding a possible
-source of bugs.</p>
-<p>For my WKD use case, I can rebuild the site when my keys have been
-updated, then <code>rsync</code> it to my web server. The program is well
-under 100 lines of code—including imports! Source code is
-<a href="https://github.com/frasertweedale/hakyll-wkd">available on GitHub</a>
-under AGPLv3. At time of writing I have not published it on
-Hackage.</p>
-<div class="note">
-<p>Because there are no local file dependencies for the resources,
-Hakyll does not know to recompile it. You have to <strong><code>rebuild</code></strong>
-every time. This may be a practical issue for some use cases,
-though not for mine.</p>
-</div>
-<p>In general, it would be useful to be able to specify arbitrary
-freshness checks for resources. Unfortunately Hakyll’s
-implementation does not readily admit such a feature. But it was
-straightforward to add <em>unconditional</em> rebuilding on a per-resource
-basis. I submitted a <a href="https://github.com/jaspervdj/hakyll/pull/857">pull request</a> to add the <code>forceCompile</code>
-helper function. Example usage:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- compile this resource every time</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>forceCompile <span class="op">$</span> create [<span class="st">&quot;foo&quot;</span>] <span class="op">$</span> <span class="kw">do</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  route <span class="op">$</span> idRoute</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  compile <span class="op">$</span> unsafeCompiler <span class="op">$</span> doStuff</span></code></pre></div>
-<p>This feature was accepted and will appear in a future release of
-Hakyll.</p>]]></summary>
 </entry>
 
 </feed>
